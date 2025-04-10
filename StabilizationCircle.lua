@@ -20,7 +20,7 @@ rho_a 	= util.GetParamNumber("-rho_a", 1.2, "Air Density")
 rho_s 	= util.GetParamNumber("-rho_s", 1000, "Sand Density")
 dp 	= util.GetParamNumber("-diameter", 0.5e-03, "Particle Diameter")
 inflow		= util.GetParamNumber("-inflow", 10.0, "max. inflow velocity")
-c_init		= util.GetParamNumber("-initial concentration", 1.0, "max volume fraction")
+c_init		= util.GetParamNumber("-initial concentration", 0.0, "max volume fraction")
 
 
 alpha_max		= util.GetParamNumber("-max_concentration", 0.6, "max volume fraction")
@@ -570,7 +570,7 @@ Interpolate("InitialValue_FractionVolume", u, "c")
 OrderLex (approxSpace,  "x")
 --OrderCuthillMcKee(approxSpace,true)
 
-numTimeSteps = 2
+numTimeSteps = 10
 DC_init = (1.0-c_init)/numTimeSteps
 C_0=c_init
 for NN = 0, numTimeSteps do 
