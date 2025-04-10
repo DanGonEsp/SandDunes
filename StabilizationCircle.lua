@@ -17,10 +17,10 @@ geometry	= util.GetParam ("-geom", "Dune2D_tri_5")
 nu_a 	= util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity")
 nu_s 	= util.GetParamNumber("-visc_s", 1.48e-03, "kinematic viscosity")
 rho_a 	= util.GetParamNumber("-rho_a", 1.2, "Air Density")
-rho_s 	= util.GetParamNumber("-rho_s", 1.2/0.599, "Sand Density")
+rho_s 	= util.GetParamNumber("-rho_s", 1000, "Sand Density")
 dp 	= util.GetParamNumber("-diameter", 0.5e-03, "Particle Diameter")
 inflow		= util.GetParamNumber("-inflow", 10.0, "max. inflow velocity")
-c_init		= util.GetParamNumber("-initial concentration", 0.00, "max volume fraction")
+c_init		= util.GetParamNumber("-initial concentration", 1.0, "max volume fraction")
 
 
 alpha_max		= util.GetParamNumber("-max_concentration", 0.6, "max volume fraction")
@@ -388,8 +388,8 @@ InletDisc = NavierStokesInflow (NavierStokesDisc)
 InletDisc:add ("inflowVel2d", "Left")
 
 
-SymDiscTop=NavierStokesSymBCFV1(NavierStokesDisc)
-SymDiscTop:add("Top")
+--SymDiscTop=NavierStokesSymBCFV1(NavierStokesDisc)
+--SymDiscTop:add("Top")
 --SlipDiscTop=NavierStokesWSBCFV1(NavierStokesDisc)
 --SlipDiscTop:add("Top")
 --SlipDiscTop:set_sliding_factor(0.0000001)
@@ -570,7 +570,7 @@ Interpolate("InitialValue_FractionVolume", u, "c")
 OrderLex (approxSpace,  "x")
 --OrderCuthillMcKee(approxSpace,true)
 
-numTimeSteps = 1
+numTimeSteps = 2
 DC_init = (1.0-c_init)/numTimeSteps
 C_0=c_init
 for NN = 0, numTimeSteps do 

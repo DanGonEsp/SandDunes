@@ -52,7 +52,7 @@ if (jumpPressure) then
 	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
 else
 	file_name ="NoPressureStationary2"
-	stab        = util.GetParam("-stab", "flow", "Stabilization type (fields or flow viscosity or karimian)")
+	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
 end
 
 -- Parameters of the solver
