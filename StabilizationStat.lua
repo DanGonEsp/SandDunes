@@ -15,12 +15,12 @@ ug_load_script ("util/load_balancing_util.lua")
 dim 		= util.GetParamNumber("-dim", 2, "dimensionality of the problem")
 geometry	= util.GetParam ("-geom", "Dune2D_tri_5")
 nu_a 	= util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity")
-nu_s 	= util.GetParamNumber("-visc_s", 1.48e-03, "kinematic viscosity")
+nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
 rho_a 	= util.GetParamNumber("-rho_a", 1.2, "Air Density")
-rho_s 	= util.GetParamNumber("-rho_s", 1000, "Sand Density")
+rho_s 	= util.GetParamNumber("-rho_s", 2000, "Sand Density")
 dp 	= util.GetParamNumber("-diameter", 0.5e-03, "Particle Diameter")
 inflow		= util.GetParamNumber("-inflow", 5, "max. inflow velocity")
-c_init		= util.GetParamNumber("-initial concentration", 0.1, "max volume fraction")
+c_init		= util.GetParamNumber("-initial concentration", 1.0, "max volume fraction")
 
 
 alpha_max		= util.GetParamNumber("-max_concentration", 0.6, "max volume fraction")
@@ -29,23 +29,23 @@ alpha_min		= util.GetParamNumber("-min concentration", 0.5, "max volume fraction
 viscosity_model		= util.GetParamNumber("-granular_model", 2, "Options:  0 Constant, 1 Proportional, 2 Einstein model, 3 Rheology(I), 4 Rheology(I) + Einstein model")
 density_model  = util.GetParam("-density_model", "linear", "constant, linear")
 interface_value  = util.GetParamNumber("-interface_value", -0.5, "interface value")
-bStokes 	= util.GetParamNumber("-Stokes", false ,"If defined, only Stokes Eq. computed")
+bStokes 	= util.GetParamNumber("-Stokes", true ,"If defined, only Stokes Eq. computed")
 
 granular_pressure = true
 jumpPressure = false
 -- Numerical parameters
-harmonic=true
+harmonic=false
 interface_harmonic=false
 
 -- Numerical parameters of the discretization
 numRefs 	= util.GetParamNumber("-numRefs", 2, "number of grid refinements")
-numPreRefs 	= util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)")
+numPreRefs 	= util.GetParamNumber("-numPreRefs", 2, "number of prerefinements (parallel)")
 bNoLaplace 	= util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
 bExactJac 	= util.GetParamNumber("-exactJac", false,"If defined, exact jacobian used")
-bPecletBlend= util.GetParamNumber("-PecletBlend", true,"If defined, Peclet Blend used")
+bPecletBlend= util.GetParamNumber("-PecletBlend", false,"If defined, Peclet Blend used")
 upwind      = util.GetParam("-upwind", "full", "Upwind type full or lps")
 bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
-diffLength  = util.GetParam("-difflength", "raw", "fivepoint, raw, corDiffusion length type")
+diffLength  = util.GetParam("-difflength", "cor", "fivepoint, raw, corDiffusion length type")
 
 if (jumpPressure) then
 	file_name ="PressureStationary"
@@ -56,7 +56,7 @@ else
 end
 
 -- Parameters of the solver
-ilu_beta	= util.GetParamNumber("-iluBeta", -0.00001, "choose a negative value depending on the convection rate")
+ilu_beta	= util.GetParamNumber("-iluBeta", -0.1, "choose a negative value depending on the convection rate")
 linIter = util.GetParamNumber("-linIter", 2000, "Max number of linear iterations")
 -- Grid file name
 gridName = geometry .. ".ugx"
@@ -155,7 +155,7 @@ sigma2=sigma
 d=1.2*math.pow(1/2,numRefs-1)
 ss=1.0
 k1=0.05 
-k2=0.02 
+k2=0.05 
 ---------------------------------------------------------------------- Initial DuneShape
 function Dune(x) 
 	if (x< mu_c1) then
@@ -421,7 +421,7 @@ end
 
 InletDisc = NavierStokesInflow (NavierStokesDisc)
 --InletDisc:add ("inflowVel3d", "Inlet")
-InletDisc:add ("inflowVel2d", "Left")
+InletDisc:add ("inflowVel2d", "Left,Top")
 
 
 SymDiscTop=NavierStokesSymBCFV1(NavierStokesDisc)
@@ -509,7 +509,7 @@ domainDisc:add (NavierStokesDisc)
 domainDisc:add (InletDisc)
 domainDisc:add (OutletDisc)
 domainDisc:add (WallDisc)
-domainDisc:add (SymDiscTop)
+--domainDisc:add (SymDiscTop)
 --domainDisc:add(FixPressureDisc)
 --domainDisc:add (SlipDiscTop)
 
@@ -548,7 +548,7 @@ solverDesc =
 			{
 				type = "ilu",
 				beta = ilu_beta,
-				--damping 	= 0.9,
+				damping 	= 0.99,
 				--sort	= false,
 				--sortEps 	= 1.e-50,
 				inversionEps 	= 1.e-24,
@@ -583,8 +583,8 @@ solverDesc =
 	{
 		type		= "standard",
 		iterations	= 200,
-		absolute	= 5e-05,
-		reduction	= 1e-8,
+		absolute	= 1e-10,
+		reduction	= 1e-12,
 		verbose		= true
 	}
 }
