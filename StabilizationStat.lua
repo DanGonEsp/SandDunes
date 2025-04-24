@@ -14,32 +14,36 @@ ug_load_script ("util/load_balancing_util.lua")
 -- Physical parameters
 dim 		= util.GetParamNumber("-dim", 2, "dimensionality of the problem")
 geometry	= util.GetParam ("-geom", "Dune2D_tri_5")
+
+
 nu_a 	= util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity")
-nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
+
 rho_a 	= util.GetParamNumber("-rho_a", 1.2, "Air Density")
-rho_s 	= util.GetParamNumber("-rho_s", 2000, "Sand Density")
-dp 	= util.GetParamNumber("-diameter", 0.5e-03, "Particle Diameter")
+
+rho_s 	= util.GetParamNumber("-rho_s", 2400, "Sand Density")
+dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
+nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
+
 inflow		= util.GetParamNumber("-inflow", 5, "max. inflow velocity")
 c_init		= util.GetParamNumber("-initial concentration", 1.0, "max volume fraction")
 
 
-alpha_max		= util.GetParamNumber("-max_concentration", 0.6, "max volume fraction")
-packing_factor		= util.GetParamNumber("-packing_factor", 0.599, "max volume fraction")
-alpha_min		= util.GetParamNumber("-min concentration", 0.5, "max volume fraction")
-viscosity_model		= util.GetParamNumber("-granular_model", 2, "Options:  0 Constant, 1 Proportional, 2 Einstein model, 3 Rheology(I), 4 Rheology(I) + Einstein model")
+alpha_max		= util.GetParamNumber("-max_concentration", 0.635, "max volume fraction")
+packing_factor		= util.GetParamNumber("-packing_factor", 0.63, "max volume fraction")
+alpha_min		= util.GetParamNumber("-min concentration", 0.57, "max volume fraction")
+viscosity_model		= util.GetParamNumber("-granular_model", 3, "Options:  0 Constant, 1 Proportional, 2 Einstein model, 3 Rheology(I) + Einstein model")
 density_model  = util.GetParam("-density_model", "linear", "constant, linear")
-interface_value  = util.GetParamNumber("-interface_value", -0.5, "interface value")
+interface_value  = util.GetParamNumber("-interface_value", 0.7, "interface value")
 bStokes 	= util.GetParamNumber("-Stokes", true ,"If defined, only Stokes Eq. computed")
 
 granular_pressure = true
 jumpPressure = false
 -- Numerical parameters
-harmonic=false
-interface_harmonic=false
+
 
 -- Numerical parameters of the discretization
 numRefs 	= util.GetParamNumber("-numRefs", 2, "number of grid refinements")
-numPreRefs 	= util.GetParamNumber("-numPreRefs", 2, "number of prerefinements (parallel)")
+numPreRefs 	= util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)")
 bNoLaplace 	= util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
 bExactJac 	= util.GetParamNumber("-exactJac", false,"If defined, exact jacobian used")
 bPecletBlend= util.GetParamNumber("-PecletBlend", false,"If defined, Peclet Blend used")
@@ -51,12 +55,12 @@ if (jumpPressure) then
 	file_name ="PressureStationary"
 	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
 else
-	file_name ="NoPressureStationary2"
+	file_name ="NoPressureStationary3"
 	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
 end
 
 -- Parameters of the solver
-ilu_beta	= util.GetParamNumber("-iluBeta", -0.1, "choose a negative value depending on the convection rate")
+ilu_beta	= util.GetParamNumber("-iluBeta", -0.05, "choose a negative value depending on the convection rate")
 linIter = util.GetParamNumber("-linIter", 2000, "Max number of linear iterations")
 -- Grid file name
 gridName = geometry .. ".ugx"
@@ -292,20 +296,21 @@ end
 function VolumeFraction2(x,y)
 	dd=dist(x,y)
 	ds=20*dx
-	k=0.5/dx
+	kk1=1.0/dx
+	kk2=1.0/dx
 	
 	if y>Dune(x,y) then
 		if dd<ds then
 			dd=-dd
 			k=k
-			return c_init / (1.0 + math.exp(-k*dd))
+			return c_init / (1.0 + math.exp(-kk1*dd))
 		else
 			return 0.0
 		end
 	else
 		if dd<ds then
 			k=k
-			return c_init / (1.0 + math.exp(-k*dd))
+			return c_init / (1.0 + math.exp(-kk2*dd))
 		else
 			return c_init 
 		end
@@ -345,20 +350,21 @@ end
 
 function BottomFlux(x,y) return 0 end
 
----------------------------------------------------------------------- Density
+---------------------------------------------------------------------- VolFraction
+VolFraction = GridFunctionNumberData(u, "c");
 
+---------------------------------------------------------------------- Density
 
 Density = GranularDensityLinker(); 
 Density:set_fluid_density(rho_a)
 Density:set_particle_density(rho_s*packing_factor)
-Density:set_harmonic_value(harmonic)
-Density:set_surface_value(interface_harmonic)
 Density:set_model(density_model)
 Density:set_interface_volume_fraction(interface_value)
 ---------------------------------------------------------------------- Viscosity
 
 
 Visc = GranularViscosityLinker(); 
+
 Visc:set_granular_model(viscosity_model)
 Visc:set_particle_diameter(dp)
 Visc:set_particle_density(rho_s)
@@ -369,10 +375,8 @@ Visc:set_alpha_max(alpha_max)
 Visc:set_alpha_min(alpha_min)
 Visc:set_packing_factor(packing_factor)
 Visc:set_mix_density(Density)
-Visc:set_harmonic_value(harmonic)
-Visc:set_surface_value(interface_harmonic)
-Visc:set_interface_volume_fraction(interface_value)
-Visc:set_limit(1e+02)
+Visc:set_interface_volume_fraction(-1000000)
+Visc:set_limit(1e-02)
 
 
 PjumpShape= JumpShapeLinker()
@@ -381,6 +385,8 @@ PjumpShape:set_interface_volume_fraction(interface_value)
 
 normal = InterfaceNormalLinker()
 normal:set_interface_volume_fraction(interface_value)
+
+
 
 
 Ps = ParticlePressureLinker(); 
@@ -411,13 +417,11 @@ NavierStokesDisc:set_stabilization (stab, diffLength)
 NavierStokesDisc:set_pac_upwind (bPac)
 
 if (jumpPressure) then
-	VolFraction = GridFunctionNumberData(u, "c");
 	NavierStokesDisc:set_jump_shape(PjumpShape,diffLength)
 	NavierStokesDisc:set_interface_normal(normal)
 	NavierStokesDisc:set_vol_fraction(VolFraction)
-	NavierStokesDisc:set_interface_value(interface_value)
 end
-
+NavierStokesDisc:set_interface_value(interface_value)
 
 InletDisc = NavierStokesInflow (NavierStokesDisc)
 --InletDisc:add ("inflowVel3d", "Inlet")
@@ -481,24 +485,27 @@ print("Transport Equation created.")
 -- Viscosity, Density and Gravitation Input
 ---------------------------------------------------------------------------------------
 
+Density:set_volume_fraction(TransportEq:value())
 
 Visc:set_volume_fraction(TransportEq:value())
 Visc:set_velocity_gradient(NavierStokesDisc:velocity_grad())
+
+
+PjumpShape:set_volume_fraction(TransportEq:value())
+
+Ps:set_volume_fraction(TransportEq:value())
+
 if (granular_pressure) then
 	Visc:set_particle_pressure(Ps)
-	Ps:set_volume_fraction(TransportEq:value())
 	Ps:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 else
 	Visc:set_particle_pressure(NavierStokesDisc:pressure())
 end
 
-Density:set_volume_fraction(TransportEq:value())
-
-
 normal:set_volume_fraction(TransportEq:value())
 normal:set_volume_grad(TransportEq:gradient())
 
-PjumpShape:set_volume_fraction(TransportEq:value())
+
 
 
 
@@ -548,15 +555,15 @@ solverDesc =
 			{
 				type = "ilu",
 				beta = ilu_beta,
-				damping 	= 0.99,
+				damping 	= 0.5,
 				--sort	= false,
 				--sortEps 	= 1.e-50,
-				inversionEps 	= 1.e-24,
+				inversionEps 	= 1.e-8,
 				consistentInterfaces   = true
 				--overlap 		= false,
 				--ordering 		= nil
 			},
-			preSmooth = 1,
+			preSmooth = 3,
 			postSmooth = 1,
 			baseSolver = "lu",
 			baseLevel = numPreRefs
@@ -566,15 +573,15 @@ solverDesc =
 			type		= "standard",
 			iterations	= linIter,
 			absolute	= 1e-12,
-			reduction	= 0.5e-8,
+			reduction	= 1e-1,
 			verbose		= true
 		}
 	},
 	lineSearch =
 	{
 		type			= "standard",
-		maxSteps		=7,
-		lambdaStart		= 2.0,
+		maxSteps		=5,
+		lambdaStart		= 1.0,
 		lambdaReduce	= 0.5,
 		acceptBest 		= true,
 		checkAll		= false
@@ -618,6 +625,8 @@ out:select_nodal ("p", "p")
 out:select_nodal ("c", "c")
 out:select(Density, "Rho")
 out:select(Visc, "Mu")
+out:select(Ps, "Ps")
+
 out:print_subsets ("Test", u, "Inner,Left,Right,Top,Bottom")
 
 
@@ -647,6 +656,7 @@ out:select_nodal ("p", "p")
 out:select_nodal ("c", "c")
 out:select(Density, "Rho")
 out:select(Visc, "Mu")
+out:select(Ps, "Ps")
 
 
 
