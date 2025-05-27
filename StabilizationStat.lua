@@ -17,12 +17,12 @@ geometry	= util.GetParam ("-geom", "Dune2D_tri_5")
 
 
 nu_a 	= util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity")
-
 rho_a 	= util.GetParamNumber("-rho_a", 1.2, "Air Density")
 
 rho_s 	= util.GetParamNumber("-rho_s", 2400, "Sand Density")
-dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
 nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
+dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
+
 
 inflow		= util.GetParamNumber("-inflow", 5, "max. inflow velocity")
 c_init		= util.GetParamNumber("-initial concentration", 1.0, "max volume fraction")
@@ -33,7 +33,7 @@ packing_factor		= util.GetParamNumber("-packing_factor", 0.63, "max volume fract
 alpha_min		= util.GetParamNumber("-min concentration", 0.57, "max volume fraction")
 viscosity_model		= util.GetParamNumber("-granular_model", 3, "Options:  0 Constant, 1 Proportional, 2 Einstein model, 3 Rheology(I) + Einstein model")
 density_model  = util.GetParam("-density_model", "linear", "constant, linear")
-interface_value  = util.GetParamNumber("-interface_value", 0.7, "interface value")
+interface_value  = util.GetParamNumber("-interface_value", 0.5, "interface value")
 bStokes 	= util.GetParamNumber("-Stokes", true ,"If defined, only Stokes Eq. computed")
 
 granular_pressure = true
@@ -42,8 +42,8 @@ jumpPressure = false
 
 
 -- Numerical parameters of the discretization
-numRefs 	= util.GetParamNumber("-numRefs", 2, "number of grid refinements")
-numPreRefs 	= util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)")
+numRefs 	= util.GetParamNumber("-numRefs", 3, "number of grid refinements")
+numPreRefs 	= util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)")
 bNoLaplace 	= util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
 bExactJac 	= util.GetParamNumber("-exactJac", false,"If defined, exact jacobian used")
 bPecletBlend= util.GetParamNumber("-PecletBlend", false,"If defined, Peclet Blend used")
@@ -60,7 +60,7 @@ else
 end
 
 -- Parameters of the solver
-ilu_beta	= util.GetParamNumber("-iluBeta", -0.05, "choose a negative value depending on the convection rate")
+ilu_beta	= util.GetParamNumber("-iluBeta", -0.01, "choose a negative value depending on the convection rate")
 linIter = util.GetParamNumber("-linIter", 2000, "Max number of linear iterations")
 -- Grid file name
 gridName = geometry .. ".ugx"
@@ -296,8 +296,8 @@ end
 function VolumeFraction2(x,y)
 	dd=dist(x,y)
 	ds=20*dx
-	kk1=1.0/dx
-	kk2=1.0/dx
+	kk1=400
+	kk2=400
 	
 	if y>Dune(x,y) then
 		if dd<ds then
@@ -375,7 +375,7 @@ Visc:set_alpha_max(alpha_max)
 Visc:set_alpha_min(alpha_min)
 Visc:set_packing_factor(packing_factor)
 Visc:set_mix_density(Density)
-Visc:set_interface_volume_fraction(-1000000)
+Visc:set_interface_volume_fraction(interface_value)
 Visc:set_limit(1e-02)
 
 
@@ -396,6 +396,8 @@ Ps:set_fluid_Visc(nu_a*rho_a)
 Ps:set_alpha_max(alpha_max)
 Ps:set_alpha_min(alpha_min)
 Ps:set_packing_factor(packing_factor)
+Ps:set_mix_density(Density)
+Ps:set_gravity(-9.81)
 
 ------------------------------------------------------------------------------------------
 -- Compose the discretization
@@ -415,12 +417,6 @@ NavierStokesDisc:set_upwind (upwind)
 NavierStokesDisc:set_peclet_blend (bPecletBlend)
 NavierStokesDisc:set_stabilization (stab, diffLength)
 NavierStokesDisc:set_pac_upwind (bPac)
-
-if (jumpPressure) then
-	NavierStokesDisc:set_jump_shape(PjumpShape,diffLength)
-	NavierStokesDisc:set_interface_normal(normal)
-	NavierStokesDisc:set_vol_fraction(VolFraction)
-end
 NavierStokesDisc:set_interface_value(interface_value)
 
 InletDisc = NavierStokesInflow (NavierStokesDisc)
@@ -502,6 +498,12 @@ else
 	Visc:set_particle_pressure(NavierStokesDisc:pressure())
 end
 
+if (jumpPressure) then
+	NavierStokesDisc:set_jump_shape(PjumpShape,diffLength)
+	NavierStokesDisc:set_interface_normal(normal)
+	NavierStokesDisc:set_vol_fraction(VolFraction)
+end
+
 normal:set_volume_fraction(TransportEq:value())
 normal:set_volume_grad(TransportEq:gradient())
 
@@ -550,12 +552,12 @@ solverDesc =
 		precond =
 		{
 			type = "gmg",
-			rap = false,
+			rap = true,
 			smoother =
 			{
 				type = "ilu",
 				beta = ilu_beta,
-				damping 	= 0.5,
+				damping 	= 0.9,
 				--sort	= false,
 				--sortEps 	= 1.e-50,
 				inversionEps 	= 1.e-8,
@@ -563,7 +565,7 @@ solverDesc =
 				--overlap 		= false,
 				--ordering 		= nil
 			},
-			preSmooth = 3,
+			preSmooth = 1,
 			postSmooth = 1,
 			baseSolver = "lu",
 			baseLevel = numPreRefs
@@ -580,7 +582,7 @@ solverDesc =
 	lineSearch =
 	{
 		type			= "standard",
-		maxSteps		=5,
+		maxSteps		=3,
 		lambdaStart		= 1.0,
 		lambdaReduce	= 0.5,
 		acceptBest 		= true,
@@ -590,7 +592,7 @@ solverDesc =
 	{
 		type		= "standard",
 		iterations	= 200,
-		absolute	= 1e-10,
+		absolute	= 1e-5,
 		reduction	= 1e-12,
 		verbose		= true
 	}
