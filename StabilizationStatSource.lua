@@ -17,13 +17,10 @@ geometry	= util.GetParam ("-geom", "Dune2D_tri_5")
 
 
 nu_a 	= util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity")
-
 rho_a 	= util.GetParamNumber("-rho_a", 1.2, "Air Density")
-
 rho_s 	= util.GetParamNumber("-rho_s", 2400, "Sand Density")
 dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
 nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
-
 inflow		= util.GetParamNumber("-inflow", 5, "max. inflow velocity")
 c_init		= util.GetParamNumber("-initial concentration", 1.0, "max volume fraction")
 
@@ -36,7 +33,6 @@ density_model  = util.GetParam("-density_model", "linear", "constant, linear")
 interface_value  = util.GetParamNumber("-interface_value", 0.7, "interface value")
 bStokes 	= util.GetParamNumber("-Stokes", true ,"If defined, only Stokes Eq. computed")
 
-granular_pressure = true
 jumpPressure = false
 -- Numerical parameters
 
@@ -66,9 +62,8 @@ linIter = util.GetParamNumber("-linIter", 2000, "Max number of linear iterations
 gridName = geometry .. ".ugx"
 
 -- Subsets used in the problem
---allSubsets = "Inner,Inlet, Outlet,TopWall, BottomWall, RightWall, Dune,Dune1"
 allSubsets = "Inner,Left, Right,Top, Bottom"
---allSubsets = "Inner," .. walls .. ", Inlet, Outlet"
+
 
 print (" Geometry: " .. geometry .. " (file " .. gridName .. "), dim = " .. dim)
 print (" Physical parameter:")
@@ -397,6 +392,9 @@ Ps:set_alpha_max(alpha_max)
 Ps:set_alpha_min(alpha_min)
 Ps:set_packing_factor(packing_factor)
 
+Gravity = ConstUserVector(0.0)
+Gravity:set_entry(1, -9.81)
+
 ------------------------------------------------------------------------------------------
 -- Compose the discretization
 ------------------------------------------------------------------------------------------
@@ -409,6 +407,7 @@ NavierStokesDisc:set_stokes (bStokes)
 NavierStokesDisc:set_laplace ( bNoLaplace)
 NavierStokesDisc:set_kinematic_viscosity (Visc)
 NavierStokesDisc:set_density(Density)
+NavierStokesDisc:set_source(Gravity)
 
 
 NavierStokesDisc:set_upwind (upwind)
@@ -495,12 +494,10 @@ PjumpShape:set_volume_fraction(TransportEq:value())
 
 Ps:set_volume_fraction(TransportEq:value())
 
-if (granular_pressure) then
-	Visc:set_particle_pressure(Ps)
-	Ps:set_velocity_gradient(NavierStokesDisc:velocity_grad())
-else
-	Visc:set_particle_pressure(NavierStokesDisc:pressure())
-end
+
+Visc:set_particle_pressure(Ps)
+Ps:set_velocity_gradient(NavierStokesDisc:velocity_grad())
+
 
 normal:set_volume_fraction(TransportEq:value())
 normal:set_volume_grad(TransportEq:gradient())

@@ -17,10 +17,10 @@ geometry	= util.GetParam ("-geom", "Dune2D_tri_5")
 nu_a 	= util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity")
 nu_s 	= util.GetParamNumber("-visc_s", 1.48e-03, "kinematic viscosity")
 rho_a 	= util.GetParamNumber("-rho_a", 1.2, "Air Density")
-rho_s 	= util.GetParamNumber("-rho_s", 1000, "Sand Density")
+rho_s 	= util.GetParamNumber("-rho_s", 20, "Sand Density")
 dp 	= util.GetParamNumber("-diameter", 0.5e-03, "Particle Diameter")
-inflow		= util.GetParamNumber("-inflow", 10.0, "max. inflow velocity")
-c_init		= util.GetParamNumber("-initial concentration", 0.0, "max volume fraction")
+inflow		= util.GetParamNumber("-inflow", 10, "max. inflow velocity")
+c_init		= util.GetParamNumber("-initial concentration", 1.0, "max volume fraction")
 
 
 alpha_max		= util.GetParamNumber("-max_concentration", 0.6, "max volume fraction")
@@ -29,9 +29,8 @@ alpha_min		= util.GetParamNumber("-min concentration", 0.5, "max volume fraction
 viscosity_model		= util.GetParamNumber("-granular_model", 2, "Options:  0 Constant, 1 Proportional, 2 Einstein model, 3 Rheology(I), 4 Rheology(I) + Einstein model")
 density_model  = util.GetParam("-density_model", "linear", "constant, linear")
 interface_value  = util.GetParamNumber("-interface_value", -0.5, "interface value")
-bStokes 	= util.GetParamNumber("-Stokes", true ,"If defined, only Stokes Eq. computed")
+bStokes 	= util.GetParamNumber("-Stokes", false ,"If defined, only Stokes Eq. computed")
 
-granular_pressure = false
 jumpPressure = false
 -- Numerical parameters
 harmonic=false
@@ -39,26 +38,23 @@ interface_harmonic=false
 
 -- Numerical parameters of the discretization
 numRefs 	= util.GetParamNumber("-numRefs", 2, "number of grid refinements")
-numPreRefs 	= util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)")
+numPreRefs 	= util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)")
 bNoLaplace 	= util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
 bExactJac 	= util.GetParamNumber("-exactJac", false,"If defined, exact jacobian used")
-bPecletBlend= util.GetParamNumber("-PecletBlend", true,"If defined, Peclet Blend used")
+bPecletBlend= util.GetParamNumber("-PecletBlend", false,"If defined, Peclet Blend used")
 upwind      = util.GetParam("-upwind", "full", "Upwind type full or lps")
 bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
 diffLength  = util.GetParam("-difflength", "cor", "fivepoint, raw, cor, Diffusion length type")
 turbViscMethod = util.GetParam("-turbulenceModel","no","dyn sma no")
 modellconstant = util.GetParamNumber("-c",0.1)
 
-if (jumpPressure) then
-	file_name ="PressureCircle"
+
+	file_name ="Circle"
 	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
-else
-	file_name ="NoPressureCircle"
-	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
-end
+
 
 -- Parameters of the solver
-ilu_beta	= util.GetParamNumber("-iluBeta", -0.5, "choose a negative value depending on the convection rate")
+ilu_beta	= util.GetParamNumber("-iluBeta", -0.1, "choose a negative value depending on the convection rate")
 linIter = util.GetParamNumber("-linIter", 2000, "Max number of linear iterations")
 -- Grid file name
 gridName = geometry .. ".ugx"
@@ -341,7 +337,6 @@ Ps:set_fluid_Visc(nu_a*rho_a)
 Ps:set_alpha_max(alpha_max)
 Ps:set_alpha_min(alpha_min)
 Ps:set_packing_factor(packing_factor)
-
 ------------------------------------------------------------------------------------------
 -- Compose the discretization
 ------------------------------------------------------------------------------------------
@@ -448,13 +443,11 @@ print("Transport Equation created.")
 
 Visc:set_volume_fraction(TransportEq:value())
 Visc:set_velocity_gradient(NavierStokesDisc:velocity_grad())
-if (granular_pressure) then
-	Visc:set_particle_pressure(Ps)
-	Ps:set_volume_fraction(TransportEq:value())
-	Ps:set_velocity_gradient(NavierStokesDisc:velocity_grad())
-else
-	Visc:set_particle_pressure(NavierStokesDisc:pressure())
-end
+
+Visc:set_particle_pressure(Ps)
+Ps:set_volume_fraction(TransportEq:value())
+Ps:set_velocity_gradient(NavierStokesDisc:velocity_grad())
+
 
 Density:set_volume_fraction(TransportEq:value())
 
@@ -512,7 +505,7 @@ solverDesc =
 			{
 				type = "ilu",
 				beta = ilu_beta,
-				damping 	= 0.1,
+				damping 	= 0.9,
 				--sort	= false,
 				--sortEps 	= 1.e-50,
 				inversionEps 	= 1.e-24,
@@ -530,7 +523,7 @@ solverDesc =
 			type		= "standard",
 			iterations	= linIter,
 			absolute	= 1e-12,
-			reduction	= 1e-2,
+			reduction	= 1e-12,
 			verbose		= true
 		}
 	},
@@ -538,8 +531,8 @@ solverDesc =
 	{
 		type			= "standard",
 		maxSteps		=5,
-		lambdaStart		= 1.0,
-		lambdaReduce	= 0.5,
+		lambdaStart		= 1,
+		lambdaReduce	= 0.7,
 		acceptBest 		= true,
 		checkAll		= false
 	},
@@ -548,7 +541,7 @@ solverDesc =
 		type		= "standard",
 		iterations	= 200,
 		absolute	= 1e-010,
-		reduction	= 1e-8,
+		reduction	= 1e-10,
 		verbose		= true
 	}
 }
@@ -571,14 +564,17 @@ OrderLex (approxSpace,  "x")
 --OrderCuthillMcKee(approxSpace,true)
 
 numTimeSteps = 10
-DC_init = (1.0-c_init)/numTimeSteps
-C_0=c_init
+rhoi=1.2/packing_factor
+DR_init = (rho_s-rhoi)/numTimeSteps
+
 for NN = 0, numTimeSteps do 
 ------------------------------------------------------------------------------------------
 -- Repeat the calculation
 ------------------------------------------------------------------------------------------
-	c_init = math.min(C_0+NN*DC_init,1.0)
-	Interpolate("InitialValue_FractionVolume", u, "c")
+	RR=rhoi +NN*DR_init
+	Density:set_particle_density(RR)
+	Ps:set_particle_density(RR)
+	Visc:set_particle_density(RR)
 	-- initialize the solver
 	solver:init (assembledOp)
 	solver:prepare (u)

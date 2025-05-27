@@ -36,7 +36,6 @@ density_model  = util.GetParam("-density_model", "linear", "constant, linear")
 interface_value  = util.GetParamNumber("-interface_value", 0.5, "interface value")
 bStokes 	= util.GetParamNumber("-Stokes", true ,"If defined, only Stokes Eq. computed")
 
-granular_pressure = true
 jumpPressure = false
 -- Numerical parameters
 
@@ -66,9 +65,8 @@ linIter = util.GetParamNumber("-linIter", 2000, "Max number of linear iterations
 gridName = geometry .. ".ugx"
 
 -- Subsets used in the problem
---allSubsets = "Inner,Inlet, Outlet,TopWall, BottomWall, RightWall, Dune,Dune1"
 allSubsets = "Inner,Left, Right,Top, Bottom"
---allSubsets = "Inner," .. walls .. ", Inlet, Outlet"
+
 
 print (" Geometry: " .. geometry .. " (file " .. gridName .. "), dim = " .. dim)
 print (" Physical parameter:")
@@ -360,9 +358,20 @@ Density:set_fluid_density(rho_a)
 Density:set_particle_density(rho_s*packing_factor)
 Density:set_model(density_model)
 Density:set_interface_volume_fraction(interface_value)
+---------------------------------------------------------------------- Particle Pressure
+
+Ps = ParticlePressureLinker(); 
+Ps:set_particle_diameter(dp)
+Ps:set_particle_density(rho_s)
+Ps:set_fluid_Visc(nu_a*rho_a)
+Ps:set_alpha_max(alpha_max)
+Ps:set_alpha_min(alpha_min)
+Ps:set_packing_factor(packing_factor)
+Ps:set_mix_density(Density)
+Ps:set_gravity(-9.81)
+
+
 ---------------------------------------------------------------------- Viscosity
-
-
 Visc = GranularViscosityLinker(); 
 
 Visc:set_granular_model(viscosity_model)
@@ -377,7 +386,7 @@ Visc:set_packing_factor(packing_factor)
 Visc:set_mix_density(Density)
 Visc:set_interface_volume_fraction(interface_value)
 Visc:set_limit(1e-02)
-
+Visc:set_particle_pressure(Ps)
 
 PjumpShape= JumpShapeLinker()
 PjumpShape:set_interface_volume_fraction(interface_value)
@@ -389,15 +398,6 @@ normal:set_interface_volume_fraction(interface_value)
 
 
 
-Ps = ParticlePressureLinker(); 
-Ps:set_particle_diameter(dp)
-Ps:set_particle_density(rho_s)
-Ps:set_fluid_Visc(nu_a*rho_a)
-Ps:set_alpha_max(alpha_max)
-Ps:set_alpha_min(alpha_min)
-Ps:set_packing_factor(packing_factor)
-Ps:set_mix_density(Density)
-Ps:set_gravity(-9.81)
 
 ------------------------------------------------------------------------------------------
 -- Compose the discretization
@@ -490,13 +490,7 @@ Visc:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 PjumpShape:set_volume_fraction(TransportEq:value())
 
 Ps:set_volume_fraction(TransportEq:value())
-
-if (granular_pressure) then
-	Visc:set_particle_pressure(Ps)
-	Ps:set_velocity_gradient(NavierStokesDisc:velocity_grad())
-else
-	Visc:set_particle_pressure(NavierStokesDisc:pressure())
-end
+Ps:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 
 if (jumpPressure) then
 	NavierStokesDisc:set_jump_shape(PjumpShape,diffLength)

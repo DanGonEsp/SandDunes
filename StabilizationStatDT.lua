@@ -20,28 +20,45 @@ ug_load_script("util/conv_rates_kinetic.lua")
 dim 		= util.GetParamNumber("-dim", 2, "dimensionality of the problem")
 geometry	= util.GetParam ("-geom", "Dune2D_tri_5")
 nu_a 	= util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity")
-nu_s 	= util.GetParamNumber("-visc_s", 1.48e-03, "kinematic viscosity")
 rho_a 	= util.GetParamNumber("-rho_a", 1.2, "Air Density")
-rho_s 	= util.GetParamNumber("-rho_s", 1000, "Sand Density")
-dp 	= util.GetParamNumber("-diameter", 0.5e-03, "Particle Diameter")
-inflow		= util.GetParamNumber("-inflow", 1.0, "max. inflow velocity")
+rho_s 	= util.GetParamNumber("-rho_s", 2500, "Sand Density")
+dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
+nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
+inflow		= util.GetParamNumber("-inflow", 5, "max. inflow velocity")
 c_init		= util.GetParamNumber("-initial concentration", 1.0, "max volume fraction")
 
 
-alpha_max		= util.GetParamNumber("-max_concentration", 0.6, "max volume fraction")
-packing_factor		= util.GetParamNumber("-packing_facotr", 0.5999, "max volume fraction")
-alpha_min		= util.GetParamNumber("-min concentration", 0.5, "max volume fraction")
-viscosity_model		= util.GetParamNumber("-granular_model", 2, "Options:  0 Constant, 1 Proportional, 2 Einstein model, 3 Rheology(I), 4 Rheology(I) + Einstein model")
+alpha_max		= util.GetParamNumber("-max_concentration", 0.635, "max volume fraction")
+packing_factor		= util.GetParamNumber("-packing_factor", 0.63, "max volume fraction")
+alpha_min		= util.GetParamNumber("-min concentration", 0.57, "max volume fraction")
+viscosity_model		= util.GetParamNumber("-granular_model", 3, "Options:  0 Constant, 1 Proportional, 2 Einstein model, 3 Rheology(I) + Einstein model")
 density_model  = util.GetParam("-density_model", "linear", "constant, linear")
 interface_value  = util.GetParamNumber("-interface_value", 0.5, "interface value")
 
 
--- Numerical parameters
-harmonic=false
-interface_harmonic=false
+
 
 jumpPressure = false
+boolSource = false
 
+if jumpPressure then
+	file_name ="PressureStatSourceDT"
+else
+	file_name ="NoPressureStatSourceDT"
+end
+stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
+
+-- Numerical parameters of the discretization
+numRefs 	= util.GetParamNumber("-numRefs", 3, "number of grid refinements")
+numPreRefs 	= util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)")
+
+bStokes 	= util.GetParamNumber("-Stokes", true ,"If defined, only Stokes Eq. computed")
+bNoLaplace 	= util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
+bExactJac 	= util.GetParamNumber("-exactJac", false,"If defined, exact jacobian used")
+bPecletBlend= util.GetParamNumber("-PecletBlend", false,"If defined, Peclet Blend used")
+upwind      = util.GetParam("-upwind", "full", "Upwind type full or lps")
+bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
+diffLength  = util.GetParam("-difflength", "cor", "fivepoint, raw, corDiffusion length type")
 
 
 dt = util.GetParamNumber("-dt",0.05)
@@ -52,11 +69,7 @@ outputFactor     = util.GetParam("-output", 1, "output every ... steps")
 max_newton_steps_1=util.GetParamNumber("-numNewtonSteps", 100)
 max_newton_steps_2=util.GetParamNumber("-numNewtonSteps", 100)
 max_linear_steps=util.GetParamNumber("-numLinearIter", 200)
-StatBool = util.GetParamNumber("-StatBool", false, "Stationary state")
-
-
-numPreRefs = util.GetParamNumber("-numPreRefs", 2)
-numRefs = util.GetParamNumber("-numRefs",2)
+StatBool = util.GetParamNumber("-StatBool", true, "Stationary state")
 timeMethod = util.GetParam("-timeMethod","euler")
 
 CFL_max= util.GetParamNumber("-cfl", 100, "max  CFL number")
@@ -72,20 +85,23 @@ red_factor 	= util.GetParamNumber("-CFL_factor", 0.9)
 turbViscMethod = util.GetParam("-turbulenceModel","no")
 modellconstant = util.GetParamNumber("-c",0.1)
 
-bStokes 	= util.GetParam("-Stokes", false ,"If defined, only Stokes Eq. computed")
-bNoLaplace 	= util.GetParam("-noLaplace", false,"If defined, only laplace term used")
-bExactJac 	= util.GetParam("-exactJac", false,"If defined, exact jacobian used")
-bPecletBlend= util.GetParam("-PecletBlend", false,"If defined, Peclet Blend used")
-upwind      = util.GetParam("-upwind", "full", "Upwind type full or lps")
-diffLength  = util.GetParam("-difflength", "cor", "fivepoint, raw, corDiffusion length type")
-bPac        = util.GetParam("-pac", false,"If defined, pac upwind used")
-if (jumpPressure) then
-	file_name ="Pressure2"
-	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
-else
-	file_name ="NoPressure"
-	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
-end
+
+
+-- Parameters of the solver
+ilu_beta	= util.GetParamNumber("-iluBeta", -0.01, "choose a negative value depending on the convection rate")
+linIter = util.GetParamNumber("-linIter", 2000, "Max number of linear iterations")
+-- Grid file name
+gridName = geometry .. ".ugx"
+
+-- Subsets used in the problem
+allSubsets = "Inner,Left, Right,Top, Bottom"
+
+
+
+
+
+
+
 
 
 
@@ -94,12 +110,6 @@ if bStokes then
 	vtk_file_name = vtk_file_name .. "-Stokes"
 end
 
-
--- Grid file name
-gridName = geometry .. ".ugx"
-
--- Subsets used in the problem
-allSubsets = "Inner,Left, Right,Top, Bottom,"
 
 print (" Geometry: " .. geometry .. " (file " .. gridName .. "), dim = " .. dim)
 print (" Physical parameter:")
@@ -142,9 +152,12 @@ approxSpace = ApproximationSpace (dom)
 
 approxSpace:add_fct("u", "Lagrange",1,allSubsets)
 approxSpace:add_fct("v", "Lagrange",1,allSubsets)
---approxSpace:add_fct("w", "Lagrange",1,allSubsets)
+if dim == 3 then
+	approxSpace:add_fct("w", "Lagrange",1,allSubsets)
+end
 approxSpace:add_fct("p", "Lagrange",1,allSubsets)
 approxSpace:add_fct("c", "Lagrange",1,allSubsets)
+
 
 
 approxSpace:init_levels()
@@ -154,11 +167,8 @@ approxSpace:print_statistic()
 util.solver.defaults.approxSpace = approxSpace
 
 
--- Order the DoFs:
-OrderLex (approxSpace,  "x")
---OrderCuthillMcKee(approxSpace,true)
 -- grid function for the solution
-u = GridFunction(approxSpace)
+u = GridFunction (approxSpace)
 u:set(0)
 
 --------------------------------
@@ -166,11 +176,14 @@ u:set(0)
 -- Lua Functions
 --------------------------------
 --------------------------------
+------------------------------------------------------------------------------------------
+-- Lua Functions
+------------------------------------------------------------------------------------------
 H_domain=5
 H_0=2
-h_0=0.3
+h_0=0.0
 sigma=3--0.4
-mu_c=15
+mu_c=20
 L2=5
 L=6--2.5
 --[[
@@ -189,7 +202,7 @@ sigma2=sigma
 d=1.2*math.pow(1/2,numRefs-1)
 ss=1.0
 k1=0.05 
-k2=0.02 
+k2=0.05 
 ---------------------------------------------------------------------- Initial DuneShape
 function Dune(x) 
 	if (x< mu_c1) then
@@ -244,8 +257,6 @@ function dist(x0,y0)
 end
 
 dx=math.pow(1/2,(numRefs+2))
-
-	
 ---------------------------------------------------------------------- Initial Velocity
 
 --[[function StartValueX(x,y) 
@@ -258,15 +269,12 @@ dx=math.pow(1/2,(numRefs+2))
 	end
 	if (y>Dune(x,y) and y>0.5*dx) then
 		if interface==0 then
-			hh=14.1856
-			nn=2.5
-			cc=1.0--math.pow(y/hh,5)
-			return inflow*(math.min(1.0, math.pow(y/hh,1/nn))*(1-cc) +(cc)* (hh - y) * (4*y ) / (hh * hh))
+			return inflow *0.0
 		else
-			return 0.0
+			return inflow *0.0
 		end
 	else
-		return 0.0
+		return inflow*0.0
 	end
 end]]
 function StartValueX(x,y) 
@@ -275,19 +283,21 @@ function StartValueX(x,y)
 	cc=1.0--math.pow(y/hh,5)
 	return inflow*(math.min(1.0, math.pow(y/hh,1/nn))*(1-cc) +(cc)* (2*hh - y) * (y ) / (hh * hh))
 end
+
 function StartValueY(x,y) 
-	return 0
+	return 0.0*inflow
 end
 function StartValueZ(x,y) 
 	return 0
 end
+
 ---------------------------------------------------------------------- Initial Pressure
 Pstd=0.0	
 function StartValueP(x,y) 
 	if y>Dune(x) then
-		return Pstd
+		return Pstd *(x+30)
 	else 
-	return  0*9.81*rho_s*c_init*(Dune(x)-y)+Pstd
+		return  Pstd *(x+30)
 	end
 end
 
@@ -295,7 +305,7 @@ end
 
 
 
-function VolumeFraction(x,y)
+--[[function VolumeFraction(x,y)
 	interface_o=0
 	interface_i=0
 	dd=dist(x,y)
@@ -325,24 +335,33 @@ function VolumeFraction(x,y)
 	end
 	
 	
-end
+end]]
+--[[function VolumeFraction(x,y)
+
+	if y>5 then
+		return  0.0
+	else
+		return  c_init
+	end
+end]]
 function VolumeFraction2(x,y)
 	dd=dist(x,y)
 	ds=20*dx
-	k=1.0/dx
+	kk1=400
+	kk2=400 
 	
 	if y>Dune(x,y) then
 		if dd<ds then
 			dd=-dd
 			k=k
-			return c_init / (1.0 + math.exp(-k*dd))
+			return c_init / (1.0 + math.exp(-kk1*dd))
 		else
 			return 0.0
 		end
 	else
 		if dd<ds then
 			k=k
-			return c_init / (1.0 + math.exp(-k*dd))
+			return c_init / (1.0 + math.exp(-kk2*dd))
 		else
 			return c_init 
 		end
@@ -353,18 +372,27 @@ function VolumeFraction2(x,y)
 end
 function InitialValue_FractionVolume(x,y)
 	--if y>0 then 
-		value= VolumeFraction(x,y) 
+		value= VolumeFraction2(x,y) 
 	--else
-		--value = BoundaryVolumeFraction(x,y)
+		--value = VolumeFraction(x,y)
 	--end
 	return value
 end
 ---------------------------------------------------------------------- Boundary Condition  
+----------------------------------------------------------- Inlet
+local H=1
+
+function inflowVel2d(x, y, t)
+
+	return StartValueX(x,y),StartValueY(x,y)
+end
 
 ----------------------------------------------------------- Bottom
 
 function BoundaryVolumeFraction(x,y)
-	if x>2 and x<28 then--y>Dune(x,y) then
+	a= 10
+	b = 20
+	if x>a and x<b then--y>Dune(x,y) then
 		return c_init
 	else
 		return 0.0
@@ -373,39 +401,21 @@ end
 
 function BottomFlux(x,y) return 0 end
 
------------------------------------------------------------ Outlet
+---------------------------------------------------------------------- VolFraction
+ccc = GridFunctionNumberData(u, "c");
+VolFraction = ScaleLinker();
+VolFraction:set_import_1(ccc)
+VolFraction:set_import_2(1.0)
 
-function PressureOutlet(x,y,t)
-	return 0*rho_a*11.83*(H_domain-y)
-end
-
-function NeuBND(c) return inflow*c end
-function DNeuBND(c) return inflow end
-Flux = LuaUserFunctionNumber("NeuBND", 1);
-Flux:set_deriv(0, "DNeuBND")
-
-
----------------------------------------------------------------------- Inflow
-function inflowVel3d_2(x, y, t)
-	hh=0.1
-	return inflow*math.min(1.0, math.pow(y/hh,4)), 0.0
-
-end
----------------------------------------------------------------------- Inflow
-function inflowVel3d(x, y, t)
-	return StartValueX(x,y), StartValueY(x,y)
-end
 ---------------------------------------------------------------------- Density
-
 
 Density = GranularDensityLinker(); 
 Density:set_fluid_density(rho_a)
 Density:set_particle_density(rho_s*packing_factor)
-Density:set_harmonic_value(harmonic)
-Density:set_surface_value(interface_harmonic)
 Density:set_model(density_model)
 Density:set_interface_volume_fraction(interface_value)
----------------------------------------------------------------------- Viscosity
+---------------------------------------------------------------------- Particle Pressure
+
 
 Ps = ParticlePressureLinker(); 
 Ps:set_particle_diameter(dp)
@@ -414,10 +424,12 @@ Ps:set_fluid_Visc(nu_a*rho_a)
 Ps:set_alpha_max(alpha_max)
 Ps:set_alpha_min(alpha_min)
 Ps:set_packing_factor(packing_factor)
+Ps:set_mix_density(Density)
+Ps:set_gravity(-9.81)
 
-
-
+---------------------------------------------------------------------- Viscosity
 Visc = GranularViscosityLinker(); 
+
 Visc:set_granular_model(viscosity_model)
 Visc:set_particle_diameter(dp)
 Visc:set_particle_density(rho_s)
@@ -428,13 +440,9 @@ Visc:set_alpha_max(alpha_max)
 Visc:set_alpha_min(alpha_min)
 Visc:set_packing_factor(packing_factor)
 Visc:set_mix_density(Density)
-Visc:set_harmonic_value(harmonic)
-Visc:set_surface_value(interface_harmonic)
 Visc:set_interface_volume_fraction(interface_value)
-
-PJump=PressureJumpLinker()
-PJump:set_mix_density(Density)
-PJump:set_kinematic_viscosity(Visc)
+Visc:set_limit(1e-02)
+Visc:set_particle_pressure(Ps)
 
 PjumpShape= JumpShapeLinker()
 PjumpShape:set_interface_volume_fraction(interface_value)
@@ -444,55 +452,51 @@ normal = InterfaceNormalLinker()
 normal:set_interface_volume_fraction(interface_value)
 
 
----------------------------------------------------------------------- Gravity
 
-Gravity = ConstUserVector(0.0)
-Gravity:set_entry(1, -9.81)
-
+Source = GranularSourceLinker()
+Source:set_particle_density(rho_s)
+Source:set_fluid_density(rho_a)
+Source:set_mix_density(Density)
+Source:set_gravity(-9.81)
+Source:set_packing_factor(packing_factor)
+Source:set_rel_vel(0.0)
+Source:set_interface_volume_fraction(interface_value)
 
 ------------------------------------------------------------------------------------------
 -- Compose the discretization
 ------------------------------------------------------------------------------------------
 
 -- inner space
-NavierStokesDisc = NavierStokesFV1(fct_cmp_tbl, {"Inner"})
 
-NavierStokesDisc:set_peclet_blend(bPecletBlend) 
-NavierStokesDisc:set_exact_jacobian(bExactJac)
-NavierStokesDisc:set_laplace(bNoLaplace)
-NavierStokesDisc:set_stokes(bStokes)
-NavierStokesDisc:set_upwind (upwind)
-NavierStokesDisc:set_stabilization (stab, diffLength)
-NavierStokesDisc:set_pac_upwind (bPac)
-
-
-
----------------------------------------------------------------------------------------
--- Set properties input
----------------------------------------------------------------------------------------
+NavierStokesDisc = NavierStokesFV1 (fct_cmp_tbl, {"Inner"})
+NavierStokesDisc:set_exact_jacobian (bExactJac)
+NavierStokesDisc:set_stokes (bStokes)
+NavierStokesDisc:set_laplace ( bNoLaplace)
+NavierStokesDisc:set_kinematic_viscosity (Visc)
 NavierStokesDisc:set_density(Density)
-NavierStokesDisc:set_kinematic_viscosity(Visc)
-NavierStokesDisc:set_density_ref(rho_a)
-
-if (jumpPressure) then
-	VolFraction = GridFunctionNumberData(u, "c");
-	NavierStokesDisc:set_jump_shape(PjumpShape,diffLength)
-	NavierStokesDisc:set_interface_normal(normal)
-	NavierStokesDisc:set_vol_fraction(VolFraction)
-	NavierStokesDisc:set_interface_value(interface_value)
+NavierStokesDisc:set_density_ref(0.0)
+if (boolSource) then
+	NavierStokesDisc:set_source(Source)
 end
 
---NavierStokesDisc:set_source(Gravity)
---NavierStokesDisc:set_source(RhoGrad)
---NavierStokesDisc:set_source_surface(Fs)
---NavierStokesDisc:set_relative_velocity(W)
 
-
-
-
+NavierStokesDisc:set_upwind (upwind)
+NavierStokesDisc:set_peclet_blend (bPecletBlend)
+NavierStokesDisc:set_stabilization (stab, diffLength)
+NavierStokesDisc:set_pac_upwind (bPac)
+NavierStokesDisc:set_interface_value(interface_value)
 
 InletDisc = NavierStokesInflow (NavierStokesDisc)
-InletDisc:add ("inflowVel3d", "Left,Top")
+--InletDisc:add ("inflowVel3d", "Inlet")
+InletDisc:add ("inflowVel2d", "Left,Top")
+
+
+SymDiscTop=NavierStokesSymBCFV1(NavierStokesDisc)
+SymDiscTop:add("Top")
+
+
+FixPressureDisc = DirichletBoundary()
+FixPressureDisc:add(0, "p", "Top")
 
 -- boundary condition at the outlet
 OutletDisc = NavierStokesNoNormalStressOutflow (NavierStokesDisc)
@@ -500,17 +504,19 @@ OutletDisc:add ("Right")
 
 -- boundary condition at the impermeable walls
 WallDisc = NavierStokesWall (NavierStokesDisc)
-WallDisc:add (" Bottom")
-print("Navier Stokes Equation created.")
+WallDisc:add ("Bottom")
 
-velocity = GridFunctionVectorData(u, "u,v");
+Stress = NavierStokesInflowStressFV1(NavierStokesDisc)
+Stress:add("Bottom, Top, Left,Right")
+
+
 
 
 TransportEq = ConvectionDiffusion("c", "Inner", "fv1")
 TransportEq:set_velocity(NavierStokesDisc:velocity_ip())
 --TransportEq:set_velocity(NavierStokesDisc:velocity())
 TransportEq:set_diffusion(0)
-TransportEq:set_upwind(UpwindFV1(upwind)) 
+TransportEq:set_upwind(UpwindFV1(upwind)) --upwind type for the transport equation: "no", "full" or "partial"
 
 
 -- create dirichlet boundary for concentration
@@ -525,53 +531,61 @@ NeumannBND = NeumannBoundaryFV1("c")
 --NeumannBND:add( BottomFlux,"Bottom,Top,Left","Inner")	
 --NeumannBND:add( Flux,"Right","Inner")
 
+fixer = DirichletBoundary()	
+fixer:invert_subset_selection()
+fixer:add("c", "")
+
+
 
 print("Transport Equation created.")
-
 
 ---------------------------------------------------------------------------------------
 -- Viscosity, Density and Gravitation Input
 ---------------------------------------------------------------------------------------
 
-
---Visc:set_input(0, TransportEq:value())
+Density:set_volume_fraction(TransportEq:value())
 
 Visc:set_volume_fraction(TransportEq:value())
 Visc:set_velocity_gradient(NavierStokesDisc:velocity_grad())
-Visc:set_particle_pressure(NavierStokesDisc:pressure())
-
-Density:set_volume_fraction(TransportEq:value())
-
-normal:set_volume_fraction(TransportEq:value())
-normal:set_volume_grad(TransportEq:gradient())
-
-
-PJump:set_volume_fraction(TransportEq:value())
-PJump:set_volume_grad(TransportEq:gradient())
-PJump:set_velocity_gradient(NavierStokesDisc:velocity_grad())
-PJump:set_pressure_grad(NavierStokesDisc:pressure_grad())
-
 
 
 PjumpShape:set_volume_fraction(TransportEq:value())
 
+Ps:set_volume_fraction(TransportEq:value())
+Ps:set_velocity_gradient(NavierStokesDisc:velocity_grad())
+
+
+if (jumpPressure) then
+	NavierStokesDisc:set_jump_shape(PjumpShape,diffLength)
+	NavierStokesDisc:set_interface_normal(normal)
+	NavierStokesDisc:set_vol_fraction(VolFraction)
+end
+
+normal:set_volume_fraction(TransportEq:value())
+normal:set_volume_grad(TransportEq:gradient())
+
+Source:set_volume_fraction(TransportEq:value())
+Source:set_volume_grad(TransportEq:gradient())
 
 
 
-domainDisc = DomainDiscretization(approxSpace)
-domainDisc:add(NavierStokesDisc)
-domainDisc:add(WallDisc)
-domainDisc:add(InletDisc)
-domainDisc:add(OutletDisc)
+
+
+-- the global discretization
+domainDisc = DomainDiscretization (approxSpace)
+domainDisc:add (NavierStokesDisc)
+domainDisc:add (InletDisc)
+domainDisc:add (OutletDisc)
+domainDisc:add (WallDisc)
+--domainDisc:add (Stress)
+--domainDisc:add(FixPressureDisc)
+--domainDisc:add (SlipDiscTop)
+
 
 
 domainDisc:add(TransportEq)
---domainDisc:add(NeumannBND)
---domainDisc:add(dirichletBND)
---domainDisc:add(OutflowBND)
-
--- create operator from discretization
-
+domainDisc:add(OutflowBND)
+--domainDisc:add(fixer)
 
 
 
@@ -609,106 +623,63 @@ op:init()
 --util.CreateGridFuncDebugWriter (approxSpace)
 -- --
 
+solverDesc =
+{
+	type = "newton",
+	debug = false, -- for the debug output from the Newton's method
+	linSolver =
+	{
+		type = "bicgstab",
+		precond =
+		{
+			type = "gmg",
+			rap = true,
+			smoother =
+			{
+				type = "ilu",
+				beta = ilu_beta,
+				damping 	= 0.9,
+				--sort	= false,
+				--sortEps 	= 1.e-50,
+				inversionEps 	= 1.e-8,
+				consistentInterfaces   = true
+				--overlap 		= false,
+				--ordering 		= nil
+			},
+			preSmooth = 1,
+			postSmooth = 1,
+			baseSolver = "lu",
+			baseLevel = numPreRefs
+		},
+		convCheck =
+		{
+			type		= "standard",
+			iterations	= linIter,
+			absolute	= 1e-12,
+			reduction	= 1e-1,
+			verbose		= true
+		}
+	},
+	lineSearch =
+	{
+		type			= "standard",
+		maxSteps		=5,
+		lambdaStart		= 1.0,
+		lambdaReduce	= 0.5,
+		acceptBest 		= true,
+		checkAll		= false
+	},
+	convCheck =
+	{
+		type		= "standard",
+		iterations	= 200,
+		absolute	= 1e-5,
+		reduction	= 1e-12,
+		verbose		= true
+	}
+}
 
-
--- create algebraic Preconditioner
-ilusmoother = ILU()
-ilusmoother:set_beta(1e-4)
---ilusmoother:set_inversion_eps(1e-30)
---ilu:set_debug(dbgWriter)
-
-ilutsmoother = ILUT()
-ilutsmoother:set_threshold(1e-4)
---ilutsmoother:set_info(true)
-
-local smooth = util.smooth.parseParams()
-smoother_local = util.smooth.create(smooth)
-
-ilutSolver = LinearSolver()
-ilutSolver:set_preconditioner(ilusmoother)
-ilutSolver:set_convergence_check(ConvCheck(10000, 1e-6, 1e-1, false))
-
-exactSolver = LU()
-
-baseSolver=exactSolver
---baseSolver=ilutSolver
-
-
---smoother=vanka
---smoother=smoother_local
-smoother=ilusmoother
-smoother:set_damp(1)
-
-numPreSmooth=1
-numPostSmooth=1
-gmg = GeometricMultiGrid(approxSpace)
-gmg:set_discretization(domainDisc)
-gmg:set_base_level(numPreRefs)
-gmg:set_base_solver(baseSolver)
-gmg:set_smoother(smoother)
-gmg:set_cycle_type("V")
-gmg:set_num_presmooth(numPreSmooth)
-gmg:set_num_postsmooth(numPostSmooth)
-gmg:set_damp(MinimalResiduumDamping())
---gmg:set_damp(0.1)
-gmg:set_rap(true)
---gmg:set_ordering("x")
---gmg:set_damp(MinimalEnergyDamping())
-
---gmg:set_debug(dbgWriter)
-
--- create Linear Solver
-convCheck = ConvCheck(max_linear_steps, 1e-15, 1e-14, true)
-convCheck:set_verbose(true)
-
-
-BiCGStabSolver = BiCGStab()
-BiCGStabSolver:set_preconditioner(gmg)
---BiCGStabSolver:set_preconditioner(vanka)
-BiCGStabSolver:set_convergence_check(convCheck)
-BiCGStabSolver:set_compute_fresh_defect_when_finished(true)
-
-
-
-
-gmgSolver = LinearSolver()
-gmgSolver:set_preconditioner(gmg)
-gmgSolver:set_convergence_check(convCheck)
--- create Exact solver
-
-
--- choose a solver
-solver = exactSolver
-solver = baseSolver
-solver = BiCGStabSolver
---solver = vankaSolver
---solver = gmgSolver --- este era el bueno
---solver = ilutSolver
---solver = linSolver
-
-
-newtonConvCheck = ConvCheck()
-newtonConvCheck:set_maximum_steps(max_newton_steps_1)
-newtonConvCheck:set_minimum_defect(1e-04)
-newtonConvCheck:set_reduction(1e-10)
-newtonConvCheck:set_verbose(true)
-
-newtonLineSearch = StandardLineSearch()
-newtonLineSearch:set_maximum_steps(5)
-newtonLineSearch:set_lambda_start(1)
-newtonLineSearch:set_reduce_factor(0.5)
-newtonLineSearch:set_accept_best(true)
-newtonLineSearch:set_check_all(false)
-newtonLineSearch:set_suff_descent_factor(0.25)
-newtonLineSearch:set_verbose(true)
-
-
-
-newtonSolver = NewtonSolver()
-newtonSolver:set_linear_solver(solver)
-newtonSolver:set_convergence_check(newtonConvCheck)
-newtonSolver:set_line_search(newtonLineSearch)
-newtonSolver:set_reassemble_J_freq(0)
+solver = util.solver.CreateSolver(solverDesc)
 
 ------------------------------------------------------------------------------------------
 -- Apply the solver
@@ -717,15 +688,13 @@ newtonSolver:set_reassemble_J_freq(0)
 
 
 
-	Interpolate("StartValueX", u, "u")
+	Interpolate(0.0, u, "u")
 	Interpolate("StartValueY", u, "v")
 
 	Interpolate("StartValueP", u, "p")
 	Interpolate("InitialValue_FractionVolume", u, "c")
 	
 	
-	--LoadVector(u,"currentSolution.vec")
-	--print("Reading   ############################")
 
 ------------------------------------------------------------------------------------------
 -- Prepare the initial guess for the pressure
@@ -740,16 +709,17 @@ if StatBool then
 	fixer:invert_subset_selection()
 	fixer:add("c", "")
 
-	newtonSolver:init(AssembledOperator(domainDisc))
-	newtonSolver:prepare(u)
+	solver:init(AssembledOperator(domainDisc))
+	solver:prepare(u)
 
 	-- apply the solver for the stationary pressure problem
-	if not newtonSolver:apply(u) then
+	if not solver:apply(u) then
 		print("===> THE PREPARATION PHASE FAILED! <===")
 		exit()
 	end
-
 	domainDisc:remove (fixer)
+	
+	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")
 end
 
 
@@ -776,14 +746,15 @@ step = 0
 	out:select_nodal ("c", "c")
 	out:select(Density, "Rho")
 	out:select(Visc, "Mu")
+	out:select(Ps, "Ps")
 
 
 	out:print_subsets(vtk_file_name, u,allSubsets,0,0)
 	
-newtonSolver:init(op)
+solver:init(op)
 
 
-if newtonSolver:prepare(u) == false then
+if solver:prepare(u) == false then
 	print ("Newton solver prepare failed.") exit()
 end
     
@@ -812,7 +783,7 @@ for step = 1, numTimeSteps do
 		timeDisc:prepare_step(solTimeSeries, do_dt)
 	
 		-- prepare newton solver
-		if newtonSolver:prepare(u) == false then 
+		if solver:prepare(u) == false then 
 			print ("Newton solver failed at step "..step.."."); exit(); 
 		end 
 	
@@ -820,7 +791,7 @@ for step = 1, numTimeSteps do
 		
 		NewtonSolution=false
 
-		if newtonSolver:apply(u)  == false then 
+		if solver:apply(u)  == false then 
 				print ("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<            Reducing TImestep in time, step  " .. step .. " with time step " .. do_dt)
 			dt = math.max(dt*red_factor,0.99999*DT_min)
 			print("DT=" .. dt .. "");
@@ -863,11 +834,12 @@ for step = 1, numTimeSteps do
 	print("Time=" .. time .. "");
 	N_steps=N_steps+1
 	if(N_steps>=UpdateDt) then
-		if modifyDT then dt=math.min(incr_factor*dt,DT_max)  end
-		print ("-------------------------------------------------------------------------------------------------Time step increased at Step " .. step .. ", dt =  " .. dt .. ". ")
+		if modifyDT then 
+			dt=math.min(incr_factor*dt,DT_max)  
+			print ("-------------------------------------------------------------------------------------------------Time step increased at Step " .. step .. ", dt =  " .. dt .. ". ")
+		end
+		
 		N_steps=s*UpdateDt
-		newtonConvCheck:set_maximum_steps(max_newton_steps_2)
-		newtonSolver:set_line_search(newtonLineSearch)
 	end
 		
 	-- compute kinetic energy
@@ -886,6 +858,7 @@ for step = 1, numTimeSteps do
 		out:select_nodal("c", "c")
 		out:select(Density, "Rho")
 		out:select(Visc, "Mu")
+		out:select(Ps, "Ps")
 		
 
 		out:print_subsets(vtk_file_name, u,allSubsets,step,time)
@@ -895,7 +868,7 @@ for step = 1, numTimeSteps do
 end
 
 tAfter = os.clock()
-newtonSolver:print_average_convergence()
+solver:print_average_convergence()
 print("Computation took " .. tAfter-tBefore .. " seconds.")
 
 print("done.")
