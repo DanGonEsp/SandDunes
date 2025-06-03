@@ -1,11 +1,16 @@
 ------------------------------------------------------------------------------------------
--- Navier-Stokes equation, 2d
+-- Navier-Stokes equation, 3d
 -- Discretization: Vertex-centered, stabilized
 ------------------------------------------------------------------------------------------
 
 -- Load utility scripts (e.g. from from ugcore/scripts)
 ug_load_script ("ug_util.lua")
 ug_load_script ("util/load_balancing_util.lua")
+
+ug_load_script("util/domain_disc_util.lua")
+ug_load_script("navier_stokes_util.lua")
+ug_load_script("util/conv_rates_kinetic.lua")
+
 
 ------------------------------------------------------------------------------------------
 -- Get command line parameters
@@ -14,16 +19,11 @@ ug_load_script ("util/load_balancing_util.lua")
 -- Physical parameters
 dim 		= util.GetParamNumber("-dim", 2, "dimensionality of the problem")
 geometry	= util.GetParam ("-geom", "Dune2D_tri_5")
-
-
 nu_a 	= util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity")
 rho_a 	= util.GetParamNumber("-rho_a", 1.2, "Air Density")
-
-rho_s 	= util.GetParamNumber("-rho_s", 2400, "Sand Density")
-nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
+rho_s 	= util.GetParamNumber("-rho_s", 2500, "Sand Density")
 dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
-
-
+nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
 inflow		= util.GetParamNumber("-inflow", 5, "max. inflow velocity")
 c_init		= util.GetParamNumber("-initial concentration", 1.0, "max volume fraction")
 
@@ -33,16 +33,26 @@ packing_factor		= util.GetParamNumber("-packing_factor", 0.63, "max volume fract
 alpha_min		= util.GetParamNumber("-min concentration", 0.57, "max volume fraction")
 viscosity_model		= util.GetParamNumber("-granular_model", 3, "Options:  0 Constant, 1 Proportional, 2 Einstein model, 3 Rheology(I) + Einstein model")
 density_model  = util.GetParam("-density_model", "linear", "constant, linear")
-interface_value  = util.GetParamNumber("-interface_value", 0.5, "interface value")
-bStokes 	= util.GetParamNumber("-Stokes", true ,"If defined, only Stokes Eq. computed")
+interface_value  = util.GetParamNumber("-interface_value", alpha_min/packing_factor, "interface value")
 
-jumpPressure = false
--- Numerical parameters
 
+
+
+jumpPressure = true
+boolSource = false
+
+if jumpPressure then
+	file_name ="PressureStatSourceDT"
+else
+	file_name ="NoPressureStatSourceDT"
+end
+stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
 
 -- Numerical parameters of the discretization
 numRefs 	= util.GetParamNumber("-numRefs", 3, "number of grid refinements")
 numPreRefs 	= util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)")
+
+bStokes 	= util.GetParamNumber("-Stokes", false ,"If defined, only Stokes Eq. computed")
 bNoLaplace 	= util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
 bExactJac 	= util.GetParamNumber("-exactJac", false,"If defined, exact jacobian used")
 bPecletBlend= util.GetParamNumber("-PecletBlend", false,"If defined, Peclet Blend used")
@@ -50,16 +60,35 @@ upwind      = util.GetParam("-upwind", "full", "Upwind type full or lps")
 bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
 diffLength  = util.GetParam("-difflength", "cor", "fivepoint, raw, corDiffusion length type")
 
-if (jumpPressure) then
-	file_name ="PressureStationary"
-	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
-else
-	file_name ="NoPressureStationary3"
-	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
-end
+
+dt = util.GetParamNumber("-dt",0.1)
+numTimeSteps =  util.GetParamNumber("-numTimeSteps", 20	)
+EndTime = util.GetParamNumber("-EndTime", 6.2, "EndTime")
+boolEndTime 	= util.GetParamNumber("-boolEndTime", true)
+outputFactor     = util.GetParam("-output", 1, "output every ... steps")
+max_newton_steps_1=util.GetParamNumber("-numNewtonSteps", 100)
+max_newton_steps_2=util.GetParamNumber("-numNewtonSteps", 100)
+max_linear_steps=util.GetParamNumber("-numLinearIter", 200)
+StatBool = util.GetParamNumber("-StatBool", true, "Stationary state")
+timeMethod = util.GetParam("-timeMethod","euler")
+
+CFL_max= util.GetParamNumber("-cfl", 100, "max  CFL number")
+DT_max= util.GetParamNumber("-DT_max", 2, "max  DT")
+DT_min= util.GetParamNumber("-DT_min", 0.001, "min  DT")
+UpdateDt 	= util.GetParamNumber("-UpdateDT", 5)
+modifyDT 	= util.GetParamNumber("-modifyDT", false)
+incr_factor 	= util.GetParamNumber("-CFL_factor", 1.1)
+red_factor 	= util.GetParamNumber("-CFL_factor", 0.9)
+
+
+
+turbViscMethod = util.GetParam("-turbulenceModel","no")
+modellconstant = util.GetParamNumber("-c",0.1)
+
+
 
 -- Parameters of the solver
-ilu_beta	= util.GetParamNumber("-iluBeta", -0.01, "choose a negative value depending on the convection rate")
+ilu_beta	= util.GetParamNumber("-iluBeta", -0.05, "choose a negative value depending on the convection rate")
 linIter = util.GetParamNumber("-linIter", 2000, "Max number of linear iterations")
 -- Grid file name
 gridName = geometry .. ".ugx"
@@ -68,19 +97,31 @@ gridName = geometry .. ".ugx"
 allSubsets = "Inner,Left, Right,Top, Bottom"
 
 
+
+
+
+
+
+
+
+
+vtk_file_name = file_name .. "-lev" .. numRefs
+if bStokes then
+	vtk_file_name = vtk_file_name .. "-Stokes"
+end
+
+
 print (" Geometry: " .. geometry .. " (file " .. gridName .. "), dim = " .. dim)
 print (" Physical parameter:")
-print ("	visc		= " .. nu_a)
 print ("	inflow		= " .. inflow)
-
+print ("	Stokes		= " .. tostring (bStokes))
 print (" Numerical parameter:")
 print ("	numRefs		= " .. numRefs)
 print ("	numPreRefs	= " .. numPreRefs)
-print ("	Stokes		= " .. tostring (bStokes))
-print ("	noLaplace	= " .. tostring (bNoLaplace))
+print ("	noLaplace		= " .. tostring (bNoLaplace))
 print ("	exactJac	= " .. tostring (bExactJac))
-print ("	PecletBlend = " .. tostring (bPecletBlend))
-print ("	upwind		= " .. upwind)
+print ("	PecletBlend 	= " .. tostring (bPecletBlend))
+print ("	upwind	= " .. upwind)
 print ("	pac			= " .. tostring (bPac))
 print ("	stab		= " .. stab)
 print ("	difflength	= " .. diffLength)
@@ -119,7 +160,6 @@ approxSpace:add_fct("c", "Lagrange",1,allSubsets)
 
 
 
-
 approxSpace:init_levels()
 approxSpace:init_top_surface()
 approxSpace:print_statistic()
@@ -131,6 +171,11 @@ util.solver.defaults.approxSpace = approxSpace
 u = GridFunction (approxSpace)
 u:set(0)
 
+--------------------------------
+--------------------------------
+-- Lua Functions
+--------------------------------
+--------------------------------
 ------------------------------------------------------------------------------------------
 -- Lua Functions
 ------------------------------------------------------------------------------------------
@@ -260,7 +305,7 @@ end
 
 
 
-function VolumeFraction(x,y)
+--[[function VolumeFraction(x,y)
 	interface_o=0
 	interface_i=0
 	dd=dist(x,y)
@@ -290,12 +335,20 @@ function VolumeFraction(x,y)
 	end
 	
 	
-end
+end]]
+--[[function VolumeFraction(x,y)
+
+	if y>5 then
+		return  0.0
+	else
+		return  c_init
+	end
+end]]
 function VolumeFraction2(x,y)
 	dd=dist(x,y)
 	ds=20*dx
-	kk1=400
-	kk2=400
+	kk1=1600
+	kk2=1600 
 	
 	if y>Dune(x,y) then
 		if dd<ds then
@@ -321,7 +374,7 @@ function InitialValue_FractionVolume(x,y)
 	--if y>0 then 
 		value= VolumeFraction2(x,y) 
 	--else
-		--value = BoundaryVolumeFraction(x,y)
+		--value = VolumeFraction(x,y)
 	--end
 	return value
 end
@@ -349,7 +402,10 @@ end
 function BottomFlux(x,y) return 0 end
 
 ---------------------------------------------------------------------- VolFraction
-VolFraction = GridFunctionNumberData(u, "c");
+ccc = GridFunctionNumberData(u, "c");
+VolFraction = ScaleLinker();
+VolFraction:set_import_1(ccc)
+VolFraction:set_import_2(1.0)
 
 ---------------------------------------------------------------------- Density
 
@@ -360,6 +416,7 @@ Density:set_model(density_model)
 Density:set_interface_volume_fraction(interface_value)
 ---------------------------------------------------------------------- Particle Pressure
 
+
 Ps = ParticlePressureLinker(); 
 Ps:set_particle_diameter(dp)
 Ps:set_particle_density(rho_s)
@@ -369,7 +426,6 @@ Ps:set_alpha_min(alpha_min)
 Ps:set_packing_factor(packing_factor)
 Ps:set_mix_density(Density)
 Ps:set_gravity(-9.81)
-
 
 ---------------------------------------------------------------------- Viscosity
 Visc = GranularViscosityLinker(); 
@@ -397,7 +453,14 @@ normal:set_interface_volume_fraction(interface_value)
 
 
 
-
+Source = GranularSourceLinker()
+Source:set_particle_density(rho_s)
+Source:set_fluid_density(rho_a)
+Source:set_mix_density(Density)
+Source:set_gravity(-9.81)
+Source:set_packing_factor(packing_factor)
+Source:set_rel_vel(0.0)
+Source:set_interface_volume_fraction(interface_value)
 
 ------------------------------------------------------------------------------------------
 -- Compose the discretization
@@ -411,6 +474,10 @@ NavierStokesDisc:set_stokes (bStokes)
 NavierStokesDisc:set_laplace ( bNoLaplace)
 NavierStokesDisc:set_kinematic_viscosity (Visc)
 NavierStokesDisc:set_density(Density)
+NavierStokesDisc:set_density_ref(0.0)
+if (boolSource) then
+	NavierStokesDisc:set_source(Source)
+end
 
 
 NavierStokesDisc:set_upwind (upwind)
@@ -426,32 +493,27 @@ InletDisc:add ("inflowVel2d", "Left,Top")
 
 SymDiscTop=NavierStokesSymBCFV1(NavierStokesDisc)
 SymDiscTop:add("Top")
---SlipDiscTop=NavierStokesWSBCFV1(NavierStokesDisc)
---SlipDiscTop:add("Top")
---SlipDiscTop:set_sliding_factor(0.0000001)
---SlipDiscTop:set_sliding_limit(0.0)
 
---InletDisc:add ("inflowVel3d", "TopWall")
---InletDisc:add ("inflowVel3d", "RightWall")
---InletDisc:add ("inflowVel3d", "LeftWall")
---FixPressureDisc = DirichletBoundary()
---FixPressureDisc:add(0, "p", "Outlet")
+
+FixPressureDisc = DirichletBoundary()
+FixPressureDisc:add(0, "p", "Top")
 
 -- boundary condition at the outlet
 OutletDisc = NavierStokesNoNormalStressOutflow (NavierStokesDisc)
 OutletDisc:add ("Right")
 
-
-
 -- boundary condition at the impermeable walls
 WallDisc = NavierStokesWall (NavierStokesDisc)
 WallDisc:add ("Bottom")
+
+Stress = NavierStokesInflowStressFV1(NavierStokesDisc)
+Stress:add("Bottom, Top, Left,Right")
 
 
 
 
 TransportEq = ConvectionDiffusion("c", "Inner", "fv1")
---TransportEq:set_velocity(NavierStokesDisc:velocity_ip())
+TransportEq:set_velocity(NavierStokesDisc:velocity_ip())
 --TransportEq:set_velocity(NavierStokesDisc:velocity())
 TransportEq:set_diffusion(0)
 TransportEq:set_upwind(UpwindFV1(upwind)) --upwind type for the transport equation: "no", "full" or "partial"
@@ -483,14 +545,15 @@ print("Transport Equation created.")
 
 Density:set_volume_fraction(TransportEq:value())
 
-Visc:set_volume_fraction(TransportEq:value())
+Visc:set_volume_fraction(TransportEq:const_value())
 Visc:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 
 
 PjumpShape:set_volume_fraction(TransportEq:value())
 
-Ps:set_volume_fraction(TransportEq:value())
+Ps:set_volume_fraction(TransportEq:const_value())
 Ps:set_velocity_gradient(NavierStokesDisc:velocity_grad())
+
 
 if (jumpPressure) then
 	NavierStokesDisc:set_jump_shape(PjumpShape,diffLength)
@@ -501,6 +564,8 @@ end
 normal:set_volume_fraction(TransportEq:value())
 normal:set_volume_grad(TransportEq:gradient())
 
+Source:set_volume_fraction(TransportEq:value())
+Source:set_volume_grad(TransportEq:gradient())
 
 
 
@@ -512,19 +577,41 @@ domainDisc:add (NavierStokesDisc)
 domainDisc:add (InletDisc)
 domainDisc:add (OutletDisc)
 domainDisc:add (WallDisc)
---domainDisc:add (SymDiscTop)
+--domainDisc:add (Stress)
 --domainDisc:add(FixPressureDisc)
 --domainDisc:add (SlipDiscTop)
 
 
 
 domainDisc:add(TransportEq)
-domainDisc:add(fixer)
+domainDisc:add(OutflowBND)
+--domainDisc:add(fixer)
+
 
 
 
 -- create the assembled operator for the solver
-assembledOp = AssembledOperator (domainDisc)
+
+-- create time discretization
+if timeMethod=="cn" then
+	timeDisc = ThetaTimeStep(domainDisc)
+	timeDisc:set_theta(0.5) -- Crank-Nicolson method
+end
+if timeMethod=="euler" then
+	timeDisc = ThetaTimeStep(domainDisc)
+	timeDisc:set_theta(1) -- implicit Euler
+end	
+if timeMethod=="fracstep" then
+	timeDisc = ThetaTimeStep(domainDisc,"FracStep")
+end
+if timeMethod=="alex" then
+	timeDisc = ThetaTimeStep(domainDisc, "Alexander")
+end
+
+op = AssembledOperator(timeDisc)
+
+
+op:init()
 
 ------------------------------------------------------------------------------------------
 -- Set up the solver
@@ -551,7 +638,7 @@ solverDesc =
 			{
 				type = "ilu",
 				beta = ilu_beta,
-				damping 	= 0.9,
+				damping 	= 0.5,
 				--sort	= false,
 				--sortEps 	= 1.e-50,
 				inversionEps 	= 1.e-8,
@@ -576,7 +663,7 @@ solverDesc =
 	lineSearch =
 	{
 		type			= "standard",
-		maxSteps		=3,
+		maxSteps		=5,
 		lambdaStart		= 1.0,
 		lambdaReduce	= 0.5,
 		acceptBest 		= true,
@@ -586,7 +673,7 @@ solverDesc =
 	{
 		type		= "standard",
 		iterations	= 200,
-		absolute	= 1e-5,
+		absolute	= 1e-8,
 		reduction	= 1e-12,
 		verbose		= true
 	}
@@ -599,71 +686,193 @@ solver = util.solver.CreateSolver(solverDesc)
 ------------------------------------------------------------------------------------------
 
 
-Interpolate(StartValueX, u, "u")
-Interpolate(StartValueY, u, "v")
-
-Interpolate(StartValueP, u, "p")
-Interpolate("InitialValue_FractionVolume", u, "c")
-
--- Order the DoFs:
-OrderLex (approxSpace,  "x")
---OrderCuthillMcKee(approxSpace,true)
-
-out = VTKOutput()
-out:clear_selection ()
-out:select_nodal (vel_cmp_tbl, "vel")
-out:select_nodal ("u", "vel_u")
-out:select_nodal ("v", "vel_v")
-if dim == 3 then
-	out:select_nodal ("w", "vel_w")
-end
-out:select_nodal ("p", "p")
-out:select_nodal ("c", "c")
-out:select(Density, "Rho")
-out:select(Visc, "Mu")
-out:select(Ps, "Ps")
-
-out:print_subsets ("Test", u, "Inner,Left,Right,Top,Bottom")
 
 
--- initialize the solver
-solver:init (assembledOp)
-solver:prepare (u)
+	Interpolate(0.0, u, "u")
+	Interpolate("StartValueY", u, "v")
 
--- apply the solver
-if not solver:apply (u) then
-	print ("The solver failed.")
-	exit ()
-end
---vorticity(vort,u)
+	Interpolate("StartValueP", u, "p")
+	Interpolate("InitialValue_FractionVolume", u, "c")
+	
+	
+
 ------------------------------------------------------------------------------------------
--- Plot the results
+-- Prepare the initial guess for the pressure
 ------------------------------------------------------------------------------------------
+if StatBool then
+	-- grid function for the solution
 
-out = VTKOutput()
-out:clear_selection ()
-out:select_nodal (vel_cmp_tbl, "vel")
-out:select_nodal ("u", "vel_u")
-out:select_nodal ("v", "vel_v")
-if dim == 3 then
-	out:select_nodal ("w", "vel_w")
+	-- Fix the mass fraction and solve the linear problem for the pressure
+
+	fixer = DirichletBoundary()
+	domainDisc:add(fixer)
+	fixer:invert_subset_selection()
+	fixer:add("c", "")
+
+	solver:init(AssembledOperator(domainDisc))
+	solver:prepare(u)
+
+	-- apply the solver for the stationary pressure problem
+	tBefore_s= os.clock()
+	if not solver:apply(u) then
+		print("===> THE PREPARATION PHASE FAILED! <===")
+		exit()
+	end
+	
+	tAfter_s = os.clock()
+	print("Computation for steady state took " .. tAfter_s-tBefore_s .. " seconds.")
+	domainDisc:remove (fixer)
+	
+	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")
 end
-out:select_nodal ("p", "p")
-out:select_nodal ("c", "c")
-out:select(Density, "Rho")
-out:select(Visc, "Mu")
-out:select(Ps, "Ps")
 
 
+------------------------------------------------------------------------------------------
+-- Apply the solver
+------------------------------------------------------------------------------------------
+-- start
+time = 0
+step = 0
 
-vtk_file_name = file_name .. "-lev" .. numRefs
-if bStokes then
-	vtk_file_name = vtk_file_name .. "-Stokes"
+
+	-- compute initial vorticity
+	--vorticity(vort,u)
+
+	-- write start solution
+	print("Writing start values")
+	out = VTKOutput()
+	out:clear_selection()
+	out:select_all(false)
+	out:select_nodal ("u,v", "velocity")
+	out:select_nodal ("u", "u")
+	out:select_nodal ("v", "v")
+	out:select_nodal ("p", "p")
+	out:select_nodal ("c", "c")
+	out:select(Density, "Rho")
+	out:select(Visc, "Mu")
+	out:select(Ps, "Ps")
+
+
+	out:print_subsets(vtk_file_name, u,allSubsets,0,0)
+	
+solver:init(op)
+
+
+if solver:prepare(u) == false then
+	print ("Newton solver prepare failed.") exit()
 end
-print ("Output to file " .. vtk_file_name .. ".vtu")
-out:print_subsets (vtk_file_name, u, "Inner,Left,Right,Top,Bottom")
+    
+-- create new grid function for old value
+uOld = u:clone()
+
+tBefore = os.clock()
+
+-- store grid function in vector of  old solutions
+solTimeSeries = SolutionTimeSeries()
+solTimeSeries:push(uOld, time)
 
 
---"Inner,UpperWall,LowerWall,FrontWall,BackWall,CylinderWall,Inlet,Outlet")
+s=1
+N_steps=0
+for step = 1, numTimeSteps do
+	print("++++++ TIMESTEP " .. step .. " BEGIN ++++++")
+	
+	NewtonSolution=false
+	while NewtonSolution==false  do
 
--- End of File
+		-- choose time step
+		do_dt = dt
+		
+		-- setup time Disc for old solutions and timestep
+		timeDisc:prepare_step(solTimeSeries, do_dt)
+	
+		-- prepare newton solver
+		if solver:prepare(u) == false then 
+			print ("Newton solver failed at step "..step.."."); exit(); 
+		end 
+	
+		-- apply newton solver
+		
+		NewtonSolution=false
+
+		if solver:apply(u)  == false then 
+				print ("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<            Reducing TImestep in time, step  " .. step .. " with time step " .. do_dt)
+			dt = math.max(dt*red_factor,0.99999*DT_min)
+			print("DT=" .. dt .. "");
+			print("Time=" .. time .. "");
+			if dt < DT_min  or modifyDT== false then 
+				print ("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx            Time step below minimum. Aborting. Failed at point with time step" .. do_dt .. "."); exit(); 
+	
+
+			else
+				do_dt = dt
+				VecScaleAssign(u, 1.0, solTimeSeries:latest())
+			
+			end
+			N_steps=0;
+			s=0;
+		else
+			NewtonSolution=true
+				
+		end 
+			
+	end
+
+	-- update new time
+	time= timeDisc:future_time()
+		
+	-- get oldest solution
+	oldestSol = solTimeSeries:oldest()
+
+	-- copy values into oldest solution (we reuse the memory here)
+	VecAssign(oldestSol, u)
+	
+	-- push oldest solutions with new values to front, oldest sol pointer is poped from end
+	solTimeSeries:push_discard_oldest(oldestSol, time)
+	
+	
+	-- compute CFL number
+	 
+	CFL=cflNumber(u,do_dt)
+	print("DT=" .. dt .. "");
+	print("Time=" .. time .. "");
+	N_steps=N_steps+1
+	if(N_steps>=UpdateDt) then
+		if modifyDT then 
+			dt=math.min(incr_factor*dt,DT_max)  
+			print ("-------------------------------------------------------------------------------------------------Time step increased at Step " .. step .. ", dt =  " .. dt .. ". ")
+		end
+		
+		N_steps=s*UpdateDt
+	end
+		
+	-- compute kinetic energy
+	--ke=kineticEnergy(u)
+	--writeNumbers("kineticEnergy.m",step+1,time,ke)
+	
+	if step % outputFactor == 0 then
+	
+		out = VTKOutput()
+		out:clear_selection()
+		out:select_all(false)
+		out:select_nodal("u,v", "velocity")
+		out:select_nodal("u", "u")
+		out:select_nodal("v", "v")
+		out:select_nodal("p", "p")
+		out:select_nodal("c", "c")
+		out:select(Density, "Rho")
+		out:select(Visc, "Mu")
+		out:select(Ps, "Ps")
+		
+
+		out:print_subsets(vtk_file_name, u,allSubsets,step,time)
+		print(" ")
+	end
+	print("++++++ TIMESTEP " .. step .. "  END ++++++")
+end
+
+tAfter = os.clock()
+solver:print_average_convergence()
+print("Computation took " .. tAfter-tBefore .. " seconds.")
+
+print("done.")
