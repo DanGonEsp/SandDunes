@@ -33,12 +33,12 @@ packing_factor		= util.GetParamNumber("-packing_factor", 0.63, "max volume fract
 alpha_min		= util.GetParamNumber("-min concentration", 0.57, "max volume fraction")
 viscosity_model		= util.GetParamNumber("-granular_model", 3, "Options:  0 Constant, 1 Proportional, 2 Einstein model, 3 Rheology(I) + Einstein model")
 density_model  = util.GetParam("-density_model", "linear", "constant, linear")
-interface_value  = util.GetParamNumber("-interface_value", 0.5, "interface value")
+interface_value  = util.GetParamNumber("-interface_value", alpha_min/packing_factor, "interface value")
 
 
 
 
-jumpPressure = false
+jumpPressure = true
 boolSource = false
 
 if jumpPressure then
@@ -61,7 +61,7 @@ bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
 diffLength  = util.GetParam("-difflength", "cor", "fivepoint, raw, corDiffusion length type")
 
 
-dt = util.GetParamNumber("-dt",0.05)
+dt = util.GetParamNumber("-dt",0.1)
 numTimeSteps =  util.GetParamNumber("-numTimeSteps", 20	)
 EndTime = util.GetParamNumber("-EndTime", 6.2, "EndTime")
 boolEndTime 	= util.GetParamNumber("-boolEndTime", true)
@@ -88,7 +88,7 @@ modellconstant = util.GetParamNumber("-c",0.1)
 
 
 -- Parameters of the solver
-ilu_beta	= util.GetParamNumber("-iluBeta", -0.01, "choose a negative value depending on the convection rate")
+ilu_beta	= util.GetParamNumber("-iluBeta", -0.05, "choose a negative value depending on the convection rate")
 linIter = util.GetParamNumber("-linIter", 2000, "Max number of linear iterations")
 -- Grid file name
 gridName = geometry .. ".ugx"
@@ -347,8 +347,8 @@ end]]
 function VolumeFraction2(x,y)
 	dd=dist(x,y)
 	ds=20*dx
-	kk1=400
-	kk2=400 
+	kk1=1600
+	kk2=1600 
 	
 	if y>Dune(x,y) then
 		if dd<ds then
@@ -545,13 +545,13 @@ print("Transport Equation created.")
 
 Density:set_volume_fraction(TransportEq:value())
 
-Visc:set_volume_fraction(TransportEq:value())
+Visc:set_volume_fraction(TransportEq:const_value())
 Visc:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 
 
 PjumpShape:set_volume_fraction(TransportEq:value())
 
-Ps:set_volume_fraction(TransportEq:value())
+Ps:set_volume_fraction(TransportEq:const_value())
 Ps:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 
 
@@ -638,7 +638,7 @@ solverDesc =
 			{
 				type = "ilu",
 				beta = ilu_beta,
-				damping 	= 0.9,
+				damping 	= 0.5,
 				--sort	= false,
 				--sortEps 	= 1.e-50,
 				inversionEps 	= 1.e-8,
@@ -673,7 +673,7 @@ solverDesc =
 	{
 		type		= "standard",
 		iterations	= 200,
-		absolute	= 1e-5,
+		absolute	= 1e-8,
 		reduction	= 1e-12,
 		verbose		= true
 	}
@@ -713,10 +713,14 @@ if StatBool then
 	solver:prepare(u)
 
 	-- apply the solver for the stationary pressure problem
+	tBefore_s= os.clock()
 	if not solver:apply(u) then
 		print("===> THE PREPARATION PHASE FAILED! <===")
 		exit()
 	end
+	
+	tAfter_s = os.clock()
+	print("Computation for steady state took " .. tAfter_s-tBefore_s .. " seconds.")
 	domainDisc:remove (fixer)
 	
 	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")
