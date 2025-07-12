@@ -16,15 +16,23 @@ ug_load_script("util/conv_rates_kinetic.lua")
 -- Get command line parameters
 ------------------------------------------------------------------------------------------
 
+-- Geometry parameters
+geometry	= util.GetParam ("-geom", "Dune2D_tri_5")
+--geometry	= util.GetParam ("-geom", "cylinderp")
+gridName = geometry .. ".ugx"
+-- Subsets used in the problem
+allSubsets = "Inner,Left, Right,Top, Bottom"
+
+
 -- Physical parameters
 dim 		= util.GetParamNumber("-dim", 2, "dimensionality of the problem")
-geometry	= util.GetParam ("-geom", "Dune2D_tri_5")
 nu_a 	= util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity")
 rho_a 	= util.GetParamNumber("-rho_a", 1.2, "Air Density")
 rho_s 	= util.GetParamNumber("-rho_s", 2500, "Sand Density")
 dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
 nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
 inflow		= util.GetParamNumber("-inflow", 5, "max. inflow velocity")
+--c_init		= util.GetParamNumber("-initial concentration", 0.003, "max volume fraction")
 c_init		= util.GetParamNumber("-initial concentration", 1.0, "max volume fraction")
 
 
@@ -33,44 +41,44 @@ packing_factor		= util.GetParamNumber("-packing_factor", 0.63, "max volume fract
 alpha_min		= util.GetParamNumber("-min concentration", 0.57, "max volume fraction")
 viscosity_model		= util.GetParamNumber("-granular_model", 3, "Options:  0 Constant, 1 Proportional, 2 Einstein model, 3 Rheology(I) + Einstein model")
 density_model  = util.GetParam("-density_model", "linear", "constant, linear")
-interface_value  = util.GetParamNumber("-interface_value", alpha_min/packing_factor, "interface value")
+--interface_value  = util.GetParamNumber("-interface_value",  alpha_min*c_init/packing_factor, "interface value")
+interface_value  = util.GetParamNumber("-interface_value",  0.3, "interface value")
 
 
 
 
-jumpPressure = true
+jumpPressure = false
 boolSource = false
 
 if jumpPressure then
-	file_name ="PressureStatSourceDT"
+	file_name ="PressureStatInertiaDT"
 else
-	file_name ="NoPressureStatSourceDT"
+	file_name ="NoPressureStatInertiaDT"
 end
 stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
 
 -- Numerical parameters of the discretization
-numRefs 	= util.GetParamNumber("-numRefs", 3, "number of grid refinements")
+numRefs 	= util.GetParamNumber("-numRefs", 2, "number of grid refinements")
 numPreRefs 	= util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)")
 
 bStokes 	= util.GetParamNumber("-Stokes", false ,"If defined, only Stokes Eq. computed")
 bNoLaplace 	= util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
-bExactJac 	= util.GetParamNumber("-exactJac", false,"If defined, exact jacobian used")
+bExactJac 	= util.GetParamNumber("-exactJac", 0.0,"If defined, exact jacobian used")
 bPecletBlend= util.GetParamNumber("-PecletBlend", false,"If defined, Peclet Blend used")
 upwind      = util.GetParam("-upwind", "full", "Upwind type full or lps")
 bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
 diffLength  = util.GetParam("-difflength", "cor", "fivepoint, raw, corDiffusion length type")
 
 
-dt = util.GetParamNumber("-dt",0.1)
+dt = util.GetParamNumber("-dt",10)
 numTimeSteps =  util.GetParamNumber("-numTimeSteps", 20	)
 EndTime = util.GetParamNumber("-EndTime", 6.2, "EndTime")
 boolEndTime 	= util.GetParamNumber("-boolEndTime", true)
 outputFactor     = util.GetParam("-output", 1, "output every ... steps")
-max_newton_steps_1=util.GetParamNumber("-numNewtonSteps", 100)
-max_newton_steps_2=util.GetParamNumber("-numNewtonSteps", 100)
+max_newton_steps=util.GetParamNumber("-numNewtonSteps", 200)
 max_linear_steps=util.GetParamNumber("-numLinearIter", 200)
-StatBool = util.GetParamNumber("-StatBool", true, "Stationary state")
 timeMethod = util.GetParam("-timeMethod","euler")
+StatBool = util.GetParamNumber("-StatBool", true, "Stationary state")
 
 CFL_max= util.GetParamNumber("-cfl", 100, "max  CFL number")
 DT_max= util.GetParamNumber("-DT_max", 2, "max  DT")
@@ -88,13 +96,7 @@ modellconstant = util.GetParamNumber("-c",0.1)
 
 
 -- Parameters of the solver
-ilu_beta	= util.GetParamNumber("-iluBeta", -0.05, "choose a negative value depending on the convection rate")
 linIter = util.GetParamNumber("-linIter", 2000, "Max number of linear iterations")
--- Grid file name
-gridName = geometry .. ".ugx"
-
--- Subsets used in the problem
-allSubsets = "Inner,Left, Right,Top, Bottom"
 
 
 
@@ -441,7 +443,7 @@ Visc:set_alpha_min(alpha_min)
 Visc:set_packing_factor(packing_factor)
 Visc:set_mix_density(Density)
 Visc:set_interface_volume_fraction(interface_value)
-Visc:set_limit(1e-02)
+Visc:set_limit(1e3)
 Visc:set_particle_pressure(Ps)
 
 PjumpShape= JumpShapeLinker()
@@ -487,16 +489,8 @@ NavierStokesDisc:set_pac_upwind (bPac)
 NavierStokesDisc:set_interface_value(interface_value)
 
 InletDisc = NavierStokesInflow (NavierStokesDisc)
---InletDisc:add ("inflowVel3d", "Inlet")
-InletDisc:add ("inflowVel2d", "Left,Top")
-
-
-SymDiscTop=NavierStokesSymBCFV1(NavierStokesDisc)
-SymDiscTop:add("Top")
-
-
-FixPressureDisc = DirichletBoundary()
-FixPressureDisc:add(0, "p", "Top")
+--InletDisc:add ("inflowVel3d", "Inlet,Top,Bottom")
+InletDisc:add ("inflowVel2d","Left,Top")
 
 -- boundary condition at the outlet
 OutletDisc = NavierStokesNoNormalStressOutflow (NavierStokesDisc)
@@ -506,8 +500,12 @@ OutletDisc:add ("Right")
 WallDisc = NavierStokesWall (NavierStokesDisc)
 WallDisc:add ("Bottom")
 
+
+Vel = VelocityBCLinker()
 Stress = NavierStokesInflowStressFV1(NavierStokesDisc)
-Stress:add("Bottom, Top, Left,Right")
+Stress:add("Left,Top")
+Stress:set_velocity(Vel)
+
 
 
 
@@ -517,6 +515,7 @@ TransportEq:set_velocity(NavierStokesDisc:velocity_ip())
 --TransportEq:set_velocity(NavierStokesDisc:velocity())
 TransportEq:set_diffusion(0)
 TransportEq:set_upwind(UpwindFV1(upwind)) --upwind type for the transport equation: "no", "full" or "partial"
+TransportEq:set_interface_value(interface_value)
 
 
 -- create dirichlet boundary for concentration
@@ -531,10 +530,6 @@ NeumannBND = NeumannBoundaryFV1("c")
 --NeumannBND:add( BottomFlux,"Bottom,Top,Left","Inner")	
 --NeumannBND:add( Flux,"Right","Inner")
 
-fixer = DirichletBoundary()	
-fixer:invert_subset_selection()
-fixer:add("c", "")
-
 
 
 print("Transport Equation created.")
@@ -545,7 +540,7 @@ print("Transport Equation created.")
 
 Density:set_volume_fraction(TransportEq:value())
 
-Visc:set_volume_fraction(TransportEq:const_value())
+Visc:set_volume_fraction(TransportEq:value())
 Visc:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 
 
@@ -567,7 +562,15 @@ normal:set_volume_grad(TransportEq:gradient())
 Source:set_volume_fraction(TransportEq:value())
 Source:set_volume_grad(TransportEq:gradient())
 
-
+Vel:set_volume_fraction(TransportEq:value())
+Vel:set_volume_grad(TransportEq:gradient())
+Vel:set_particle_density(rho_s)
+Vel:set_fluid_density(rho_a)
+Vel:set_mix_density(Density)
+Vel:set_gravity(-9.81)
+Vel:set_packing_factor(packing_factor)
+Vel:set_rel_vel(0.0)
+Vel:set_interface_volume_fraction(interface_value)
 
 
 
@@ -578,14 +581,11 @@ domainDisc:add (InletDisc)
 domainDisc:add (OutletDisc)
 domainDisc:add (WallDisc)
 --domainDisc:add (Stress)
---domainDisc:add(FixPressureDisc)
---domainDisc:add (SlipDiscTop)
 
 
 
 domainDisc:add(TransportEq)
 domainDisc:add(OutflowBND)
---domainDisc:add(fixer)
 
 
 
@@ -619,7 +619,7 @@ op:init()
 
 -- For debugging only (to write the intermediate data): --
 --util.debug_dir = "FLOW_DEBUG"
---util.debug = { vtk = true, conn_viewer = true }
+--util.debug = { vtk = true, conn_viewer = false }
 --util.CreateGridFuncDebugWriter (approxSpace)
 -- --
 
@@ -637,8 +637,8 @@ solverDesc =
 			smoother =
 			{
 				type = "ilu",
-				beta = ilu_beta,
-				damping 	= 0.5,
+				beta = -0.1,
+				damping 	= 1.0,
 				--sort	= false,
 				--sortEps 	= 1.e-50,
 				inversionEps 	= 1.e-8,
@@ -656,7 +656,7 @@ solverDesc =
 			type		= "standard",
 			iterations	= linIter,
 			absolute	= 1e-12,
-			reduction	= 1e-1,
+			reduction	= 1e-2,
 			verbose		= true
 		}
 	},
@@ -664,7 +664,7 @@ solverDesc =
 	{
 		type			= "standard",
 		maxSteps		=5,
-		lambdaStart		= 1.0,
+		lambdaStart		= 2.0,
 		lambdaReduce	= 0.5,
 		acceptBest 		= true,
 		checkAll		= false
@@ -672,7 +672,7 @@ solverDesc =
 	convCheck =
 	{
 		type		= "standard",
-		iterations	= 200,
+		iterations	= max_newton_steps,
 		absolute	= 1e-8,
 		reduction	= 1e-12,
 		verbose		= true
@@ -688,14 +688,15 @@ solver = util.solver.CreateSolver(solverDesc)
 
 
 
-	Interpolate(0.0, u, "u")
-	Interpolate("StartValueY", u, "v")
+Interpolate(1.0*inflow, u, "u")
+Interpolate("StartValueY", u, "v")
 
-	Interpolate("StartValueP", u, "p")
-	Interpolate("InitialValue_FractionVolume", u, "c")
+Interpolate("StartValueP", u, "p")
+Interpolate("InitialValue_FractionVolume", u, "c")
 	
 	
 
+	
 ------------------------------------------------------------------------------------------
 -- Prepare the initial guess for the pressure
 ------------------------------------------------------------------------------------------
@@ -724,6 +725,7 @@ if StatBool then
 	domainDisc:remove (fixer)
 	
 	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")
+
 end
 
 
@@ -733,10 +735,6 @@ end
 -- start
 time = 0
 step = 0
-
-
-	-- compute initial vorticity
-	--vorticity(vort,u)
 
 	-- write start solution
 	print("Writing start values")
@@ -751,8 +749,6 @@ step = 0
 	out:select(Density, "Rho")
 	out:select(Visc, "Mu")
 	out:select(Ps, "Ps")
-
-
 	out:print_subsets(vtk_file_name, u,allSubsets,0,0)
 	
 solver:init(op)
@@ -846,9 +842,6 @@ for step = 1, numTimeSteps do
 		N_steps=s*UpdateDt
 	end
 		
-	-- compute kinetic energy
-	--ke=kineticEnergy(u)
-	--writeNumbers("kineticEnergy.m",step+1,time,ke)
 	
 	if step % outputFactor == 0 then
 	
@@ -872,7 +865,11 @@ for step = 1, numTimeSteps do
 end
 
 tAfter = os.clock()
-solver:print_average_convergence()
-print("Computation took " .. tAfter-tBefore .. " seconds.")
-
+--solver:print_average_convergence()
+print("-			-")
+print("-------------------------------------------------------------------------------")
+print("Steady state Computation took " .. tAfter_s-tBefore_s .. " seconds.")
+print("Temporal Computation took " .. tAfter-tBefore .. " seconds.")
+print("Total Computation took " .. tAfter_s-tBefore_s+tAfter-tBefore .. " seconds.")
+print("-------------------------------------------------------------------------------")
 print("done.")
