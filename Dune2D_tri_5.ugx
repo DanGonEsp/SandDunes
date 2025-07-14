@@ -14,11 +14,11 @@
 			<edges>54 55 56 57 90 91 92 93 126 127 128 129 162 163 164 165 198 199 200 201 234 235 236 237 270 271 272 273 306 307 308 309 338 339 340 341 360 361 362 363</edges>
 		</subset>
 		<subset name="Right" color="0 1 0 1" state="393216">
-			<vertices>49 683 684 685 686 687 688 689 690 691 692 693 694 695 696</vertices>
+			<vertices>49 683 684 685 686 687 688 689 690 691 692 693 694 695 696 42</vertices>
 			<edges>1952 1953 1954 1955 1956 1957 1958 1959 1960 1961 1962 1963 1964 1965 1966 1967</edges>
 		</subset>
 		<subset name="Bottom" color="0 0 1 1" state="393216">
-			<vertices>0 5 7 12 17 22 27 32 37 42 55 61 63 72 81 90 99 108 117 126 188 189 201 202 205 206 223 224 241 242 259 260 277 278 295 296 313 314 331 332</vertices>
+			<vertices>0 5 7 12 17 22 27 32 37 55 61 63 72 81 90 99 108 117 126 188 189 201 202 205 206 223 224 241 242 259 260 277 278 295 296 313 314 331 332</vertices>
 			<edges>18 19 20 21 43 44 45 46 50 51 52 53 86 87 88 89 122 123 124 125 158 159 160 161 194 195 196 197 230 231 232 233 266 267 268 269 302 303 304 305</edges>
 		</subset>
 		<subset name="Left" color="1 0 1 1" state="393216">
@@ -31,7 +31,7 @@
 		<subset name="fixed" color="1 1 1 1" state="0"/>
 	</subset_handler>
 	<selector name="defSel">
-		<edges>1106 1</edges>
+		<vertices>153 1</vertices>
 	</selector>
 	<projection_handler name="defPH" subset_handler="0">
 		<default type="default">0 0</default>

@@ -47,7 +47,7 @@ interface_value  = util.GetParamNumber("-interface_value",  0.3, "interface valu
 
 
 
-jumpPressure = false
+jumpPressure = true
 boolSource = false
 
 if jumpPressure then
@@ -260,25 +260,6 @@ end
 
 dx=math.pow(1/2,(numRefs+2))
 ---------------------------------------------------------------------- Initial Velocity
-
---[[function StartValueX(x,y) 
-	interface=0
-	dd=dist(x,y)
-	ds=dx
-	--ds=0.1*dx
-	if dd<ds then
-		interface=1
-	end
-	if (y>Dune(x,y) and y>0.5*dx) then
-		if interface==0 then
-			return inflow *0.0
-		else
-			return inflow *0.0
-		end
-	else
-		return inflow*0.0
-	end
-end]]
 function StartValueX(x,y) 
 	hh=14.1856
 	nn=2.5
@@ -637,16 +618,16 @@ solverDesc =
 			smoother =
 			{
 				type = "ilu",
-				beta = -0.1,
-				damping 	= 1.0,
+				beta = -0.01,
+				--damping 	= 1.0,
 				--sort	= false,
 				--sortEps 	= 1.e-50,
 				inversionEps 	= 1.e-8,
-				consistentInterfaces   = true
+				--consistentInterfaces   = true
 				--overlap 		= false,
 				--ordering 		= nil
 			},
-			preSmooth = 1,
+			preSmooth = 2,
 			postSmooth = 1,
 			baseSolver = "lu",
 			baseLevel = numPreRefs
@@ -663,8 +644,8 @@ solverDesc =
 	lineSearch =
 	{
 		type			= "standard",
-		maxSteps		=5,
-		lambdaStart		= 2.0,
+		maxSteps		=3,
+		lambdaStart		= 1.0,
 		lambdaReduce	= 0.5,
 		acceptBest 		= true,
 		checkAll		= false
