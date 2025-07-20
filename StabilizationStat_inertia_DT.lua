@@ -32,22 +32,30 @@ rho_s 	= util.GetParamNumber("-rho_s", 2500, "Sand Density")
 dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
 nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
 inflow		= util.GetParamNumber("-inflow", 5, "max. inflow velocity")
---c_init		= util.GetParamNumber("-initial concentration", 0.003, "max volume fraction")
 c_init		= util.GetParamNumber("-initial concentration", 1.0, "max volume fraction")
 
 
 alpha_max		= util.GetParamNumber("-max_concentration", 0.635, "max volume fraction")
-packing_factor		= util.GetParamNumber("-packing_factor", 0.63, "max volume fraction")
+packing_factor		= util.GetParamNumber("-packing_factor", 0.6, "max volume fraction")
 alpha_min		= util.GetParamNumber("-min concentration", 0.57, "max volume fraction")
 viscosity_model		= util.GetParamNumber("-granular_model", 3, "Options:  0 Constant, 1 Proportional, 2 Einstein model, 3 Rheology(I) + Einstein model")
 density_model  = util.GetParam("-density_model", "linear", "constant, linear")
---interface_value  = util.GetParamNumber("-interface_value",  alpha_min*c_init/packing_factor, "interface value")
-interface_value  = util.GetParamNumber("-interface_value",  0.3, "interface value")
+interface_value  = util.GetParamNumber("-interface_value",  alpha_min*c_init/packing_factor, "interface value")
+--interface_value  = util.GetParamNumber("-interface_value",  0.3, "interface value")
+FR = 0.05
+B_phi = 1
+deltaGamma = 1e-04;
+
+deltaPs = 1.48e-04;
+deltaI = 1e-03;
+FricMu_1=0.38
+FricMu_2=0.64
+I_0 = 0.279
 
 
 
 
-jumpPressure = true
+jumpPressure = false
 boolSource = false
 
 if jumpPressure then
@@ -58,12 +66,12 @@ end
 stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
 
 -- Numerical parameters of the discretization
-numRefs 	= util.GetParamNumber("-numRefs", 2, "number of grid refinements")
+numRefs 	= util.GetParamNumber("-numRefs", 3, "number of grid refinements")
 numPreRefs 	= util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)")
 
 bStokes 	= util.GetParamNumber("-Stokes", false ,"If defined, only Stokes Eq. computed")
 bNoLaplace 	= util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
-bExactJac 	= util.GetParamNumber("-exactJac", 0.0,"If defined, exact jacobian used")
+bExactJac 	= util.GetParamNumber("-exactJac", 0.4,"If defined, exact jacobian used")
 bPecletBlend= util.GetParamNumber("-PecletBlend", false,"If defined, Peclet Blend used")
 upwind      = util.GetParam("-upwind", "full", "Upwind type full or lps")
 bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
@@ -409,6 +417,9 @@ Ps:set_alpha_min(alpha_min)
 Ps:set_packing_factor(packing_factor)
 Ps:set_mix_density(Density)
 Ps:set_gravity(-9.81)
+Ps:set_FR(FR)
+Ps:set_B_phi(B_phi)
+Ps:set_deltaGamma(deltaGamma)
 
 ---------------------------------------------------------------------- Viscosity
 Visc = GranularViscosityLinker(); 
@@ -426,6 +437,14 @@ Visc:set_mix_density(Density)
 Visc:set_interface_volume_fraction(interface_value)
 Visc:set_limit(1e3)
 Visc:set_particle_pressure(Ps)
+Visc:set_deltaPs(deltaPs)
+Visc:set_deltaI(deltaI)
+Visc:set_FricMu_1(FricMu_1)
+Visc:set_FricMu_2(FricMu_2)
+Visc:set_I_0(I_0)
+Visc:set_deltaGamma(deltaGamma)
+
+
 
 PjumpShape= JumpShapeLinker()
 PjumpShape:set_interface_volume_fraction(interface_value)
@@ -519,9 +538,9 @@ print("Transport Equation created.")
 -- Viscosity, Density and Gravitation Input
 ---------------------------------------------------------------------------------------
 
-Density:set_volume_fraction(TransportEq:value())
+Density:set_volume_fraction(TransportEq:const_value())
 
-Visc:set_volume_fraction(TransportEq:value())
+Visc:set_volume_fraction(TransportEq:const_value())
 Visc:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 
 
@@ -618,7 +637,7 @@ solverDesc =
 			smoother =
 			{
 				type = "ilu",
-				beta = -0.01,
+				beta = -0.2,
 				--damping 	= 1.0,
 				--sort	= false,
 				--sortEps 	= 1.e-50,
@@ -627,7 +646,7 @@ solverDesc =
 				--overlap 		= false,
 				--ordering 		= nil
 			},
-			preSmooth = 2,
+			preSmooth = 1,
 			postSmooth = 1,
 			baseSolver = "lu",
 			baseLevel = numPreRefs
@@ -706,6 +725,7 @@ if StatBool then
 	domainDisc:remove (fixer)
 	
 	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")
+	
 
 end
 
@@ -718,22 +738,24 @@ time = 0
 step = 0
 
 	-- write start solution
-	print("Writing start values")
-	out = VTKOutput()
-	out:clear_selection()
-	out:select_all(false)
-	out:select_nodal ("u,v", "velocity")
-	out:select_nodal ("u", "u")
-	out:select_nodal ("v", "v")
-	out:select_nodal ("p", "p")
-	out:select_nodal ("c", "c")
-	out:select(Density, "Rho")
-	out:select(Visc, "Mu")
-	out:select(Ps, "Ps")
-	out:print_subsets(vtk_file_name, u,allSubsets,0,0)
+print("Writing start values")
+out = VTKOutput()
+out:clear_selection()
+out:select_all(false)
+out:select_nodal ("u,v", "velocity")
+out:select_nodal ("u", "u")
+out:select_nodal ("v", "v")
+out:select_nodal ("p", "p")
+out:select_nodal ("c", "c")
+out:select(Density, "Rho")
+out:select(Visc, "Mu")
+out:select(Ps, "Ps")
+out:print_subsets(vtk_file_name, u,allSubsets,0,0)
 	
 solver:init(op)
 
+
+exit()
 
 if solver:prepare(u) == false then
 	print ("Newton solver prepare failed.") exit()
