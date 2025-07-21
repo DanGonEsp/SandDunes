@@ -55,23 +55,29 @@ I_0 = 0.279
 
 
 
-jumpPressure = false
+jumpPressure = true
 boolSource = false
 
 if jumpPressure then
 	file_name ="PressureStatInertiaDT"
+	value_beta = -0.005
+	jac = 0.4
+	damping_mg = 0.15
 else
 	file_name ="NoPressureStatInertiaDT"
+	value_beta = -0.2
+	jac = 0.4
+	damping_mg = 1.0
 end
 stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
 
 -- Numerical parameters of the discretization
-numRefs 	= util.GetParamNumber("-numRefs", 3, "number of grid refinements")
+numRefs 	= util.GetParamNumber("-numRefs", 2, "number of grid refinements")
 numPreRefs 	= util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)")
 
 bStokes 	= util.GetParamNumber("-Stokes", false ,"If defined, only Stokes Eq. computed")
 bNoLaplace 	= util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
-bExactJac 	= util.GetParamNumber("-exactJac", 0.4,"If defined, exact jacobian used")
+bExactJac 	= util.GetParamNumber("-exactJac", jac,"If defined, exact jacobian used")
 bPecletBlend= util.GetParamNumber("-PecletBlend", false,"If defined, Peclet Blend used")
 upwind      = util.GetParam("-upwind", "full", "Upwind type full or lps")
 bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
@@ -125,6 +131,7 @@ print (" Geometry: " .. geometry .. " (file " .. gridName .. "), dim = " .. dim)
 print (" Physical parameter:")
 print ("	inflow		= " .. inflow)
 print ("	Stokes		= " .. tostring (bStokes))
+print ("	Pressure Jump	= " .. tostring (jumpPressure))
 print (" Numerical parameter:")
 print ("	numRefs		= " .. numRefs)
 print ("	numPreRefs	= " .. numPreRefs)
@@ -637,8 +644,8 @@ solverDesc =
 			smoother =
 			{
 				type = "ilu",
-				beta = -0.2,
-				--damping 	= 1.0,
+				beta = value_beta,
+				damping 	= damping_mg,
 				--sort	= false,
 				--sortEps 	= 1.e-50,
 				inversionEps 	= 1.e-8,
