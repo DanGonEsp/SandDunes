@@ -36,7 +36,7 @@ c_init		= util.GetParamNumber("-initial concentration", 1.0, "max volume fractio
 
 
 alpha_max		= util.GetParamNumber("-max_concentration", 0.635, "max volume fraction")
-packing_factor		= util.GetParamNumber("-packing_factor", 0.6, "max volume fraction")
+packing_factor		= util.GetParamNumber("-packing_factor", 0.625, "max volume fraction")
 alpha_min		= util.GetParamNumber("-min concentration", 0.57, "max volume fraction")
 viscosity_model		= util.GetParamNumber("-granular_model", 3, "Options:  0 Constant, 1 Proportional, 2 Einstein model, 3 Rheology(I) + Einstein model")
 density_model  = util.GetParam("-density_model", "linear", "constant, linear")
@@ -45,6 +45,7 @@ interface_value  = util.GetParamNumber("-interface_value",  alpha_min*c_init/pac
 FR = 0.05
 B_phi = 1
 deltaGamma = 1e-04;
+Visc_limit = 1e4
 
 deltaPs = 1.48e-04;
 deltaI = 1e-03;
@@ -56,17 +57,17 @@ I_0 = 0.279
 
 
 jumpPressure = true
-boolSource = false
+boolSource = true
 
 if jumpPressure then
-	file_name ="PressureStatInertiaDT"
-	value_beta = -0.005
+	file_name ="PressureStatInertiaDTSCVF"
+	value_beta =-0.001         --value_beta = -0.005
 	jac = 0.4
-	damping_mg = 0.15
+	damping_mg = 1.0        --damping_mg = 0.15
 else
-	file_name ="NoPressureStatInertiaDT"
-	value_beta = -0.2
-	jac = 0.4
+	file_name ="NoPressureStatInertiaDTSCVF"
+	value_beta = -0.01
+	jac = 0.3
 	damping_mg = 1.0
 end
 stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
@@ -84,7 +85,7 @@ bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
 diffLength  = util.GetParam("-difflength", "cor", "fivepoint, raw, corDiffusion length type")
 
 
-dt = util.GetParamNumber("-dt",10)
+dt = util.GetParamNumber("-dt",1)
 numTimeSteps =  util.GetParamNumber("-numTimeSteps", 20	)
 EndTime = util.GetParamNumber("-EndTime", 6.2, "EndTime")
 boolEndTime 	= util.GetParamNumber("-boolEndTime", true)
@@ -344,7 +345,7 @@ end]]
 end]]
 function VolumeFraction2(x,y)
 	dd=dist(x,y)
-	ds=20*dx
+	ds=0*dx
 	kk1=1600
 	kk2=1600 
 	
@@ -442,7 +443,7 @@ Visc:set_alpha_min(alpha_min)
 Visc:set_packing_factor(packing_factor)
 Visc:set_mix_density(Density)
 Visc:set_interface_volume_fraction(interface_value)
-Visc:set_limit(1e3)
+Visc:set_limit(Visc_limit)
 Visc:set_particle_pressure(Ps)
 Visc:set_deltaPs(deltaPs)
 Visc:set_deltaI(deltaI)
@@ -481,19 +482,19 @@ NavierStokesDisc = NavierStokesFV1 (fct_cmp_tbl, {"Inner"})
 NavierStokesDisc:set_exact_jacobian (bExactJac)
 NavierStokesDisc:set_stokes (bStokes)
 NavierStokesDisc:set_laplace ( bNoLaplace)
+NavierStokesDisc:set_upwind (upwind)
+NavierStokesDisc:set_peclet_blend (bPecletBlend)
+NavierStokesDisc:set_stabilization (stab, diffLength)
+NavierStokesDisc:set_pac_upwind (bPac)
+
 NavierStokesDisc:set_kinematic_viscosity (Visc)
 NavierStokesDisc:set_density(Density)
 NavierStokesDisc:set_density_ref(0.0)
 if (boolSource) then
 	NavierStokesDisc:set_source(Source)
 end
-
-
-NavierStokesDisc:set_upwind (upwind)
-NavierStokesDisc:set_peclet_blend (bPecletBlend)
-NavierStokesDisc:set_stabilization (stab, diffLength)
-NavierStokesDisc:set_pac_upwind (bPac)
 NavierStokesDisc:set_interface_value(interface_value)
+
 
 InletDisc = NavierStokesInflow (NavierStokesDisc)
 --InletDisc:add ("inflowVel3d", "Inlet,Top,Bottom")
@@ -509,9 +510,9 @@ WallDisc:add ("Bottom")
 
 
 Vel = VelocityBCLinker()
-Stress = NavierStokesInflowStressFV1(NavierStokesDisc)
-Stress:add("Left,Top")
-Stress:set_velocity(Vel)
+--Stress = NavierStokesInflowStressFV1(NavierStokesDisc)
+--Stress:add("Left,Top")
+--Stress:set_velocity(Vel)
 
 
 
@@ -545,15 +546,15 @@ print("Transport Equation created.")
 -- Viscosity, Density and Gravitation Input
 ---------------------------------------------------------------------------------------
 
-Density:set_volume_fraction(TransportEq:const_value())
+Density:set_volume_fraction(TransportEq:value())
 
-Visc:set_volume_fraction(TransportEq:const_value())
+Visc:set_volume_fraction(TransportEq:value())
 Visc:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 
 
 PjumpShape:set_volume_fraction(TransportEq:value())
 
-Ps:set_volume_fraction(TransportEq:const_value())
+Ps:set_volume_fraction(TransportEq:value())
 Ps:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 
 
@@ -670,9 +671,9 @@ solverDesc =
 	lineSearch =
 	{
 		type			= "standard",
-		maxSteps		=3,
+		maxSteps		=4,
 		lambdaStart		= 1.0,
-		lambdaReduce	= 0.5,
+		lambdaReduce	= 0.59,
 		acceptBest 		= true,
 		checkAll		= false
 	},
@@ -680,7 +681,7 @@ solverDesc =
 	{
 		type		= "standard",
 		iterations	= max_newton_steps,
-		absolute	= 1e-8,
+		absolute	= 1e-5,
 		reduction	= 1e-12,
 		verbose		= true
 	}
@@ -695,11 +696,7 @@ solver = util.solver.CreateSolver(solverDesc)
 
 
 
-Interpolate(1.0*inflow, u, "u")
-Interpolate("StartValueY", u, "v")
 
-Interpolate("StartValueP", u, "p")
-Interpolate("InitialValue_FractionVolume", u, "c")
 	
 	
 
@@ -708,6 +705,13 @@ Interpolate("InitialValue_FractionVolume", u, "c")
 -- Prepare the initial guess for the pressure
 ------------------------------------------------------------------------------------------
 if StatBool then
+
+	Interpolate(StartValueX, u, "u")
+	Interpolate("StartValueY", u, "v")
+
+	Interpolate("StartValueP", u, "p")
+	Interpolate("InitialValue_FractionVolume", u, "c")
+
 	-- grid function for the solution
 
 	-- Fix the mass fraction and solve the linear problem for the pressure
@@ -732,8 +736,14 @@ if StatBool then
 	domainDisc:remove (fixer)
 	
 	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")
-	
+else
 
+	Interpolate(0.0*inflow, u, "u")
+	Interpolate("StartValueY", u, "v")
+
+	Interpolate("StartValueP", u, "p")
+	Interpolate("InitialValue_FractionVolume", u, "c")
+	
 end
 
 
@@ -762,7 +772,6 @@ out:print_subsets(vtk_file_name, u,allSubsets,0,0)
 solver:init(op)
 
 
-exit()
 
 if solver:prepare(u) == false then
 	print ("Newton solver prepare failed.") exit()
