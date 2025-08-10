@@ -17,8 +17,14 @@ ug_load_script("util/conv_rates_kinetic.lua")
 ------------------------------------------------------------------------------------------
 
 -- Geometry parameters
-geometry	= util.GetParam ("-geom", "Dune2D_tri_5")
---geometry	= util.GetParam ("-geom", "cylinderp")
+geom_name = "quad"
+if geom_name == "tri" then
+	geometry	= util.GetParam ("-geom", "Dune2D_tri_5")
+	file_name = "Tri"
+else
+	geometry	= util.GetParam ("-geom", "Dune2D_quads")
+	file_name = "Quads"
+end
 gridName = geometry .. ".ugx"
 -- Subsets used in the problem
 allSubsets = "Inner,Left, Right,Top, Bottom"
@@ -31,7 +37,7 @@ rho_a 	= util.GetParamNumber("-rho_a", 1.2, "Air Density")
 rho_s 	= util.GetParamNumber("-rho_s", 2500, "Sand Density")
 dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
 nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
-inflow		= util.GetParamNumber("-inflow", 5, "max. inflow velocity")
+inflow		= util.GetParamNumber("-inflow", 10, "max. inflow velocity")
 c_init		= util.GetParamNumber("-initial concentration", 1.0, "max volume fraction")
 
 
@@ -45,7 +51,7 @@ interface_value  = util.GetParamNumber("-interface_value",  alpha_min*c_init/pac
 FR = 0.05
 B_phi = 1
 deltaGamma = 1e-04;
-Visc_limit = 1e4
+Visc_limit = 1e6
 
 deltaPs = 1.48e-04;
 deltaI = 1e-03;
@@ -56,18 +62,25 @@ I_0 = 0.279
 
 
 
-jumpPressure = true
+jumpPressure = false
 boolSource = true
+StatBool = true
+
+
+bodyForceSource = false
+boolGradientPsSource = false
+
 
 if jumpPressure then
-	file_name ="PressureStatInertiaDTSCVF"
-	value_beta =-0.001         --value_beta = -0.005
-	jac = 0.4
+
+	file_name =file_name .. "Pressure"
+	value_beta =-0.005         --value_beta = -0.005
+	jac = 0.0
 	damping_mg = 1.0        --damping_mg = 0.15
 else
-	file_name ="NoPressureStatInertiaDTSCVF"
-	value_beta = -0.01
-	jac = 0.3
+	file_name =file_name .. "NoPressure"
+	value_beta = -0.5
+	jac = false
 	damping_mg = 1.0
 end
 stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
@@ -85,7 +98,7 @@ bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
 diffLength  = util.GetParam("-difflength", "cor", "fivepoint, raw, corDiffusion length type")
 
 
-dt = util.GetParamNumber("-dt",1)
+dt = util.GetParamNumber("-dt",1.0)
 numTimeSteps =  util.GetParamNumber("-numTimeSteps", 20	)
 EndTime = util.GetParamNumber("-EndTime", 6.2, "EndTime")
 boolEndTime 	= util.GetParamNumber("-boolEndTime", true)
@@ -93,7 +106,7 @@ outputFactor     = util.GetParam("-output", 1, "output every ... steps")
 max_newton_steps=util.GetParamNumber("-numNewtonSteps", 200)
 max_linear_steps=util.GetParamNumber("-numLinearIter", 200)
 timeMethod = util.GetParam("-timeMethod","euler")
-StatBool = util.GetParamNumber("-StatBool", true, "Stationary state")
+
 
 CFL_max= util.GetParamNumber("-cfl", 100, "max  CFL number")
 DT_max= util.GetParamNumber("-DT_max", 2, "max  DT")
@@ -123,9 +136,25 @@ linIter = util.GetParamNumber("-linIter", 2000, "Max number of linear iterations
 
 
 vtk_file_name = file_name .. "-lev" .. numRefs
+if boolSource then
+	if bodyForceSource then
+		vtk_file_name = vtk_file_name .. "-BodyForce"
+	else
+		vtk_file_name = vtk_file_name .. "-GradientForce"
+	end
+	if boolGradientPsSource then
+		vtk_file_name = vtk_file_name .. "-PartPressGradient"
+	else
+		vtk_file_name = vtk_file_name .. "-NoPartPressGradient"
+	end
+else
+	vtk_file_name = vtk_file_name .. "-NoForce"
+end
 if bStokes then
 	vtk_file_name = vtk_file_name .. "-Stokes"
 end
+
+
 
 
 print (" Geometry: " .. geometry .. " (file " .. gridName .. "), dim = " .. dim)
@@ -279,7 +308,7 @@ dx=math.pow(1/2,(numRefs+2))
 function StartValueX(x,y) 
 	hh=14.1856
 	nn=2.5
-	cc=1.0--math.pow(y/hh,5)
+	cc=math.pow(y/hh,5)
 	return inflow*(math.min(1.0, math.pow(y/hh,1/nn))*(1-cc) +(cc)* (2*hh - y) * (y ) / (hh * hh))
 end
 
@@ -298,6 +327,9 @@ function StartValueP(x,y)
 	else 
 		return  Pstd *(x+30)
 	end
+end
+function PressureBoundary(x,y) 
+	return  -1.2*y*9.81
 end
 
 ---------------------------------------------------------------------- Initial VolumeFraction 
@@ -461,7 +493,9 @@ PjumpShape:set_interface_volume_fraction(interface_value)
 normal = InterfaceNormalLinker()
 normal:set_interface_volume_fraction(interface_value)
 
-
+GradientPsSource = ParticlePressureGradientLinker()
+GradientPsSource:set_particle_pressure(Ps)
+GradientPsSource:set_interface_volume_fraction(interface_value)
 
 Source = GranularSourceLinker()
 Source:set_particle_density(rho_s)
@@ -471,6 +505,9 @@ Source:set_gravity(-9.81)
 Source:set_packing_factor(packing_factor)
 Source:set_rel_vel(0.0)
 Source:set_interface_volume_fraction(interface_value)
+Source:set_bool_body_force(bodyForceSource)
+Source:set_bool_particle_pressure_force(boolGradientPsSource)
+Source:set_ps_grad(GradientPsSource)
 
 ------------------------------------------------------------------------------------------
 -- Compose the discretization
@@ -507,6 +544,11 @@ OutletDisc:add ("Right")
 -- boundary condition at the impermeable walls
 WallDisc = NavierStokesWall (NavierStokesDisc)
 WallDisc:add ("Bottom")
+
+--PressureOutlet = DirichletBoundary()
+--PressureOutlet:add("PressureBoundary", "p", "Bottom")
+
+
 
 
 Vel = VelocityBCLinker()
@@ -588,7 +630,7 @@ domainDisc:add (NavierStokesDisc)
 domainDisc:add (InletDisc)
 domainDisc:add (OutletDisc)
 domainDisc:add (WallDisc)
---domainDisc:add (Stress)
+--domainDisc:add (PressureOutlet)
 
 
 
@@ -671,9 +713,9 @@ solverDesc =
 	lineSearch =
 	{
 		type			= "standard",
-		maxSteps		=4,
-		lambdaStart		= 1.0,
-		lambdaReduce	= 0.59,
+		maxSteps		=5,
+		lambdaStart		= 2.0,
+		lambdaReduce	= 0.5,
 		acceptBest 		= true,
 		checkAll		= false
 	},
@@ -768,7 +810,7 @@ out:select(Density, "Rho")
 out:select(Visc, "Mu")
 out:select(Ps, "Ps")
 out:print_subsets(vtk_file_name, u,allSubsets,0,0)
-	
+print ("Output to file " .. vtk_file_name .. ".vtu  in time t = 0")
 solver:init(op)
 
 
@@ -891,4 +933,8 @@ print("Steady state Computation took " .. tAfter_s-tBefore_s .. " seconds.")
 print("Temporal Computation took " .. tAfter-tBefore .. " seconds.")
 print("Total Computation took " .. tAfter_s-tBefore_s+tAfter-tBefore .. " seconds.")
 print("-------------------------------------------------------------------------------")
+print("")
+print("")
+print ("Output to file " .. vtk_file_name .. ".vtu")
 print("done.")
+
