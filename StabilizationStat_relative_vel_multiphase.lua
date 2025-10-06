@@ -16,16 +16,14 @@ ug_load_script("util/conv_rates_kinetic.lua")
 
 jumpPressure = false
 StatBool = true
-boolSource = false
-
-
-
-bodyForceSource = false
-boolMGSource = false
+boolConsistentGravity = false
 boolGradientPsSource = false
-boolRelVelTransport = false
+
+
+
+boolMGSource = false
 boolRelativeVel = false
-geom_name = "quad" -- Tri and quad
+geom_name = "tri" -- tri and quad
 
 
 ------------------------------------------------------------------------------------------
@@ -53,7 +51,7 @@ rho_a 	= util.GetParamNumber("-rho_a", 1.2, "Air Density")
 rho_s 	= util.GetParamNumber("-rho_s", 2500, "Sand Density")
 dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
 nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
-inflow		= util.GetParamNumber("-inflow", 5, "max. inflow velocity")
+inflow		= util.GetParamNumber("-inflow", 0.00001, "max. inflow velocity")
 packing_factor		= util.GetParamNumber("-packing_factor", 0.625, "max volume fraction")
 c_init		= util.GetParamNumber("-initial concentration", 0.625, "max volume fraction")
 
@@ -86,9 +84,9 @@ if jumpPressure then
 	damping_mg = 1.0        --damping_mg = 0.15
 else
 	file_name =file_name .. "RelVel-NoPress"
-	value_beta = -0.99
+	value_beta = -0.005
 	jac = 0.0
-	damping_mg = 0.95
+	damping_mg = 0.9
 end
 stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
 
@@ -104,21 +102,21 @@ upwind      = util.GetParam("-upwind", "full", "Upwind type full or lps")
 bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
 diffLength  = util.GetParam("-difflength", "cor", "fivepoint, raw, corDiffusion length type")
 
-time_years = util.GetParamNumber("-dT_y",100.0)
-time_days = util.GetParamNumber("-dT_d",0.0)
+time_years = util.GetParamNumber("-dT_y",0.0)
+time_days = util.GetParamNumber("-dT_d",1.0)
 time_hours = util.GetParamNumber("-dT_h",0.0)
 time_seconds = util.GetParamNumber("-dT_ss",0.0)
 
 dt_s =  31536000 * time_years + 86400*time_days +  3600*time_hours+ time_seconds
 dt = util.GetParamNumber("-dt",dt_s)
-numTimeSteps =  util.GetParamNumber("-numTimeSteps", 20	)
+numTimeSteps =  util.GetParamNumber("-numTimeSteps", 5	)
 EndTime = util.GetParamNumber("-EndTime", 6.2, "EndTime")
 boolEndTime 	= util.GetParamNumber("-boolEndTime", true)
 outputFactor     = util.GetParam("-output", 1, "output every ... steps")
 
 -- Parameters of the solver
 
-max_newton_steps=util.GetParamNumber("-numNewtonSteps", 400)
+max_newton_steps=util.GetParamNumber("-numNewtonSteps", 500)
 max_linear_steps=util.GetParamNumber("-numLinearIter", 200)
 timeMethod = util.GetParam("-timeMethod","euler","cn euler   fracstep   alex")
 
@@ -146,18 +144,10 @@ modellconstant = util.GetParamNumber("-c",0.1)
 
 
 
-
-
-
-
 vtk_file_name = file_name .. "-lev" .. numRefs
-if boolSource and (bodyForceSource or boolGradientPsSource)then
-	if bodyForceSource then
-		if boolMGSource then
-			vtk_file_name = vtk_file_name .. "-MG_Force"
-		else
-			vtk_file_name = vtk_file_name .. "-DRHO_Force"
-		end
+if  boolGradientPsSource or boolConsistentGravity then
+	if boolConsistentGravity then
+		vtk_file_name = vtk_file_name .. "-ConstGravity"
 	end
 	
 	if boolGradientPsSource then
@@ -467,8 +457,9 @@ InterfaceValues:set_FR(FR)
 InterfaceValues:set_B_phi(B_phi)
 InterfaceValues:set_deltaGamma(deltaGamma)
 InterfaceValues:set_limit(Visc_limit)
-InterfaceValues:set_bool_rel_vel_transport(boolRelVelTransport)
-
+InterfaceValues:set_bool_particle_pressure_force(boolGradientPsSource)
+InterfaceValues:set_bool_consistent_gravity(boolConsistentGravity)
+InterfaceValues:set_time_step_factor(dt)
 
 
 ---------------------------------------------------------------------- Density
@@ -515,52 +506,54 @@ PjumpShape:set_interface_volume_fraction(interface_value)
 normal = InterfaceNormalLinker()
 normal:set_interface_volume_fraction(interface_value)
 
-GradientPsSource = ParticlePressureGradientLinker()
-GradientPsSource:set_interface_volume_fraction(interface_value)
-
-Source = GranularSourceLinker()
-Source:set_particle_density(rho_s)
-Source:set_fluid_density(rho_a)
-Source:set_mix_density(Density)
-Source:set_gravity(-9.81)
---Source:set_packing_factor(packing_factor)
-Source:set_rel_vel(0.0)
-Source:set_interface_volume_fraction(interface_value)
-Source:set_ps_grad(GradientPsSource)
-
-Source:set_bool_body_force(bodyForceSource)
-Source:set_bool_mg_force(boolMGSource)
-Source:set_bool_particle_pressure_force(boolGradientPsSource)
+--GradientPsSource = ParticlePressureGradientLinker()
+--GradientPsSource:set_interface_volume_fraction(interface_value)
 
 ---------------------------------------------------------------------- Sediment Velocity
 
 function RE(mu_a,rho_a,dp,w1)	return rho_a*dp*w1/mu_a 	end
 function CD(re)	return math.pow(0.63+4.8/math.sqrt(re),2) 	end
+function CD1(re) --Schiller-Naumann
+	if(re>1000) then
+		return 0.44
+	else 
+		return (24/re)*(1.0+0.15*math.pow(re,0.687)) 
+	end	
+end
+function CD2(re) -- Turton and Levenspiel
+	return (24/re)*(1.0+0.173*math.pow(re,0.657))+0.413/(1+16300*math.pow(re,-1.09)) 
+end
 
-function WS(nu_a,rho_a,dp,rho_s,g,E)
+function WS(nu_a,rho_a,dp,rho_s,g,E,mod)
     i=0
     e=10
     w2=1
     w1=1
     mu_a=nu_a*rho_a
-    while(e>E) 
-    do
+    while(e>E) do
    	w1=w2
         re=RE(mu_a,rho_a,dp,w1)
-        c=CD(re)
+        
+        if mod == 0  then  c=CD(re)
+	elseif mod == 1 then c=CD1(re)
+	elseif mod == 2 then c=CD2(re)
+	else print "The program has been terminated\nThank you!"  exit()  end 
+
         w2=math.sqrt((4/3)*dp*(rho_s/rho_a-1.0)*g/c)
         e=w2-w1
         i=i+1
    end
    w1=(rho_s-rho_a) * math.pow(dp,2.0) * g / (18.0 * mu_a);
+   print(i)
    print(w1)
    print(w2)
+   print(c)
    return w2
    end
-
-Ws=WS(nu_a,rho_a,dp,rho_s,9.81,1e-05)
-Cd=CD(RE(nu_a*rho_a,rho_a,dp,Ws))
-print(Cd)
+mod=1
+Ws=WS(nu_a,rho_a,dp,rho_s,9.81,1e-05,mod)
+re=RE(mu_a,rho_a,dp,Ws)
+Cd =CD1(re) 
 
 
 DX=1.84*math.pow(1/2,numRefs)
@@ -575,8 +568,7 @@ W:set_particle_diameter(dp)
 W:set_gravity(-9.81)
 W:set_rel_vel(Ws)
 W:set_dragCoeff(Cd)
-W:set_ps_grad(GradientPsSource)
-W:activate_relative_vel(boolRelativeVel)
+W:activate_relative_vel(false)
 W:set_fluid_viscosity(nu_a*rho_a)
 W:set_alpha_max(alpha_max)
 
@@ -592,17 +584,13 @@ NavierStokesDisc:set_exact_jacobian (bExactJac)
 NavierStokesDisc:set_stokes (bStokes)
 NavierStokesDisc:set_laplace ( bNoLaplace)
 NavierStokesDisc:set_upwind (upwind)
-NavierStokesDisc:set_upwind(UpwindFV1(upwind)) --upwind type for the transport equation: "no", "full" or "partial"
+NavierStokesDisc:set_upwind_vol(upwind) 
 NavierStokesDisc:set_peclet_blend (bPecletBlend)
 NavierStokesDisc:set_stabilization (stab, diffLength)
 --NavierStokesDisc:set_pac_upwind (bPac)
 
 NavierStokesDisc:set_kinematic_viscosity (Visc)
 NavierStokesDisc:set_density(Density)
---NavierStokesDisc:set_density_ref(0.0)
-if (boolSource) then
-	--NavierStokesDisc:set_source(Source)
-end
 NavierStokesDisc:set_relative_velocity(W)
 NavierStokesDisc:set_interface_value(interface_value)
 NavierStokesDisc:set_phase_parameters(InterfaceValues)
@@ -663,7 +651,7 @@ print("Transport Equation created.")]]
 Density:set_volume_fraction(NavierStokesDisc:volume_fraction())
 
 Visc:set_volume_fraction(NavierStokesDisc:volume_fraction())
-Visc:set_mix_viscosity(NavierStokesDisc:volume_fraction_average())
+Visc:set_mix_viscosity(NavierStokesDisc:einstein_viscosity())
 Visc:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 Visc:set_particle_pressure(NavierStokesDisc:particle_pressure())
 
@@ -680,17 +668,14 @@ end
 normal:set_volume_fraction(NavierStokesDisc:volume_fraction())
 normal:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
 
-Source:set_volume_fraction(NavierStokesDisc:volume_fraction())
-Source:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
-
-
 
 W:set_volume_fraction(NavierStokesDisc:volume_fraction())
 W:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
 W:set_pressure_grad(NavierStokesDisc:pressure_grad())
+W:set_einstein_visc(NavierStokesDisc:einstein_viscosity())
+W:set_ps_grad(NavierStokesDisc:particle_pressure_grad())
 
-
-GradientPsSource:set_particle_pressure(NavierStokesDisc:particle_pressure())
+--GradientPsSource:set_particle_pressure(NavierStokesDisc:particle_pressure())
 
 
 
@@ -755,15 +740,17 @@ solverDesc =
 		{
 			type = "gmg",
 			rap = true,
+			rim = true,
+			cycle = "V",
 			smoother =
 			{
 				type = "ilu",
 				beta = value_beta,
 				damping 	= damping_mg,
-				--sort	= false,
+				sort	= false,
 				--sortEps 	= 1.e-50,
 				inversionEps 	= 1.e-16,
-				--consistentInterfaces   = true
+				--consistentInterfaces   = false
 				--overlap 		= false,
 				--ordering 		= nil
 			},
@@ -788,14 +775,17 @@ solverDesc =
 		lambdaStart		= 1.0,
 		lambdaReduce	= 0.5,
 		acceptBest 		= true,
-		checkAll		= false
+		checkAll		= false,
+		--suffDesc		= 0.25,
+		maxDefect	= 2e20
+		
 	},
 	convCheck =
 	{
 		type		= "standard",
 		iterations	= max_newton_steps,
-		absolute	= 1e-6,
-		reduction	= 1e-5,
+		absolute	= 1e-7,
+		reduction	= 1e-10,
 		verbose		= true
 	}
 }
@@ -807,19 +797,16 @@ solver = util.solver.CreateSolver(solverDesc)
 -- Prepare the initial guess for the pressure
 ------------------------------------------------------------------------------------------
 if StatBool then
-
 	Interpolate(StartValueX, u, "u")
-	Interpolate("StartValueY", u, "v")
+	--Interpolate("StartValueY", u, "v")
 	--Interpolate(0.0, u, "u")
-	--Interpolate(0.0, u, "v")
+	Interpolate(1.0e-03, u, "v")
 	Interpolate("StartValueP", u, "p")
 	Interpolate("InitialValue_FractionVolume", u, "c")
-	--Interpolate(1.0, u, "c")
-
 
 	-- grid function for the solution
 
-	-- Fix the mass fraction and solve the linear problem for the pressure
+	-- Fix the mass fraction and solve the linear problem for the momentum
 
 	fixer = DirichletBoundary()
 	domainDisc:add(fixer)
@@ -840,7 +827,8 @@ if StatBool then
 	print("Computation for steady state took " .. tAfter_s-tBefore_s .. " seconds.")
 	domainDisc:remove (fixer)
 	
-	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")
+	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")	
+	
 else
 
 	Interpolate(StartValueX, u, "u")
@@ -849,6 +837,18 @@ else
 	Interpolate("InitialValue_FractionVolume", u, "c")
 	
 end
+
+convCheck =
+{
+	type		= "standard",
+	iterations	= max_newton_steps,
+	absolute	= dt*1e-12,
+	reduction	= 1e-7,
+	verbose		= true
+}
+
+solverDesc.convCheck = convCheck
+solver = util.solver.CreateSolver(solverDesc)
 
 
 ------------------------------------------------------------------------------------------
@@ -872,6 +872,7 @@ out:select(Density, "Rho")
 out:select(Viscosity, "Mu")
 out:select(W, "W")
 out:select(NavierStokesDisc:particle_pressure(), "Ps")
+out:select(NavierStokesDisc:particle_pressure_grad(), "DPs")
 out:print_subsets(vtk_file_name, u,allSubsets,0,0)
 print ("Output to file " .. vtk_file_name .. ".vtu  in time t = 0")
 solver:init(op)
@@ -981,6 +982,7 @@ for step = 1, numTimeSteps do
 		out:select(Viscosity, "Mu")
 		out:select(W, "W")
 		out:select(NavierStokesDisc:particle_pressure(), "Ps")
+		out:select(NavierStokesDisc:particle_pressure_grad(), "DPs")
 		
 
 		out:print_subsets(vtk_file_name, u,allSubsets,step,time)
