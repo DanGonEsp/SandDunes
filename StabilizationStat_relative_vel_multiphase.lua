@@ -16,7 +16,7 @@ ug_load_script("util/conv_rates_kinetic.lua")
 
 jumpPressure = false
 StatBool = true
-boolConsistentGravity = false
+boolConsistentGravity = true
 boolGradientPsSource = false
 
 
@@ -51,7 +51,7 @@ rho_a 	= util.GetParamNumber("-rho_a", 1.2, "Air Density")
 rho_s 	= util.GetParamNumber("-rho_s", 2500, "Sand Density")
 dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
 nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
-inflow		= util.GetParamNumber("-inflow", 0.00001, "max. inflow velocity")
+inflow		= util.GetParamNumber("-inflow", 1.0, "max. inflow velocity")
 packing_factor		= util.GetParamNumber("-packing_factor", 0.625, "max volume fraction")
 c_init		= util.GetParamNumber("-initial concentration", 0.625, "max volume fraction")
 
@@ -94,7 +94,7 @@ stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or 
 numRefs 	= util.GetParamNumber("-numRefs", 0, "number of grid refinements")
 numPreRefs 	= util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)")
 
-bStokes 	= util.GetParamNumber("-Stokes", true ,"If defined, only Stokes Eq. computed")
+bStokes 	= util.GetParamNumber("-Stokes", false ,"If defined, only Stokes Eq. computed")
 bNoLaplace 	= util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
 bExactJac 	= util.GetParamNumber("-exactJac", jac,"If defined, exact jacobian used")
 bPecletBlend= util.GetParamNumber("-PecletBlend", false,"If defined, Peclet Blend used")
@@ -103,9 +103,9 @@ bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
 diffLength  = util.GetParam("-difflength", "cor", "fivepoint, raw, corDiffusion length type")
 
 time_years = util.GetParamNumber("-dT_y",0.0)
-time_days = util.GetParamNumber("-dT_d",1.0)
+time_days = util.GetParamNumber("-dT_d",0.0)
 time_hours = util.GetParamNumber("-dT_h",0.0)
-time_seconds = util.GetParamNumber("-dT_ss",0.0)
+time_seconds = util.GetParamNumber("-dT_ss",0.1)
 
 dt_s =  31536000 * time_years + 86400*time_days +  3600*time_hours+ time_seconds
 dt = util.GetParamNumber("-dt",dt_s)
@@ -460,7 +460,7 @@ InterfaceValues:set_limit(Visc_limit)
 InterfaceValues:set_bool_particle_pressure_force(boolGradientPsSource)
 InterfaceValues:set_bool_consistent_gravity(boolConsistentGravity)
 InterfaceValues:set_time_step_factor(dt)
-
+InterfaceValues:set_bool_initialized(true)
 
 ---------------------------------------------------------------------- Density
 
@@ -603,6 +603,7 @@ InletDisc:add ("inflowVel2d","Left,Top")
 -- boundary condition at the outlet
 OutletDisc = NavierStokesNoNormalStressOutflowFV1M (NavierStokesDisc)
 OutletDisc:add ("Right")
+OutletDisc:set_phase_parameters(InterfaceValues)
 
 -- boundary condition at the impermeable walls
 WallDisc = NavierStokesWall (NavierStokesDisc)
@@ -842,8 +843,8 @@ convCheck =
 {
 	type		= "standard",
 	iterations	= max_newton_steps,
-	absolute	= dt*1e-12,
-	reduction	= 1e-7,
+	absolute	= dt*1e-7,
+	reduction	= 1e-10,
 	verbose		= true
 }
 
