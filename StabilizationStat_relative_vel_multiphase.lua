@@ -17,13 +17,13 @@ geom_name = "quad" -- tri and quad
 jumpPressure = false
 StatBool = true
 boolSource = true
-boolGradientPsSource = false
+boolGradientPsSource = true
 boolAveDiff = true
+boolRelativeVel = true
 
 
 consistentRho_in_source = true
-boolMGSource = true
-boolRelativeVel = true
+
 
 
 
@@ -53,16 +53,15 @@ rho_s 	= util.GetParamNumber("-rho_s", 2500, "Sand Density")
 dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
 nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
 inflow		= util.GetParamNumber("-inflow", 10.0, "max. inflow velocity")
-packing_factor		= util.GetParamNumber("-packing_factor", 0.625, "max volume fraction")
 c_init		= util.GetParamNumber("-initial concentration", 0.625, "max volume fraction")
 
 
 alpha_max		= util.GetParamNumber("-max_concentration", 0.635, "max volume fraction")
 alpha_min		= util.GetParamNumber("-min concentration", 0.57, "max volume fraction")
+packing_factor        = util.GetParamNumber("-packing_factor", 0.625, "max volume fraction")
 viscosity_model		= util.GetParamNumber("-granular_model", 3, "Options:  0 Constant, 1 Proportional, 2 Einstein model, 3 Rheology(I) + Einstein model")
 density_model  = util.GetParam("-density_model", "linear", "constant, linear")
 interface_value  = util.GetParamNumber("-interface_value",  10, "interface value")
---interface_value  = util.GetParamNumber("-interface_value",  10, "interface value")
 FR = 0.05
 B_phi = 1
 deltaGamma = 1e-07;
@@ -73,6 +72,8 @@ deltaI = 1e-03;
 FricMu_1=0.38
 FricMu_2=0.64
 I_0 = 0.279
+
+drag_mod = util.GetParamNumber("-drag_model", 2, "Options:  0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel") --Model 0 pow(0.63+4.8/sqrt(RE),2.0);
 
 
 
@@ -85,7 +86,7 @@ if jumpPressure then
 	damping_mg = 1.0        --damping_mg = 0.15
 else
 	file_name =file_name .. "RelVel-NoPress"
-	value_beta = -0.1       --0.1--Tri
+	value_beta = -0.01       --0.1--Tri
 	jac = 0.0
 	damping_mg = 0.5   --0.9  --Tri
 end
@@ -107,30 +108,35 @@ diffLength  = util.GetParam("-difflength", "raw", "fivepoint, raw, corDiffusion 
 time_years = util.GetParamNumber("-dT_y",0.0)
 time_days = util.GetParamNumber("-dT_d",0.0)
 time_hours = util.GetParamNumber("-dT_h",0.0)
-time_seconds = util.GetParamNumber("-dT_ss",1.0)
+time_seconds = util.GetParamNumber("-dT_ss",2.0)
 
 dt_s =  31536000 * time_years + 86400*time_days +  3600*time_hours+ time_seconds
-dt = util.GetParamNumber("-dt",dt_s)
+DTmax= util.GetParamNumber("-DTmax", dt_s, "max  DT")
+DTmin= util.GetParamNumber("-DTmin", 0.000001, "min  DT")
+dt = util.GetParamNumber("-dt",  2.0)
+
+CFL_max= util.GetParamNumber("-cfl", 100, "max  CFL number")
+UpdateDt     = util.GetParamNumber("-UpdateDT", 5)
+modifyDT     = util.GetParamNumber("-modifyDT", true)
+incr_factor     = util.GetParamNumber("-CFL_factor", 1.2)
+red_factor_fail     = util.GetParamNumber("-CFL_factor", 0.6)
+red_factor_success     = util.GetParamNumber("-CFL_factor", 0.75)
+
+
 numTimeSteps =  util.GetParamNumber("-numTimeSteps", 20	)
-EndTime = util.GetParamNumber("-EndTime", 6.2, "EndTime")
-boolEndTime 	= util.GetParamNumber("-boolEndTime", true)
 outputFactor     = util.GetParam("-output", 1, "output every ... steps")
+
+
+
 
 -- Parameters of the solver
 
-max_newton_steps=util.GetParamNumber("-numNewtonSteps", 200)
+max_newton_steps1=util.GetParamNumber("-numNewtonSteps", 100)
+max_newton_steps2=util.GetParamNumber("-numNewtonSteps", 100)
 max_linear_steps=util.GetParamNumber("-numLinearIter", 200)
 timeMethod = util.GetParam("-timeMethod","euler","cn euler   fracstep   alex")
 
 
-
-CFL_max= util.GetParamNumber("-cfl", 100, "max  CFL number")
-DT_max= util.GetParamNumber("-DT_max", 2, "max  DT")
-DT_min= util.GetParamNumber("-DT_min", 0.001, "min  DT")
-UpdateDt 	= util.GetParamNumber("-UpdateDT", 5)
-modifyDT 	= util.GetParamNumber("-modifyDT", false)
-incr_factor 	= util.GetParamNumber("-CFL_factor", 1.1)
-red_factor 	= util.GetParamNumber("-CFL_factor", 0.9)
 
 
 turbViscMethod = util.GetParam("-turbulenceModel","no","TurbVismodel type no , dyn or sma")
@@ -149,12 +155,8 @@ vtk_file_name = file_name .. "-lev" .. numRefs
 if  boolGradientPsSource  or boolSource  then
 
 	if boolSource then
-		if consistentRho_in_source then vtk_file_name =vtk_file_name .. "-Con" end
-		if boolMGSource then
-			vtk_file_name = vtk_file_name .. "-MG_Force"
-		else
-			vtk_file_name = vtk_file_name .. "-DRHO_Force"
-		end
+		if consistentRho_in_source then vtk_file_name =vtk_file_name .. "-Consistent" end
+		vtk_file_name = vtk_file_name .. "-MG_Force"
 	end
 	
 	if boolGradientPsSource then
@@ -472,6 +474,7 @@ InterfaceValues:set_limit(Visc_limit)
 InterfaceValues:set_bool_particle_pressure_force(boolGradientPsSource)
 InterfaceValues:set_bool_consistent_gravity(false)
 InterfaceValues:set_time_step_factor(dt)
+InterfaceValues:set_drag_model(drag_mod)
 InterfaceValues:set_bool_initialized(true)
 
 ---------------------------------------------------------------------- Density
@@ -534,55 +537,19 @@ Source:set_fluid_density(rho_a)
 Source:set_mix_density(Density)
 Source:set_gravity(-9.81)
 --Source:set_packing_factor(packing_factor)
-Source:set_bool_mg_force(boolMGSource)
 Source:set_cons_gravity(consistentRho_in_source)
 
 
 ---------------------------------------------------------------------- Sediment Velocity
 
-function RE(mu_a,rho_a,dp,w1)	return rho_a*dp*w1/mu_a 	end
-function CD(re)	return math.pow(0.63+4.8/math.sqrt(re),2) 	end
-function CD1(re) --Schiller-Naumann
-	if(re>1000) then
-		return 0.44
-	else 
-		return (24/re)*(1.0+0.15*math.pow(re,0.687)) 
-	end	
-end
-function CD2(re) -- Turton and Levenspiel
-	return (24/re)*(1.0+0.173*math.pow(re,0.657))+0.413/(1+16300*math.pow(re,-1.09)) 
-end
-
-function WS(nu_a,rho_a,dp,rho_s,g,E,mod)
-    i=0
-    e=10
-    w2=1
-    w1=1
-    mu_a=nu_a*rho_a
-    while(e>E) do
-   	w1=w2
-        re=RE(mu_a,rho_a,dp,w1)
-        
-        if mod == 0  then  c=CD(re)
-	elseif mod == 1 then c=CD1(re)
-	elseif mod == 2 then c=CD2(re)
-	else print "The program has been terminated\nThank you!"  exit()  end 
-
-        w2=math.sqrt((4/3)*dp*(rho_s/rho_a-1.0)*g/c)
-        e=w2-w1
-        i=i+1
-   end
-   w1=(rho_s-rho_a) * math.pow(dp,2.0) * g / (18.0 * mu_a);
-   print(i)
-   print(w1)
-   print(w2)
-   print(c)
-   return w2
-   end
-mod=1
-Ws=WS(nu_a,rho_a,dp,rho_s,9.81,1e-05,mod)
-re=RE(mu_a,rho_a,dp,Ws)
-Cd =CD1(re) 
+Ws = 6.8598478663758
+iter = 0
+Ws = InterfaceValues:RelVel_ext(nu_a*rho_a,rho_a,dp,rho_s,9.81,1e-05)
+re=InterfaceValues:RE(nu_a*rho_a,rho_a,dp,Ws)
+Cd =InterfaceValues:CD(re,drag_mod)
+print(Ws)
+print(re)
+print(Cd)
 
 
 DX=1.84*math.pow(1/2,numRefs)
@@ -602,6 +569,7 @@ W:set_dragCoeff(Cd)
 W:activate_relative_vel(false)
 W:set_fluid_viscosity(nu_a*rho_a)
 W:set_alpha_max(alpha_max)
+W:set_phase_parameters(InterfaceValues)
 ---------------------------------------------------------------------- VelocityGradMag
 
 
@@ -707,7 +675,6 @@ end
 normal:set_volume_fraction(NavierStokesDisc:volume_fraction())
 normal:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
 
-Source:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
 
 W:set_volume_fraction(NavierStokesDisc:volume_fraction())
 W:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
@@ -815,7 +782,7 @@ solverDesc =
 			type		= "standard",
 			iterations	= max_linear_steps,
 			absolute	= 1e-12,
-			reduction	= 1e-5,
+			reduction	= 1e-3,
 			verbose		= true
 		}
 	},
@@ -834,7 +801,7 @@ solverDesc =
 	convCheck =
 	{
 		type		= "standard",
-		iterations	= max_newton_steps,
+		iterations	= max_newton_steps1,
 		absolute	= 1e-7,
 		reduction	= 1e-10,
 		verbose		= true
@@ -870,13 +837,37 @@ if StatBool then
 	solver:prepare(u)
 
 	-- apply the solver for the stationary pressure problem
+     print("++++++ STEADY STATE CALCULATION BEGIN ++++++")
 	tBefore_s= os.clock()
 	if not solver:apply(u) then
 		print("===> THE PREPARATION PHASE FAILED! <===")
 		exit()
 	end
-	
 	tAfter_s = os.clock()
+    num_newton_steps = solver:num_newton_steps()
+    num_linsolver_calls = solver:num_linsolver_calls(1)
+    num_linsolver_steps = solver:num_linsolver_steps(1)
+    average_linear_steps = solver:average_linear_steps(1)
+    total_linsolver_calls = solver:total_linsolver_calls()
+    total_linsolver_steps = solver:total_linsolver_steps()
+    total_average_linear_steps = solver:total_average_linear_steps()
+    last_num_newton_steps = solver:last_num_newton_steps()
+    total_average_non_linear_rates = solver:total_average_non_linear_rates()
+    
+    print("num_newton_steps = " .. num_newton_steps .. ".")
+    print("num_linsolver_calls = " .. num_linsolver_calls .. ".")
+    print("num_linsolver_steps = " .. num_linsolver_steps .. ".")
+    print("average_linear_steps = " .. average_linear_steps .. ".")
+    print("total_linsolver_calls = " .. total_linsolver_calls .. ".")
+    print("total_linsolver_steps = " .. total_linsolver_steps .. ".")
+    print("total_average_linear_steps = " .. total_average_linear_steps .. ".")
+    print("last_num_newton_steps = " .. last_num_newton_steps .. ".")
+    print("total_average_non_linear_rates = " .. total_average_non_linear_rates .. ".")
+    
+    --solver:print_average_convergence()
+    solver:clear_average_convergence();
+    
+    
 	print("Computation for steady state took " .. tAfter_s-tBefore_s .. " seconds.")
 	domainDisc:remove (fixer)
 	
@@ -889,7 +880,7 @@ if StatBool then
 	
 else
 
-	Interpolate(StartValueX, u, "u")
+	Interpolate(0.0, u, "u")
 	Interpolate("StartValueY", u, "v")
 	Interpolate("StartValueP", u, "p")
 	Interpolate("InitialValue_FractionVolume", u, "c")
@@ -899,8 +890,8 @@ end
 convCheck =
 {
 	type		= "standard",
-	iterations	= max_newton_steps,
-	absolute	= dt*1e-7,
+	iterations	= max_newton_steps2,
+	absolute	= DTmax*1e-7,
 	reduction	= 1e-10,
 	verbose		= true
 }
@@ -917,7 +908,7 @@ time = 0
 step = 0
 
 	-- write start solution
-print("Writing start values")
+print("Writing inittial values")
 out = VTKOutput()
 out:clear_selection()
 out:select_all(false)
@@ -936,6 +927,16 @@ out:select(Diffusion, "D")
 out:select(gamma, "G")
 out:print_subsets(vtk_file_name, u,allSubsets,0,0)
 print ("Output to file " .. vtk_file_name .. ".vtu  in time t = 0")
+print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+print ("                                                            ")
+print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+print ("                                                            ")
+print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+print ("                                                            ")
+print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+print ("                                                            ")
+print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+
 
 solver:init(op)
 solver:add_step_update(viscosityData)
@@ -959,17 +960,18 @@ solTimeSeries = SolutionTimeSeries()
 solTimeSeries:push(uOld, time)
 
 
-s=1
-N_steps=0
 for step = 1, numTimeSteps do
 	print("++++++ TIMESTEP " .. step .. " BEGIN ++++++")
 	
-	NewtonSolution=false
-	while NewtonSolution==false  do
+	StepNewtonSolution=false
+    CompletedStep = false
+    time2 = time
+	while CompletedStep==false  do
 
 		-- choose time step
-		do_dt = dt
-		
+
+		do_dt = math.min(dt,math.max((time+DTmax-time2), 0.0))
+  
 		-- setup time Disc for old solutions and timestep
 		timeDisc:prepare_step(solTimeSeries, do_dt)
 	
@@ -979,59 +981,105 @@ for step = 1, numTimeSteps do
 		end 
 	
 		-- apply newton solver
-		
-		NewtonSolution=false
-
-		if solver:apply(u)  == false then 
-				print ("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<            Reducing TImestep in time, step  " .. step .. " with time step " .. do_dt)
-			dt = math.max(dt*red_factor,0.99999*DT_min)
-			print("DT=" .. dt .. "");
-			print("Time=" .. time .. "");
-			if dt < DT_min  or modifyDT== false then 
-				print ("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx            Time step below minimum. Aborting. Failed at point with time step" .. do_dt .. "."); exit(); 
-	
+            
+        print("++++++ TIMESTEP " .. step-1 + (time2+do_dt-time)/DTmax .. " BEGIN ++++++")
+		if solver:apply(u)  == false then
+            dt = math.max(dt*red_factor_fail,0.99999*DTmin)
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Reducing Timestep in step  " .. step-1 + (time2+do_dt-time)/DTmax .. ".")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   new DT          =    " .. dt .. "     Time = " .. time2 .."")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   DTmax       =    " .. DTmax .. "     DTmin = " .. DTmin .."")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Rho         =    " .. solver:total_average_non_linear_rates() .. ".")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Dt_factor   =    " .. red_factor_fail .. ".")
+            
+			
+			if dt < DTmin  or modifyDT== false then
+				print ("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx            Time step below minimum. Aborting. Failed at point with step  " .. step-1+ (time2+do_dt-time)/DTmax .. "."); exit();
 
 			else
-				do_dt = dt
 				VecScaleAssign(u, 1.0, solTimeSeries:latest())
 			
 			end
-			N_steps=0;
-			s=0;
+            --solver:print_average_convergence()
+            solver:clear_average_convergence();
 		else
-			NewtonSolution=true
-				
-		end 
+            
+            if  (time2 + do_dt + (1e-07) * DTmin -time)/DTmax > 1.0 then
+            
+                time= timeDisc:future_time()                                        -- update new time
+                                                                                
+                oldestSol = solTimeSeries:oldest()                                  -- get oldest solution
+                                                                                    
+                VecAssign(oldestSol, u)                                             -- copy values into oldest solution (we reuse the memory here)
+                                                                                    
+                solTimeSeries:push_discard_oldest(oldestSol, time)                  -- push oldest solutions with new values to front, oldest sol pointer is poped from end
+                
+                CompletedStep = true
+                
+                
+            else
+                
+                time2 = timeDisc:future_time()                                      -- update new time
+                                                                                    
+                oldestSol = solTimeSeries:oldest()                                  -- get oldest solution
+                                                                                    
+                VecAssign(oldestSol, u)                                             -- copy values into oldest solution (we reuse the memory here)
+                                                                                    
+                solTimeSeries:push_discard_oldest(oldestSol, time2)                 -- push oldest solutions with new values to front, oldest sol pointer is poped from end
+                
+                CompletedStep = false
+                
+            
+            end
+            
+            total_average_non_linear_rates = solver:total_average_non_linear_rates()
+
+            --solver:print_average_convergence()
+            solver:clear_average_convergence();
+            
+            if CompletedStep then
+                frac_step = 0
+                Local_Time = time
+                Dt_factor = dt/do_dt
+            else
+                frac_step = -1 + (time2-time)/DTmax
+                Local_Time = time2
+            end
+            
+            
+            if modifyDT then
+                if(total_average_non_linear_rates>0.85) then
+                    dt = math.max(do_dt*red_factor_success,1.00001*DTmin)
+                    print ("-------------------------------------------------------------------Time step decrease at Step " .. step-1 + (time2-time)/DTmax .. ", dt =  " .. dt .. ". ")
+                else if CompletedStep== false then
+                    if(total_average_non_linear_rates<0.75 and dt< DTmax) then
+                        dt=math.min(incr_factor*dt,DTmax)
+                        print ("-------------------------------------------------------------------Time step increased at Step " .. step-1 + (time2-time)/DTmax ..", dt =  " .. dt .. ". ")
+                    end
+                    end
+                end
+            end
+            
+            
+            
+            CFL=cflNumber(u,do_dt)                                              -- compute CFL number
+            print("DT=" .. do_dt .. "");
+            print("Time=" .. Local_Time .. "");
+            
+            print("++++++ TIMESTEP " .. step + frac_step.. "  END ++++++")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Succesful semi Timestep in step  " .. step + frac_step  .. ".")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   new DT    =    " .. dt .. "     Time = " .. Local_Time .."")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   DTmax =    " .. DTmax .. "     DTmin = " .. DTmin .."")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Dt_factor   =    " .. dt/do_dt .. ".")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Rho   =    " .. total_average_non_linear_rates .. ".")
+                        
+
+		end
 			
 	end
 
-	-- update new time
-	time= timeDisc:future_time()
-		
-	-- get oldest solution
-	oldestSol = solTimeSeries:oldest()
 
-	-- copy values into oldest solution (we reuse the memory here)
-	VecAssign(oldestSol, u)
-	
-	-- push oldest solutions with new values to front, oldest sol pointer is poped from end
-	solTimeSeries:push_discard_oldest(oldestSol, time)
-	
-	
-	-- compute CFL number
-	 
-	CFL=cflNumber(u,do_dt)
-	print("DT=" .. dt .. "");
-	print("Time=" .. time .. "");
-	N_steps=N_steps+1
-	if(N_steps>=UpdateDt) then
-		if modifyDT then 
-			dt=math.min(incr_factor*dt,DT_max)  
-			print ("-------------------------------------------------------------------------------------------------Time step increased at Step " .. step .. ", dt =  " .. dt .. ". ")
-		end
-		
-		N_steps=s*UpdateDt
-	end
 		
 	
 	if step % outputFactor == 0 then
@@ -1056,10 +1104,19 @@ for step = 1, numTimeSteps do
 		
 
 		out:print_subsets(vtk_file_name, u,allSubsets,step,time)
-		print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. step .. " ")
+		print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
 		print(" ")
 	end
 	print("++++++ TIMESTEP " .. step .. "  END ++++++")
+    print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+    print ("                                                            ")
+    print ("                                                            ")
+    print ("                                                            ")
+    print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+    print ("                                                            ")
+    print ("                                                            ")
+    print ("                                                            ")
+    print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
 end
 
 tAfter = os.clock()
