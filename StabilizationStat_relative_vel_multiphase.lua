@@ -17,7 +17,7 @@ geom_name = "quad" -- tri and quad
 jumpPressure = false
 StatBool = true
 boolSource = true
-boolGradientPsSource = true
+boolGradientPsSource = false
 boolAveDiff = true
 boolRelativeVel = true
 
@@ -25,6 +25,10 @@ boolRelativeVel = true
 consistentRho_in_source = true
 
 
+
+-- Numerical parameters of the discretization
+numRefs     = util.GetParamNumber("-numRefs", 1, "number of grid refinements")
+numPreRefs     = util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)")
 
 
 ------------------------------------------------------------------------------------------
@@ -34,15 +38,63 @@ consistentRho_in_source = true
 -- Geometry parameters
 
 if geom_name == "tri" then
-	geometry	= util.GetParam ("-geom", "Dune2D_tri_5")
+	geometry	= util.GetParam ("-geom", "Dune2D_tri_5_block")
 	file_name = "Tri"
 else
-	geometry	= util.GetParam ("-geom", "Dune2D_quads")
+	geometry	= util.GetParam ("-geom", "Dune2D_quads_block")
 	file_name = "Quads"
 end
 gridName = geometry .. ".ugx"
 -- Subsets used in the problem
 allSubsets = "Inner,Left, Right,Top, Bottom"
+
+
+
+
+
+vtk_file_name = file_name .. "-lev" .. numRefs
+
+if jumpPressure then
+
+    vtk_file_name =file_name .. "-Pres"
+    value_beta =-0.005         --value_beta = -0.005
+    jac = 0.0
+    damping_mg = 1.0        --damping_mg = 0.15
+else
+    vtk_file_name =file_name .. "-NoPress"
+    value_beta = -0.01       --0.1--Tri
+    jac = 0.0
+    damping_mg = 0.5   --0.9  --Tri
+end
+
+if boolRelativeVel then
+    vtk_file_name =file_name .. "-RelVel"
+end
+
+
+if  boolGradientPsSource  or boolSource  then
+
+    if boolSource then
+        if consistentRho_in_source then vtk_file_name =vtk_file_name .. "-Consistent" end
+        vtk_file_name = vtk_file_name .. "-MG_Force"
+    end
+    
+    if boolGradientPsSource then
+        vtk_file_name = vtk_file_name .. "-DPs"
+    else
+        vtk_file_name = vtk_file_name .. "-NoDPs"
+    end
+    
+else
+    vtk_file_name = vtk_file_name .. "-NoForce"
+end
+if boolAveDiff then
+    vtk_file_name = vtk_file_name .. "-AveDiff"
+end
+if bStokes then
+    vtk_file_name = vtk_file_name .. "-Stokes"
+end
+
 
 
 -- Physical parameters
@@ -75,26 +127,8 @@ I_0 = 0.279
 
 drag_mod = util.GetParamNumber("-drag_model", 2, "Options:  0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel") --Model 0 pow(0.63+4.8/sqrt(RE),2.0);
 
+    
 
-
-
-if jumpPressure then
-
-	file_name =file_name .. "RelVel-Pres"
-	value_beta =-0.005         --value_beta = -0.005
-	jac = 0.0
-	damping_mg = 1.0        --damping_mg = 0.15
-else
-	file_name =file_name .. "RelVel-NoPress"
-	value_beta = -0.01       --0.1--Tri
-	jac = 0.0
-	damping_mg = 0.5   --0.9  --Tri
-end
-stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
-
--- Numerical parameters of the discretization
-numRefs 	= util.GetParamNumber("-numRefs", 1, "number of grid refinements")
-numPreRefs 	= util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)")
 
 bStokes 	= util.GetParamNumber("-Stokes", false ,"If defined, only Stokes Eq. computed")
 bNoLaplace 	= util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
@@ -104,6 +138,7 @@ upwind_m      = util.GetParam("-upwind_m", "full", "Upwind type full or lps")
 upwind_t      = util.GetParam("-upwind_t", "full", "Upwind type full or lps")
 bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
 diffLength  = util.GetParam("-difflength", "raw", "fivepoint, raw, corDiffusion length type")
+stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
 
 time_years = util.GetParamNumber("-dT_y",0.0)
 time_days = util.GetParamNumber("-dT_d",0.0)
@@ -113,15 +148,18 @@ time_seconds = util.GetParamNumber("-dT_ss",2.0)
 dt_s =  31536000 * time_years + 86400*time_days +  3600*time_hours+ time_seconds
 DTmax= util.GetParamNumber("-DTmax", dt_s, "max  DT")
 DTmin= util.GetParamNumber("-DTmin", 0.000001, "min  DT")
-dt = util.GetParamNumber("-dt",  2.0)
+dt = util.GetParamNumber("-dt",  1.0)
 
 CFL_max= util.GetParamNumber("-cfl", 100, "max  CFL number")
 UpdateDt     = util.GetParamNumber("-UpdateDT", 5)
 modifyDT     = util.GetParamNumber("-modifyDT", true)
-incr_factor     = util.GetParamNumber("-CFL_factor", 1.2)
-red_factor_fail     = util.GetParamNumber("-CFL_factor", 0.6)
-red_factor_success     = util.GetParamNumber("-CFL_factor", 0.75)
 
+incr_factor     = util.GetParamNumber("-CFL_factor", 1.15)
+red_factor_fail     = util.GetParamNumber("-CFL_factor", 0.7)
+red_factor_success     = util.GetParamNumber("-CFL_factor", 0.8)
+
+maxConvRate = util.GetParamNumber("-maxConvRate", 0.85)
+minConvRate = util.GetParamNumber("-minConvRate", 0.7)
 
 numTimeSteps =  util.GetParamNumber("-numTimeSteps", 20	)
 outputFactor     = util.GetParam("-output", 1, "output every ... steps")
@@ -131,8 +169,8 @@ outputFactor     = util.GetParam("-output", 1, "output every ... steps")
 
 -- Parameters of the solver
 
-max_newton_steps1=util.GetParamNumber("-numNewtonSteps", 100)
-max_newton_steps2=util.GetParamNumber("-numNewtonSteps", 100)
+max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100)
+max_newton_steps_transcient=util.GetParamNumber("-numNewtonSteps", 50)
 max_linear_steps=util.GetParamNumber("-numLinearIter", 200)
 timeMethod = util.GetParam("-timeMethod","euler","cn euler   fracstep   alex")
 
@@ -143,37 +181,6 @@ turbViscMethod = util.GetParam("-turbulenceModel","no","TurbVismodel type no , d
 modellconstant = util.GetParamNumber("-c",0.1)
 
 
-
-
-
-
-
-
-
-
-vtk_file_name = file_name .. "-lev" .. numRefs
-if  boolGradientPsSource  or boolSource  then
-
-	if boolSource then
-		if consistentRho_in_source then vtk_file_name =vtk_file_name .. "-Consistent" end
-		vtk_file_name = vtk_file_name .. "-MG_Force"
-	end
-	
-	if boolGradientPsSource then
-		vtk_file_name = vtk_file_name .. "-DPs"
-	else
-		vtk_file_name = vtk_file_name .. "-NoDPs"
-	end
-	
-else
-	vtk_file_name = vtk_file_name .. "-NoForce"
-end
-if boolAveDiff then
-	vtk_file_name = vtk_file_name .. "-AveDiff"
-end
-if bStokes then
-	vtk_file_name = vtk_file_name .. "-Stokes"
-end
 
 
 
@@ -566,7 +573,7 @@ W:set_particle_diameter(dp)
 W:set_gravity(-9.81)
 W:set_rel_vel(Ws)
 W:set_dragCoeff(Cd)
-W:activate_relative_vel(false)
+W:activate_relative_vel(boolRelativeVel)
 W:set_fluid_viscosity(nu_a*rho_a)
 W:set_alpha_max(alpha_max)
 W:set_phase_parameters(InterfaceValues)
@@ -789,9 +796,9 @@ solverDesc =
 	lineSearch =
 	{
 		type			= "standard",
-		maxSteps		=4,
-		lambdaStart		= 0.8,
-		lambdaReduce	= 0.5,
+		maxSteps		=12,
+		lambdaStart		= 1.5625,
+		lambdaReduce	= 0.8,
 		acceptBest 		= true,
 		checkAll		= false,
 		--suffDesc		= 0.25,
@@ -801,7 +808,7 @@ solverDesc =
 	convCheck =
 	{
 		type		= "standard",
-		iterations	= max_newton_steps1,
+		iterations	= max_newton_steps_steady_state,
 		absolute	= 1e-7,
 		reduction	= 1e-10,
 		verbose		= true
@@ -890,7 +897,7 @@ end
 convCheck =
 {
 	type		= "standard",
-	iterations	= max_newton_steps2,
+	iterations	= max_newton_steps_transcient,
 	absolute	= DTmax*1e-7,
 	reduction	= 1e-10,
 	verbose		= true
@@ -925,7 +932,7 @@ out:select(NavierStokesDisc:particle_pressure(), "Ps")
 out:select(NavierStokesDisc:particle_pressure_grad(), "DPs")
 out:select(Diffusion, "D")
 out:select(gamma, "G")
-out:print_subsets(vtk_file_name, u,allSubsets,0,0)
+out:print_subsets(vtk_file_name, u,allSubsets,step,time)
 print ("Output to file " .. vtk_file_name .. ".vtu  in time t = 0")
 print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
 print ("                                                            ")
@@ -960,14 +967,20 @@ solTimeSeries = SolutionTimeSeries()
 solTimeSeries:push(uOld, time)
 
 
+local file = io.open(vtk_file_name .. ".txt", "w+")
+file:write("Step" .. " \t " .. "Time" .. " \t " .. "TNSteps" .. " \t " .. "SNSteps" .. " \t " .. "FNSteps" .. " \n")
+file:write(" " .. step .. " \t " .. time .. " \t " .. 1 .. " \t " .. 1 .. " \t " .. 0 .. " \n")
+file:close()
+
 for step = 1, numTimeSteps do
 	print("++++++ TIMESTEP " .. step .. " BEGIN ++++++")
 	
-	StepNewtonSolution=false
+    Newton_Steps = 0
+    Newton_Steps_fail = 0
     CompletedStep = false
     time2 = time
 	while CompletedStep==false  do
-
+        Newton_Steps = Newton_Steps+1
 		-- choose time step
 
 		do_dt = math.min(dt,math.max((time+DTmax-time2), 0.0))
@@ -984,6 +997,7 @@ for step = 1, numTimeSteps do
             
         print("++++++ TIMESTEP " .. step-1 + (time2+do_dt-time)/DTmax .. " BEGIN ++++++")
 		if solver:apply(u)  == false then
+            Newton_Steps_fail = Newton_Steps_fail+1
             dt = math.max(dt*red_factor_fail,0.99999*DTmin)
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Reducing Timestep in step  " .. step-1 + (time2+do_dt-time)/DTmax .. ".")
@@ -1048,11 +1062,11 @@ for step = 1, numTimeSteps do
             
             
             if modifyDT then
-                if(total_average_non_linear_rates>0.85) then
+                if(total_average_non_linear_rates>maxConvRate) then
                     dt = math.max(do_dt*red_factor_success,1.00001*DTmin)
                     print ("-------------------------------------------------------------------Time step decrease at Step " .. step-1 + (time2-time)/DTmax .. ", dt =  " .. dt .. ". ")
                 else if CompletedStep== false then
-                    if(total_average_non_linear_rates<0.75 and dt< DTmax) then
+                    if(total_average_non_linear_rates<minConvRate and dt< DTmax) then
                         dt=math.min(incr_factor*dt,DTmax)
                         print ("-------------------------------------------------------------------Time step increased at Step " .. step-1 + (time2-time)/DTmax ..", dt =  " .. dt .. ". ")
                     end
@@ -1068,8 +1082,9 @@ for step = 1, numTimeSteps do
             
             print("++++++ TIMESTEP " .. step + frac_step.. "  END ++++++")
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Succesful semi Timestep in step  " .. step + frac_step  .. ".")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Successful semi Timestep in step  " .. step + frac_step  .. ".")
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   new DT    =    " .. dt .. "     Time = " .. Local_Time .."")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   old DT    =    " .. do_dt .."")
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   DTmax =    " .. DTmax .. "     DTmin = " .. DTmin .."")
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Dt_factor   =    " .. dt/do_dt .. ".")
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Rho   =    " .. total_average_non_linear_rates .. ".")
@@ -1107,6 +1122,15 @@ for step = 1, numTimeSteps do
 		print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
 		print(" ")
 	end
+ 
+ 
+        -- Save number of newton iterations for every time step
+
+    file = io.open(vtk_file_name .. ".txt", "a")
+    file:write(" " .. step .. " \t " .. time .. " \t " .. Newton_Steps .. " \t " .. Newton_Steps-Newton_Steps_fail .. " \t " .. Newton_Steps_fail .. " \n")
+    file:close()
+
+    
 	print("++++++ TIMESTEP " .. step .. "  END ++++++")
     print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
     print ("                                                            ")
@@ -1114,11 +1138,16 @@ for step = 1, numTimeSteps do
     print ("                                                            ")
     print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
     print ("                                                            ")
+    print ("<<<<<< Total Newton semi   Steps =  " .. Newton_Steps .. "   >>>>>>")
+    print ("<<<<<<       Newton success Steps =  " .. Newton_Steps-Newton_Steps_fail .. "   >>>>>>")
+    print ("<<<<<<       Newton fail   Steps =  " .. Newton_Steps_fail .. "   >>>>>>")
+    print ("                                                            ")
+    print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+    print ("                                                            ")
     print ("                                                            ")
     print ("                                                            ")
     print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
 end
-
 tAfter = os.clock()
 --solver:print_average_convergence()
 print("-			-")
