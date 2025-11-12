@@ -60,8 +60,6 @@ if not DirectoryExists (folder) then
 end
 
 
-
-
 vtk_file_name = file_name .. "-lev" .. numRefs
 if jumpPressure then
 
@@ -116,52 +114,6 @@ if not DirectoryExists (folder) then
 end
 
 vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
-
-
-
-
-vtk_file_name = file_name .. "-lev" .. numRefs
-
-if jumpPressure then
-
-    vtk_file_name =file_name .. "-Pres"
-    value_beta =-0.005         --value_beta = -0.005
-    jac = 0.0
-    damping_mg = 1.0        --damping_mg = 0.15
-else
-    vtk_file_name =file_name .. "-NoPress"
-    value_beta = -0.01       --0.1--Tri
-    jac = 0.0
-    damping_mg = 0.5   --0.9  --Tri
-end
-
-if boolRelativeVel then
-    vtk_file_name =file_name .. "-RelVel"
-end
-
-
-if  boolGradientPsSource  or boolSource  then
-
-    if boolSource then
-        if consistentRho_in_source then vtk_file_name =vtk_file_name .. "-Consistent" end
-        vtk_file_name = vtk_file_name .. "-MG_Force"
-    end
-    
-    if boolGradientPsSource then
-        vtk_file_name = vtk_file_name .. "-DPs"
-    else
-        vtk_file_name = vtk_file_name .. "-NoDPs"
-    end
-    
-else
-    vtk_file_name = vtk_file_name .. "-NoForce"
-end
-if boolAveDiff then
-    vtk_file_name = vtk_file_name .. "-AveDiff"
-end
-if bStokes then
-    vtk_file_name = vtk_file_name .. "-Stokes"
-end
 
 
 
