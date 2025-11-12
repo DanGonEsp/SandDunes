@@ -14,15 +14,17 @@ ug_load_script("util/conv_rates_kinetic.lua")
 
 
 geom_name = "quad" -- tri and quad
-jumpPressure = false
+
 StatBool = true
+jumpPressure = false
 boolSource = true
-boolGradientPsSource = false
-boolAveDiff = true
-boolRelativeVel = true
-
-
 consistentRho_in_source = true
+
+boolRelativeVel = true
+boolGradientPsSource = true
+boolAveDiff = false
+
+
 
 
 
