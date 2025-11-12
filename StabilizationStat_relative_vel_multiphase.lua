@@ -38,16 +38,82 @@ numPreRefs     = util.GetParamNumber("-numPreRefs", 0, "number of prerefinements
 -- Geometry parameters
 
 if geom_name == "tri" then
-	geometry	= util.GetParam ("-geom", "Dune2D_tri_5_block")
-	file_name = "Tri"
+	geometry	= util.GetParam ("-geom", "Dune2D_tri_double")
+	file_name = "TriDouble"
 else
-	geometry	= util.GetParam ("-geom", "Dune2D_quads_block")
-	file_name = "Quads"
+	geometry	= util.GetParam ("-geom", "Dune2D_quads_double")
+	file_name = "QuadsDouble"
 end
 gridName = geometry .. ".ugx"
 -- Subsets used in the problem
-allSubsets = "Inner,Left, Right,Top, Bottom"
+allSubsets = "Inner, Inner2,Left, Right,Top, Bottom"
 
+------------------------------------------------------------------------------------------
+-- Folder and files
+------------------------------------------------------------------------------------------
+
+folder = file_name
+if not DirectoryExists (folder) then
+    CreateDirectory (folder)
+end
+
+
+
+
+vtk_file_name = file_name .. "-lev" .. numRefs
+if jumpPressure then
+
+    vtk_file_name =file_name .. "-Press"
+    value_beta =-0.005         --value_beta = -0.005
+    jac = 0.0
+    damping_mg = 1.0        --damping_mg = 0.15
+else
+    vtk_file_name =file_name .. "-NoPress"
+    value_beta = -0.01       --0.1--Tri
+    jac = 0.0
+    damping_mg = 0.5   --0.9  --Tri
+end
+
+if boolRelativeVel then
+    vtk_file_name =vtk_file_name .. "-RelVel"
+else
+    vtk_file_name =vtk_file_name .. "-NoRelVel"
+end
+
+
+if  boolGradientPsSource  or boolSource  then
+
+    if boolSource then
+        if consistentRho_in_source then vtk_file_name =vtk_file_name .. "-Consistent" end
+        vtk_file_name = vtk_file_name .. "-MG_Force"
+    end
+    
+    if boolGradientPsSource then
+        vtk_file_name = vtk_file_name .. "-DPs"
+    else
+        vtk_file_name = vtk_file_name .. "-NoDPs"
+    end
+    
+else
+    vtk_file_name = vtk_file_name .. "-NoForce"
+end
+
+if boolAveDiff then
+    vtk_file_name = vtk_file_name .. "-AveDiff"
+else
+    vtk_file_name = vtk_file_name .. "-NoAveDiff"
+end
+
+if bStokes then
+    vtk_file_name = vtk_file_name .. "-Stokes"
+end
+
+folder = folder .. "/" .. vtk_file_name
+if not DirectoryExists (folder) then
+    CreateDirectory (folder)
+end
+
+vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
 
 
 
@@ -105,7 +171,7 @@ rho_s 	= util.GetParamNumber("-rho_s", 2500, "Sand Density")
 dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
 nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
 inflow		= util.GetParamNumber("-inflow", 10.0, "max. inflow velocity")
-c_init		= util.GetParamNumber("-initial concentration", 0.625, "max volume fraction")
+c_init		= util.GetParamNumber("-initial concentration", 0.6205, "max volume fraction")
 
 
 alpha_max		= util.GetParamNumber("-max_concentration", 0.635, "max volume fraction")
@@ -147,7 +213,7 @@ time_seconds = util.GetParamNumber("-dT_ss",2.0)
 
 dt_s =  31536000 * time_years + 86400*time_days +  3600*time_hours+ time_seconds
 DTmax= util.GetParamNumber("-DTmax", dt_s, "max  DT")
-DTmin= util.GetParamNumber("-DTmin", 0.000001, "min  DT")
+DTmin= util.GetParamNumber("-DTmin", 0.001, "min  DT")
 dt = util.GetParamNumber("-dt",  1.0)
 
 CFL_max= util.GetParamNumber("-cfl", 100, "max  CFL number")
@@ -603,7 +669,7 @@ print ("	--------------------------Diff	factor	= " .. Diff_factor)
 
 -- inner space
 
-NavierStokesDisc = NavierStokesFV1M (fct_cmp_tbl, {"Inner"})
+NavierStokesDisc = NavierStokesFV1M (fct_cmp_tbl, {"Inner","Inner2"})
 NavierStokesDisc:set_exact_jacobian (bExactJac)
 NavierStokesDisc:set_stokes (bStokes)
 NavierStokesDisc:set_laplace ( bNoLaplace)
@@ -809,8 +875,8 @@ solverDesc =
 	{
 		type		= "standard",
 		iterations	= max_newton_steps_steady_state,
-		absolute	= 1e-7,
-		reduction	= 1e-10,
+		absolute	= 1e-6,
+		reduction	= 1e-7,
 		verbose		= true
 	}
 }
@@ -898,8 +964,8 @@ convCheck =
 {
 	type		= "standard",
 	iterations	= max_newton_steps_transcient,
-	absolute	= DTmax*1e-7,
-	reduction	= 1e-10,
+	absolute	= DTmax*1e-6,
+	reduction	= 1e-7,
 	verbose		= true
 }
 
@@ -967,9 +1033,18 @@ solTimeSeries = SolutionTimeSeries()
 solTimeSeries:push(uOld, time)
 
 
-local file = io.open(vtk_file_name .. ".txt", "w+")
+local file = io.open(folder .. "/Newton_Iterations.txt", "w+")
 file:write("Step" .. " \t " .. "Time" .. " \t " .. "TNSteps" .. " \t " .. "SNSteps" .. " \t " .. "FNSteps" .. " \n")
 file:write(" " .. step .. " \t " .. time .. " \t " .. 1 .. " \t " .. 1 .. " \t " .. 0 .. " \n")
+file:close()
+
+Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
+Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
+
+
+local file = io.open(folder .. "/Integral.txt", "w+")
+file:write("Step" .. " \t " .. "Time" .. " \t " .. "Vol-Dom_1" .. " \t " .. "Vol-Dom_1" .. " \n")
+file:write(" " .. step .. " \t " .. time .. " \t " .. Value_inner1 .. " \t " .. Value_inner2 .. " \n")
 file:close()
 
 for step = 1, numTimeSteps do
@@ -1066,7 +1141,7 @@ for step = 1, numTimeSteps do
                     dt = math.max(do_dt*red_factor_success,1.00001*DTmin)
                     print ("-------------------------------------------------------------------Time step decrease at Step " .. step-1 + (time2-time)/DTmax .. ", dt =  " .. dt .. ". ")
                 else if CompletedStep== false then
-                    if(total_average_non_linear_rates<minConvRate and dt< DTmax) then
+                    if(total_average_non_linear_rates<minConvRate ) then
                         dt=math.min(incr_factor*dt,DTmax)
                         print ("-------------------------------------------------------------------Time step increased at Step " .. step-1 + (time2-time)/DTmax ..", dt =  " .. dt .. ". ")
                     end
@@ -1125,9 +1200,15 @@ for step = 1, numTimeSteps do
  
  
         -- Save number of newton iterations for every time step
-
-    file = io.open(vtk_file_name .. ".txt", "a")
+    file = io.open(folder .. "/Newton_Iterations.txt", "a")
     file:write(" " .. step .. " \t " .. time .. " \t " .. Newton_Steps .. " \t " .. Newton_Steps-Newton_Steps_fail .. " \t " .. Newton_Steps_fail .. " \n")
+    file:close()
+    
+    Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
+    Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
+
+    file = io.open(folder .. "/Integral.txt", "a")
+    file:write(" " .. step .. " \t " .. time .. " \t " .. Value_inner1 .. " \t " .. Value_inner2 .. " \n")
     file:close()
 
     
