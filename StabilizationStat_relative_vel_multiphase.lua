@@ -13,7 +13,7 @@ ug_load_script("util/conv_rates_kinetic.lua")
 
 
 
-geom_name = "quad" -- tri and quad
+geom_name = "tri" -- tri and quad
 
 StatBool = true
 jumpPressure = false
@@ -190,8 +190,13 @@ outputFactor     = util.GetParam("-output", 1, "output every ... steps")
 -- Parameters of the solver
 
 max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100)
-max_newton_steps_transcient=util.GetParamNumber("-numNewtonSteps", 50)
+max_newton_steps_transcient=util.GetParamNumber("-numNewtonSteps", 100)
 max_linear_steps=util.GetParamNumber("-numLinearIter", 200)
+AbsDefect = 1e-06
+RedDefect = 1e-06
+
+
+
 timeMethod = util.GetParam("-timeMethod","euler","cn euler   fracstep   alex")
 
 
@@ -795,8 +800,8 @@ solverDesc =
 				sort	= false,
 				--sortEps 	= 1.e-50,
 				inversionEps 	= 1.e-16,
-				--consistentInterfaces   = false
-				--overlap 		= false,
+				consistentInterfaces   = false,     --consistentInterfaces and overlap shouldnot be activated at the same time
+				overlap 		= true,             --consistentInterfaces and overlap shouldnot be activated at the same time
 				--ordering 		= nil
 			},
 			preSmooth = 3,
@@ -816,9 +821,9 @@ solverDesc =
 	lineSearch =
 	{
 		type			= "standard",
-		maxSteps		=12,
-		lambdaStart		= 1.5625,
-		lambdaReduce	= 0.8,
+		maxSteps		=9,
+		lambdaStart		= 2,
+		lambdaReduce	= 0.7,
 		acceptBest 		= true,
 		checkAll		= false,
 		--suffDesc		= 0.25,
@@ -829,8 +834,8 @@ solverDesc =
 	{
 		type		= "standard",
 		iterations	= max_newton_steps_steady_state,
-		absolute	= 1e-6,
-		reduction	= 1e-7,
+		absolute	= AbsDefect,
+		reduction	= RedDefect,
 		verbose		= true
 	}
 }
@@ -841,6 +846,7 @@ solver = util.solver.CreateSolver(solverDesc)
 ------------------------------------------------------------------------------------------
 -- Prepare the initial guess for the pressure
 ------------------------------------------------------------------------------------------
+time_work_step = 0.0
 if StatBool then
 	--Interpolate(StartValueX, u, "u")
 	Interpolate(1.0e-5, u, "u")
@@ -894,8 +900,8 @@ if StatBool then
     --solver:print_average_convergence()
     solver:clear_average_convergence();
     
-    
-	print("Computation for steady state took " .. tAfter_s-tBefore_s .. " seconds.")
+    time_work_step = tAfter_s-tBefore_s
+	print("Computation for steady state took " .. time_work_step .. " seconds.")
 	domainDisc:remove (fixer)
 	
 	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")	
@@ -918,8 +924,8 @@ convCheck =
 {
 	type		= "standard",
 	iterations	= max_newton_steps_transcient,
-	absolute	= DTmax*1e-6,
-	reduction	= 1e-7,
+	absolute	= DTmax*AbsDefect,
+	reduction	= RedDefect,
 	verbose		= true
 }
 
@@ -980,26 +986,23 @@ end
 -- create new grid function for old value
 uOld = u:clone()
 
-tBefore = os.clock()
-
 -- store grid function in vector of  old solutions
 solTimeSeries = SolutionTimeSeries()
 solTimeSeries:push(uOld, time)
 
-
-local file = io.open(folder .. "/Newton_Iterations.txt", "w+")
-file:write("Step" .. " \t " .. "Time" .. " \t " .. "TNSteps" .. " \t " .. "SNSteps" .. " \t " .. "FNSteps" .. " \n")
-file:write(" " .. step .. " \t " .. time .. " \t " .. 1 .. " \t " .. 1 .. " \t " .. 0 .. " \n")
-file:close()
 
 Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
 Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
 
 
 local file = io.open(folder .. "/Integral.txt", "w+")
-file:write("Step" .. " \t " .. "Time" .. " \t " .. "Vol-Dom_1" .. " \t " .. "Vol-Dom_1" .. " \n")
-file:write(" " .. step .. " \t " .. time .. " \t " .. Value_inner1 .. " \t " .. Value_inner2 .. " \n")
+file:write(string.format("Step\tTime\t\tVol-Dom_1\tVol-Dom_2\tWork time\tTNSteps\tSNSteps\tFNSteps\n"))
+file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\n",step, time, Value_inner1, Value_inner2, time_work_step, 1, 1, 0))
 file:close()
+
+total_Newton_Steps = 0
+total_Newton_Steps_fail = 0
+tBefore = os.clock()
 
 for step = 1, numTimeSteps do
 	print("++++++ TIMESTEP " .. step .. " BEGIN ++++++")
@@ -1008,6 +1011,7 @@ for step = 1, numTimeSteps do
     Newton_Steps_fail = 0
     CompletedStep = false
     time2 = time
+    tBefore_step = os.clock()
 	while CompletedStep==false  do
         Newton_Steps = Newton_Steps+1
 		-- choose time step
@@ -1122,10 +1126,7 @@ for step = 1, numTimeSteps do
 		end
 			
 	end
-
-
-		
-	
+    
 	if step % outputFactor == 0 then
 	
 		out = VTKOutput()
@@ -1152,20 +1153,6 @@ for step = 1, numTimeSteps do
 		print(" ")
 	end
  
- 
-        -- Save number of newton iterations for every time step
-    file = io.open(folder .. "/Newton_Iterations.txt", "a")
-    file:write(" " .. step .. " \t " .. time .. " \t " .. Newton_Steps .. " \t " .. Newton_Steps-Newton_Steps_fail .. " \t " .. Newton_Steps_fail .. " \n")
-    file:close()
-    
-    Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
-    Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
-
-    file = io.open(folder .. "/Integral.txt", "a")
-    file:write(" " .. step .. " \t " .. time .. " \t " .. Value_inner1 .. " \t " .. Value_inner2 .. " \n")
-    file:close()
-
-    
 	print("++++++ TIMESTEP " .. step .. "  END ++++++")
     print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
     print ("                                                            ")
@@ -1182,6 +1169,19 @@ for step = 1, numTimeSteps do
     print ("                                                            ")
     print ("                                                            ")
     print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+    
+    total_Newton_Steps = total_Newton_Steps + Newton_Steps
+    total_Newton_Steps_fail = total_Newton_Steps_fail + Newton_Steps_fail
+    Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
+    Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
+    tAfter_step = os.clock()
+    
+    file = io.open(folder .. "/Integral.txt", "a")
+    file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\n",
+    step, time, Value_inner1, Value_inner2, tAfter_step - tBefore_step, Newton_Steps, Newton_Steps-Newton_Steps_fail, Newton_Steps_fail))
+    file:close()
+    
+    
 end
 tAfter = os.clock()
 --solver:print_average_convergence()
@@ -1195,6 +1195,12 @@ print("")
 print("")
 print ("Output to file " .. vtk_file_name .. ".vtu")
 print("done.")
+
+file = io.open(folder .. "/Integral.txt", "a")
+file:write(string.format("------------------------------------------------------------------------------------------\n"))
+file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\n",
+numTimeSteps, time, Value_inner1, Value_inner2, tAfter-tBefore, total_Newton_Steps, total_Newton_Steps-total_Newton_Steps_fail, total_Newton_Steps_fail))
+file:close()
 
 
 
