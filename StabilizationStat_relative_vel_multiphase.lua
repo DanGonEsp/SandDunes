@@ -13,16 +13,18 @@ ug_load_script("util/conv_rates_kinetic.lua")
 
 
 
-geom_name = "quad" -- tri and quad
-jumpPressure = false
+geom_name = "tri" -- tri and quad
+
 StatBool = true
+jumpPressure = false
 boolSource = true
-boolGradientPsSource = false
-boolAveDiff = true
-boolRelativeVel = true
-
-
 consistentRho_in_source = true
+
+boolRelativeVel = true
+boolGradientPsSource = true
+boolAveDiff = true
+
+
 
 
 
@@ -38,25 +40,30 @@ numPreRefs     = util.GetParamNumber("-numPreRefs", 0, "number of prerefinements
 -- Geometry parameters
 
 if geom_name == "tri" then
-	geometry	= util.GetParam ("-geom", "Dune2D_tri_5_block")
-	file_name = "Tri"
+	geometry	= util.GetParam ("-geom", "Dune2D_tri_double")
+	file_name = "TriDouble"
 else
-	geometry	= util.GetParam ("-geom", "Dune2D_quads_block")
-	file_name = "Quads"
+	geometry	= util.GetParam ("-geom", "Dune2D_quads_double")
+	file_name = "QuadsDouble"
 end
 gridName = geometry .. ".ugx"
 -- Subsets used in the problem
-allSubsets = "Inner,Left, Right,Top, Bottom"
+allSubsets = "Inner, Inner2,Left, Right,Top, Bottom"
 
+------------------------------------------------------------------------------------------
+-- Folder and files
+------------------------------------------------------------------------------------------
 
-
+folder = file_name
+if not DirectoryExists (folder) then
+    CreateDirectory (folder)
+end
 
 
 vtk_file_name = file_name .. "-lev" .. numRefs
-
 if jumpPressure then
 
-    vtk_file_name =file_name .. "-Pres"
+    vtk_file_name =file_name .. "-Press"
     value_beta =-0.005         --value_beta = -0.005
     jac = 0.0
     damping_mg = 1.0        --damping_mg = 0.15
@@ -68,7 +75,9 @@ else
 end
 
 if boolRelativeVel then
-    vtk_file_name =file_name .. "-RelVel"
+    vtk_file_name =vtk_file_name .. "-RelVel"
+else
+    vtk_file_name =vtk_file_name .. "-NoRelVel"
 end
 
 
@@ -88,12 +97,23 @@ if  boolGradientPsSource  or boolSource  then
 else
     vtk_file_name = vtk_file_name .. "-NoForce"
 end
+
 if boolAveDiff then
     vtk_file_name = vtk_file_name .. "-AveDiff"
+else
+    vtk_file_name = vtk_file_name .. "-NoAveDiff"
 end
+
 if bStokes then
     vtk_file_name = vtk_file_name .. "-Stokes"
 end
+
+folder = folder .. "/" .. vtk_file_name
+if not DirectoryExists (folder) then
+    CreateDirectory (folder)
+end
+
+vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
 
 
 
@@ -105,7 +125,7 @@ rho_s 	= util.GetParamNumber("-rho_s", 2500, "Sand Density")
 dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
 nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
 inflow		= util.GetParamNumber("-inflow", 10.0, "max. inflow velocity")
-c_init		= util.GetParamNumber("-initial concentration", 0.625, "max volume fraction")
+c_init		= util.GetParamNumber("-initial concentration", 0.6205, "max volume fraction")
 
 
 alpha_max		= util.GetParamNumber("-max_concentration", 0.635, "max volume fraction")
@@ -147,8 +167,8 @@ time_seconds = util.GetParamNumber("-dT_ss",2.0)
 
 dt_s =  31536000 * time_years + 86400*time_days +  3600*time_hours+ time_seconds
 DTmax= util.GetParamNumber("-DTmax", dt_s, "max  DT")
-DTmin= util.GetParamNumber("-DTmin", 0.000001, "min  DT")
-dt = util.GetParamNumber("-dt",  1.0)
+DTmin= util.GetParamNumber("-DTmin", 0.001, "min  DT")
+dt = util.GetParamNumber("-dt",  2.0)
 
 CFL_max= util.GetParamNumber("-cfl", 100, "max  CFL number")
 UpdateDt     = util.GetParamNumber("-UpdateDT", 5)
@@ -170,8 +190,13 @@ outputFactor     = util.GetParam("-output", 1, "output every ... steps")
 -- Parameters of the solver
 
 max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100)
-max_newton_steps_transcient=util.GetParamNumber("-numNewtonSteps", 50)
+max_newton_steps_transcient=util.GetParamNumber("-numNewtonSteps", 100)
 max_linear_steps=util.GetParamNumber("-numLinearIter", 200)
+AbsDefect = 1e-06
+RedDefect = 1e-06
+
+
+
 timeMethod = util.GetParam("-timeMethod","euler","cn euler   fracstep   alex")
 
 
@@ -564,7 +589,6 @@ W=RelativeVelocityLinker()
 
 W:set_mix_density(Density)
 W:set_mix_kinematic_viscosity(Visc)
-W:set_gravity_force(Source)
 
 W:set_vol_limit(alpha_min)
 W:set_fluid_density(rho_a)
@@ -603,7 +627,7 @@ print ("	--------------------------Diff	factor	= " .. Diff_factor)
 
 -- inner space
 
-NavierStokesDisc = NavierStokesFV1M (fct_cmp_tbl, {"Inner"})
+NavierStokesDisc = NavierStokesFV1M (fct_cmp_tbl, {"Inner","Inner2"})
 NavierStokesDisc:set_exact_jacobian (bExactJac)
 NavierStokesDisc:set_stokes (bStokes)
 NavierStokesDisc:set_laplace ( bNoLaplace)
@@ -775,8 +799,8 @@ solverDesc =
 				sort	= false,
 				--sortEps 	= 1.e-50,
 				inversionEps 	= 1.e-16,
-				--consistentInterfaces   = false
-				--overlap 		= false,
+				consistentInterfaces   = false,     --consistentInterfaces and overlap shouldnot be activated at the same time
+				overlap 		= true,             --consistentInterfaces and overlap shouldnot be activated at the same time
 				--ordering 		= nil
 			},
 			preSmooth = 3,
@@ -796,9 +820,9 @@ solverDesc =
 	lineSearch =
 	{
 		type			= "standard",
-		maxSteps		=12,
-		lambdaStart		= 1.5625,
-		lambdaReduce	= 0.8,
+		maxSteps		=9,
+		lambdaStart		= 2,
+		lambdaReduce	= 0.7,
 		acceptBest 		= true,
 		checkAll		= false,
 		--suffDesc		= 0.25,
@@ -809,8 +833,8 @@ solverDesc =
 	{
 		type		= "standard",
 		iterations	= max_newton_steps_steady_state,
-		absolute	= 1e-7,
-		reduction	= 1e-10,
+		absolute	= AbsDefect,
+		reduction	= RedDefect,
 		verbose		= true
 	}
 }
@@ -821,6 +845,12 @@ solver = util.solver.CreateSolver(solverDesc)
 ------------------------------------------------------------------------------------------
 -- Prepare the initial guess for the pressure
 ------------------------------------------------------------------------------------------
+time_work_step = 0.0
+num_newton_steps = 0
+linsolver_calls = 0
+linsolver_steps = 0
+average_linear_steps = 0
+average_non_linear_rates = 0
 if StatBool then
 	--Interpolate(StartValueX, u, "u")
 	Interpolate(1.0e-5, u, "u")
@@ -852,30 +882,21 @@ if StatBool then
 	end
 	tAfter_s = os.clock()
     num_newton_steps = solver:num_newton_steps()
-    num_linsolver_calls = solver:num_linsolver_calls(1)
-    num_linsolver_steps = solver:num_linsolver_steps(1)
-    average_linear_steps = solver:average_linear_steps(1)
-    total_linsolver_calls = solver:total_linsolver_calls()
-    total_linsolver_steps = solver:total_linsolver_steps()
-    total_average_linear_steps = solver:total_average_linear_steps()
-    last_num_newton_steps = solver:last_num_newton_steps()
-    total_average_non_linear_rates = solver:total_average_non_linear_rates()
+    linsolver_calls = solver:total_linsolver_calls()
+    linsolver_steps = solver:total_linsolver_steps()
+    average_linear_steps = solver:total_average_linear_steps()
+    average_non_linear_rates = solver:total_average_non_linear_rates()
     
     print("num_newton_steps = " .. num_newton_steps .. ".")
-    print("num_linsolver_calls = " .. num_linsolver_calls .. ".")
-    print("num_linsolver_steps = " .. num_linsolver_steps .. ".")
+    print("linsolver_calls = " .. linsolver_calls .. ".")
+    print("linsolver_steps = " .. linsolver_steps .. ".")
     print("average_linear_steps = " .. average_linear_steps .. ".")
-    print("total_linsolver_calls = " .. total_linsolver_calls .. ".")
-    print("total_linsolver_steps = " .. total_linsolver_steps .. ".")
-    print("total_average_linear_steps = " .. total_average_linear_steps .. ".")
-    print("last_num_newton_steps = " .. last_num_newton_steps .. ".")
-    print("total_average_non_linear_rates = " .. total_average_non_linear_rates .. ".")
+    print("average_non_linear_rates = " .. average_non_linear_rates .. ".")
     
-    --solver:print_average_convergence()
     solver:clear_average_convergence();
     
-    
-	print("Computation for steady state took " .. tAfter_s-tBefore_s .. " seconds.")
+    time_work_step = tAfter_s-tBefore_s
+	print("Computation for steady state took " .. time_work_step .. " seconds.")
 	domainDisc:remove (fixer)
 	
 	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")	
@@ -898,8 +919,8 @@ convCheck =
 {
 	type		= "standard",
 	iterations	= max_newton_steps_transcient,
-	absolute	= DTmax*1e-7,
-	reduction	= 1e-10,
+	absolute	= DTmax*AbsDefect,
+	reduction	= RedDefect,
 	verbose		= true
 }
 
@@ -960,25 +981,36 @@ end
 -- create new grid function for old value
 uOld = u:clone()
 
-tBefore = os.clock()
-
 -- store grid function in vector of  old solutions
 solTimeSeries = SolutionTimeSeries()
 solTimeSeries:push(uOld, time)
 
 
-local file = io.open(vtk_file_name .. ".txt", "w+")
-file:write("Step" .. " \t " .. "Time" .. " \t " .. "TNSteps" .. " \t " .. "SNSteps" .. " \t " .. "FNSteps" .. " \n")
-file:write(" " .. step .. " \t " .. time .. " \t " .. 1 .. " \t " .. 1 .. " \t " .. 0 .. " \n")
+Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
+Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
+
+
+local file = io.open(folder .. "/Integral.txt", "w+")
+file:write(string.format("Step\tTime\t\tVol-Dom_1\tVol-Dom_2\tWork time\tTNSteps\tSNSteps\tFNSteps\tLinSolCalls\tLinSolSteps\n"))
+file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n",step, time, Value_inner1, Value_inner2, time_work_step, 1, 1, 0,linsolver_calls,linsolver_steps))
 file:close()
+
+total_Newton_Steps = 0
+total_Newton_Steps_fail = 0
+total_linsolver_calls_step = 0
+total_linsolver_steps_step = 0
+tBefore = os.clock()
 
 for step = 1, numTimeSteps do
 	print("++++++ TIMESTEP " .. step .. " BEGIN ++++++")
 	
     Newton_Steps = 0
     Newton_Steps_fail = 0
+    linsolver_calls_step = 0
+    linsolver_steps_step = 0
     CompletedStep = false
     time2 = time
+    tBefore_step = os.clock()
 	while CompletedStep==false  do
         Newton_Steps = Newton_Steps+1
 		-- choose time step
@@ -1014,8 +1046,6 @@ for step = 1, numTimeSteps do
 				VecScaleAssign(u, 1.0, solTimeSeries:latest())
 			
 			end
-            --solver:print_average_convergence()
-            solver:clear_average_convergence();
 		else
             
             if  (time2 + do_dt + (1e-07) * DTmin -time)/DTmax > 1.0 then
@@ -1046,10 +1076,7 @@ for step = 1, numTimeSteps do
             
             end
             
-            total_average_non_linear_rates = solver:total_average_non_linear_rates()
-
-            --solver:print_average_convergence()
-            solver:clear_average_convergence();
+            average_non_linear_rates = solver:total_average_non_linear_rates()
             
             if CompletedStep then
                 frac_step = 0
@@ -1062,11 +1089,11 @@ for step = 1, numTimeSteps do
             
             
             if modifyDT then
-                if(total_average_non_linear_rates>maxConvRate) then
+                if(average_non_linear_rates>maxConvRate) then
                     dt = math.max(do_dt*red_factor_success,1.00001*DTmin)
                     print ("-------------------------------------------------------------------Time step decrease at Step " .. step-1 + (time2-time)/DTmax .. ", dt =  " .. dt .. ". ")
                 else if CompletedStep== false then
-                    if(total_average_non_linear_rates<minConvRate and dt< DTmax) then
+                    if(average_non_linear_rates<minConvRate ) then
                         dt=math.min(incr_factor*dt,DTmax)
                         print ("-------------------------------------------------------------------Time step increased at Step " .. step-1 + (time2-time)/DTmax ..", dt =  " .. dt .. ". ")
                     end
@@ -1087,16 +1114,18 @@ for step = 1, numTimeSteps do
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   old DT    =    " .. do_dt .."")
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   DTmax =    " .. DTmax .. "     DTmin = " .. DTmin .."")
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Dt_factor   =    " .. dt/do_dt .. ".")
-            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Rho   =    " .. total_average_non_linear_rates .. ".")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Rho   =    " .. average_non_linear_rates .. ".")
                         
 
 		end
+  
+        
+        linsolver_calls_step = linsolver_calls_step + solver:total_linsolver_calls()
+        linsolver_steps_step = linsolver_steps_step + solver:total_linsolver_steps()
+        solver:clear_average_convergence();
 			
 	end
-
-
-		
-	
+    
 	if step % outputFactor == 0 then
 	
 		out = VTKOutput()
@@ -1123,14 +1152,6 @@ for step = 1, numTimeSteps do
 		print(" ")
 	end
  
- 
-        -- Save number of newton iterations for every time step
-
-    file = io.open(vtk_file_name .. ".txt", "a")
-    file:write(" " .. step .. " \t " .. time .. " \t " .. Newton_Steps .. " \t " .. Newton_Steps-Newton_Steps_fail .. " \t " .. Newton_Steps_fail .. " \n")
-    file:close()
-
-    
 	print("++++++ TIMESTEP " .. step .. "  END ++++++")
     print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
     print ("                                                            ")
@@ -1147,6 +1168,22 @@ for step = 1, numTimeSteps do
     print ("                                                            ")
     print ("                                                            ")
     print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+    
+    total_Newton_Steps = total_Newton_Steps + Newton_Steps
+    total_Newton_Steps_fail = total_Newton_Steps_fail + Newton_Steps_fail
+    total_linsolver_calls_step = total_linsolver_calls_step + linsolver_calls_step
+    total_linsolver_steps_step = total_linsolver_steps_step + linsolver_steps_step
+    
+    Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
+    Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
+    tAfter_step = os.clock()
+    
+    file = io.open(folder .. "/Integral.txt", "a")
+    file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n",
+    step, time, Value_inner1, Value_inner2, tAfter_step - tBefore_step, Newton_Steps, Newton_Steps-Newton_Steps_fail, Newton_Steps_fail,linsolver_calls_step,linsolver_steps_step))
+    file:close()
+    
+    
 end
 tAfter = os.clock()
 --solver:print_average_convergence()
@@ -1160,6 +1197,12 @@ print("")
 print("")
 print ("Output to file " .. vtk_file_name .. ".vtu")
 print("done.")
+
+file = io.open(folder .. "/Integral.txt", "a")
+file:write(string.format("-----------------------------------------------------------------------------------------------------------\n"))
+file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\n",
+numTimeSteps, time, Value_inner1, Value_inner2, tAfter-tBefore+tAfter-tBefore, total_Newton_Steps, total_Newton_Steps-total_Newton_Steps_fail, total_Newton_Steps_fail,total_linsolver_calls_step,total_linsolver_steps_step))
+file:close()
 
 
 
