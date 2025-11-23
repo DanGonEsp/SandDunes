@@ -819,7 +819,7 @@ solverDesc =
 	lineSearch =
 	{
 		type			= "standard",
-		maxSteps		=8,
+		maxSteps		=9,
 		lambdaStart		= 2,
 		lambdaReduce	= 0.7,
 		acceptBest 		= true,
