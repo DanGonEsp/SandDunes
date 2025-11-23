@@ -22,7 +22,8 @@ consistentRho_in_source = true
 
 boolRelativeVel = true
 boolGradientPsSource = true
-boolAveDiff = true
+boolViscPs = true
+boolAveDiff = false
 
 
 
@@ -41,10 +42,10 @@ numPreRefs     = util.GetParamNumber("-numPreRefs", 0, "number of prerefinements
 
 if geom_name == "tri" then
 	geometry	= util.GetParam ("-geom", "Dune2D_tri_double")
-	file_name = "TriDouble"
+	file_name = "TriDoubleParallel"
 else
 	geometry	= util.GetParam ("-geom", "Dune2D_quads_double")
-	file_name = "QuadsDouble"
+	file_name = "QuadsDoubleParallel"
 end
 gridName = geometry .. ".ugx"
 -- Subsets used in the problem
@@ -63,15 +64,15 @@ end
 vtk_file_name = file_name .. "-lev" .. numRefs
 if jumpPressure then
 
-    vtk_file_name =file_name .. "-Press"
+    vtk_file_name =vtk_file_name .. "-Press"
     value_beta =-0.005         --value_beta = -0.005
     jac = 0.0
     damping_mg = 1.0        --damping_mg = 0.15
 else
-    vtk_file_name =file_name .. "-NoPress"
-    value_beta = -0.01       --0.1--Tri
+    vtk_file_name =vtk_file_name .. "-NoPress"
+    value_beta = -0.4       --0.01--quad
     jac = 0.0
-    damping_mg = 0.5   --0.9  --Tri
+    damping_mg = 1.0   --0.9  --Tri
 end
 
 if boolRelativeVel then
@@ -91,7 +92,7 @@ if  boolGradientPsSource  or boolSource  then
     if boolGradientPsSource then
         vtk_file_name = vtk_file_name .. "-DPs"
     else
-        vtk_file_name = vtk_file_name .. "-NoDPs"
+        vtk_file_name = vtk_file_name .. "-DPh"
     end
     
 else
@@ -125,7 +126,7 @@ rho_s 	= util.GetParamNumber("-rho_s", 2500, "Sand Density")
 dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
 nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
 inflow		= util.GetParamNumber("-inflow", 10.0, "max. inflow velocity")
-c_init		= util.GetParamNumber("-initial concentration", 0.6205, "max volume fraction")
+c_init		= util.GetParamNumber("-initial concentration", 0.625, "max volume fraction")
 
 
 alpha_max		= util.GetParamNumber("-max_concentration", 0.635, "max volume fraction")
@@ -136,7 +137,7 @@ density_model  = util.GetParam("-density_model", "linear", "constant, linear")
 interface_value  = util.GetParamNumber("-interface_value",  10, "interface value")
 FR = 0.05
 B_phi = 1
-deltaGamma = 1e-07;
+deltaGamma = 1e-05;
 Visc_limit = 1e15
 
 deltaPs = 1.48e-04;
@@ -144,13 +145,14 @@ deltaI = 1e-03;
 FricMu_1=0.38
 FricMu_2=0.64
 I_0 = 0.279
+ReferencePressure = 1.7493e2
 
 drag_mod = util.GetParamNumber("-drag_model", 2, "Options:  0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel") --Model 0 pow(0.63+4.8/sqrt(RE),2.0);
 
     
 
 
-bStokes 	= util.GetParamNumber("-Stokes", false ,"If defined, only Stokes Eq. computed")
+bStokes 	= util.GetParamNumber("-Stokes", true ,"If defined, only Stokes Eq. computed")
 bNoLaplace 	= util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
 bExactJac 	= util.GetParamNumber("-exactJac", jac,"If defined, exact jacobian used")
 bPecletBlend= util.GetParamNumber("-PecletBlend", false,"If defined, Peclet Blend used")
@@ -160,39 +162,37 @@ bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
 diffLength  = util.GetParam("-difflength", "raw", "fivepoint, raw, corDiffusion length type")
 stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
 
+
+numTimeSteps =  util.GetParamNumber("-numTimeSteps", 20  )
+outputFactor     = util.GetParam("-output", 1, "output every ... steps")
+
 time_years = util.GetParamNumber("-dT_y",0.0)
 time_days = util.GetParamNumber("-dT_d",0.0)
 time_hours = util.GetParamNumber("-dT_h",0.0)
-time_seconds = util.GetParamNumber("-dT_ss",2.0)
+time_seconds = util.GetParamNumber("-dT_ss",10.0)
 
 dt_s =  31536000 * time_years + 86400*time_days +  3600*time_hours+ time_seconds
 DTmax= util.GetParamNumber("-DTmax", dt_s, "max  DT")
 DTmin= util.GetParamNumber("-DTmin", 0.001, "min  DT")
-dt = util.GetParamNumber("-dt",  2.0)
+dt = util.GetParamNumber("-dt",  DTmax  )
 
-CFL_max= util.GetParamNumber("-cfl", 100, "max  CFL number")
-UpdateDt     = util.GetParamNumber("-UpdateDT", 5)
+
+-- Parameters of the solver
+
 modifyDT     = util.GetParamNumber("-modifyDT", true)
 
 incr_factor     = util.GetParamNumber("-CFL_factor", 1.15)
 red_factor_fail     = util.GetParamNumber("-CFL_factor", 0.7)
 red_factor_success     = util.GetParamNumber("-CFL_factor", 0.8)
 
-maxConvRate = util.GetParamNumber("-maxConvRate", 0.85)
-minConvRate = util.GetParamNumber("-minConvRate", 0.7)
+maxConvRate = util.GetParamNumber("-maxConvRate", 0.8)
+minConvRate = util.GetParamNumber("-minConvRate", 0.6)
 
-numTimeSteps =  util.GetParamNumber("-numTimeSteps", 20	)
-outputFactor     = util.GetParam("-output", 1, "output every ... steps")
-
-
-
-
--- Parameters of the solver
 
 max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100)
 max_newton_steps_transcient=util.GetParamNumber("-numNewtonSteps", 100)
 max_linear_steps=util.GetParamNumber("-numLinearIter", 200)
-AbsDefect = 1e-06
+AbsDefect = 1e-05
 RedDefect = 1e-06
 
 
@@ -505,6 +505,7 @@ InterfaceValues:set_deltaGamma(deltaGamma)
 InterfaceValues:set_limit(Visc_limit)
 InterfaceValues:set_bool_particle_pressure_force(boolGradientPsSource)
 InterfaceValues:set_bool_consistent_gravity(false)
+InterfaceValues:set_reference_pressure(ReferencePressure)
 InterfaceValues:set_time_step_factor(dt)
 InterfaceValues:set_drag_model(drag_mod)
 InterfaceValues:set_bool_initialized(true)
@@ -600,6 +601,7 @@ W:set_dragCoeff(Cd)
 W:activate_relative_vel(boolRelativeVel)
 W:set_fluid_viscosity(nu_a*rho_a)
 W:set_alpha_max(alpha_max)
+--W:set_gravity_force(Source)
 W:set_phase_parameters(InterfaceValues)
 ---------------------------------------------------------------------- VelocityGradMag
 
@@ -690,7 +692,11 @@ Density:set_volume_fraction(NavierStokesDisc:volume_fraction())
 Visc:set_volume_fraction(NavierStokesDisc:volume_fraction())
 Visc:set_mix_viscosity(NavierStokesDisc:einstein_viscosity())
 Visc:set_velocity_gradient(NavierStokesDisc:velocity_grad())
-Visc:set_particle_pressure(NavierStokesDisc:particle_pressure())
+if(true) then
+    Visc:set_particle_pressure(NavierStokesDisc:particle_pressure())
+else
+    Visc:set_particle_pressure(NavierStokesDisc:pressure())
+end
 
 
 PjumpShape:set_volume_fraction(NavierStokesDisc:volume_fraction())
@@ -803,8 +809,8 @@ solverDesc =
 				overlap 		= true,             --consistentInterfaces and overlap shouldnot be activated at the same time
 				--ordering 		= nil
 			},
-			preSmooth = 3,
-			postSmooth = 3,
+			preSmooth = 2,
+			postSmooth = 2,
 			baseSolver = "lu",
 			baseLevel = numPreRefs
 		},
@@ -820,12 +826,12 @@ solverDesc =
 	lineSearch =
 	{
 		type			= "standard",
-		maxSteps		=9,
+		maxSteps		=8,
 		lambdaStart		= 2,
 		lambdaReduce	= 0.7,
 		acceptBest 		= true,
 		checkAll		= false,
-		--suffDesc		= 0.25,
+		suffDesc		= 0.3,
 		maxDefect	= 2e20
 		
 	},
@@ -846,11 +852,13 @@ solver = util.solver.CreateSolver(solverDesc)
 -- Prepare the initial guess for the pressure
 ------------------------------------------------------------------------------------------
 time_work_step = 0.0
-num_newton_steps = 0
-linsolver_calls = 0
-linsolver_steps = 0
-average_linear_steps = 0
-average_non_linear_rates = 0
+num_newton_steps = 0.0
+linsolver_calls = 0.0
+linsolver_steps = 0.0
+average_linear_steps = 0.0
+average_non_linear_rates = 0.0
+tAfter_s=0.0
+tBefore_s=0.0
 if StatBool then
 	--Interpolate(StartValueX, u, "u")
 	Interpolate(1.0e-5, u, "u")
@@ -905,6 +913,9 @@ if StatBool then
 	
 	
 	W:activate_relative_vel(boolRelativeVel)
+    if not(boolViscPs) then
+        Visc:set_particle_pressure(NavierStokesDisc:pressure())
+    end
 	
 else
 
@@ -991,7 +1002,7 @@ Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
 
 
 local file = io.open(folder .. "/Integral.txt", "w+")
-file:write(string.format("Step\tTime\t\tVol-Dom_1\tVol-Dom_2\tWork time\tTNSteps\tSNSteps\tFNSteps\tLinSolCalls\tLinSolSteps\n"))
+file:write(string.format("Step\tTime\t\tVol-Dom_1\tVol-Dom_2\tWork time\tTNSteps\tSNSteps\tFNSteps\tLinCalls LinSteps\n"))
 file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n",step, time, Value_inner1, Value_inner2, time_work_step, 1, 1, 0,linsolver_calls,linsolver_steps))
 file:close()
 
@@ -1077,6 +1088,7 @@ for step = 1, numTimeSteps do
             end
             
             average_non_linear_rates = solver:total_average_non_linear_rates()
+            num_newton_steps = solver:num_newton_steps()
             
             if CompletedStep then
                 frac_step = 0
@@ -1089,11 +1101,11 @@ for step = 1, numTimeSteps do
             
             
             if modifyDT then
-                if(average_non_linear_rates>maxConvRate) then
+                if(average_non_linear_rates>maxConvRate and num_newton_steps>30) then
                     dt = math.max(do_dt*red_factor_success,1.00001*DTmin)
                     print ("-------------------------------------------------------------------Time step decrease at Step " .. step-1 + (time2-time)/DTmax .. ", dt =  " .. dt .. ". ")
                 else if CompletedStep== false then
-                    if(average_non_linear_rates<minConvRate ) then
+                    if(average_non_linear_rates<minConvRate or num_newton_steps<30) then
                         dt=math.min(incr_factor*dt,DTmax)
                         print ("-------------------------------------------------------------------Time step increased at Step " .. step-1 + (time2-time)/DTmax ..", dt =  " .. dt .. ". ")
                     end
