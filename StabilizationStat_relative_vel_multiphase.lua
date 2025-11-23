@@ -13,25 +13,110 @@ ug_load_script("util/conv_rates_kinetic.lua")
 
 
 
-geom_name = "tri" -- tri and quad
 
-StatBool = true
-jumpPressure = false
-boolSource = true
-consistentRho_in_source = true
 
-boolRelativeVel = true
-boolGradientPsSource = true
-boolViscPs = true
-boolAveDiff = false
+
+timeMethod = util.GetParam("-timeMethod","euler","cn euler   fracstep   alex")
+
+time_years = util.GetParamNumber("-dT_y",0.0)
+time_days = util.GetParamNumber("-dT_d",0.0)
+time_hours = util.GetParamNumber("-dT_h",0.0)
+time_seconds = util.GetParamNumber("-dT_ss",10.0)
+
+dt_s =  31536000 * time_years + 86400*time_days +  3600*time_hours+ time_seconds
+DTmax= util.GetParamNumber("-DTmax", dt_s, "max  DT")
+DTmin= util.GetParamNumber("-DTmin", 0.001, "min  DT")
+dt = util.GetParamNumber("-dt",  DTmax  )
+
+
+-- Parameters solver
+
+modifyDT     = util.GetParamNumber("-modifyDT", true)
+incr_factor     = util.GetParamNumber("-incr_factor", 1.15)
+red_factor_fail     = util.GetParamNumber("-CFL_factor", 0.7)
+red_factor_success     = util.GetParamNumber("-CFL_factor", 0.8)
+
+maxConvRate = util.GetParamNumber("-maxConvRate", 0.8)
+minConvRate = util.GetParamNumber("-minConvRate", 0.6)
+
+max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100)
+max_newton_steps_transcient=util.GetParamNumber("-numNewtonSteps", 100)
+max_linear_steps=util.GetParamNumber("-numLinearIter", 200)
+AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05)
+RedDefect = util.GetParamNumber("-RedDefect", 1e-05)
+damping_mg = util.GetParamNumber("-RedDefect", 1.0)
+value_beta = util.GetParamNumber("-RedDefect", -0.4)
+
 
 
 
 
 
 -- Numerical parameters of the discretization
+dim         = util.GetParamNumber("-dim", 2, "dimensionality of the problem")
+elem_type = util.GetParam("-elem_type", "tri", "tri, quad")
 numRefs     = util.GetParamNumber("-numRefs", 1, "number of grid refinements")
 numPreRefs     = util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)")
+numTimeSteps =  util.GetParamNumber("-numTimeSteps", 20  )
+outputFactor     = util.GetParam("-output", 1, "output every ... steps")
+
+
+-- Physical phenomenon of simulation
+StatBool = util.GetParam("-StatBool", true)
+jumpPressure = util.GetParam("-jumpPressure", false)
+boolSource = util.GetParam("-boolSource", true)
+consistentRho_in_source = util.GetParam("-consistentRho_in_source", true)
+boolRelativeVel = util.GetParam("-boolRelativeVel", true)
+boolGradientPsSource = util.GetParam("-boolGradientPsSource", true)
+boolViscPs = util.GetParam("-boolViscPs", true)
+boolAveDiff = util.GetParam("-boolAveDiff", false)
+
+
+
+-- Physical parameters
+
+inflow             = util.GetParamNumber("-inflow", 10.0, "max. inflow velocity")
+ReferencePressure  = util.GetParamNumber("-ReferencePressure",  1.7493e2, "interface value")
+bStokes     = util.GetParamNumber("-Stokes", false ,"If defined, only Stokes Eq. computed")
+bNoLaplace     = util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
+bExactJac     = util.GetParamNumber("-exactJac", 0.0,"If defined, exact jacobian used")
+bPecletBlend= util.GetParamNumber("-PecletBlend", false,"If defined, Peclet Blend used")
+upwind_m      = util.GetParam("-upwind_m", "full", "Upwind type full or lps")
+upwind_t      = util.GetParam("-upwind_t", "full", "Upwind type full or lps")
+bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
+diffLength  = util.GetParam("-difflength", "raw", "fivepoint, raw, corDiffusion length type")
+stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
+turbViscMethod = util.GetParam("-turbulenceModel","no","TurbVismodel type no , dyn or sma")
+modellconstant = util.GetParamNumber("-c",0.1)
+
+nu_a     = util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity")
+rho_a     = util.GetParamNumber("-rho_a", 1.2, "Air Density")
+rho_s     = util.GetParamNumber("-rho_s", 2500, "Sand Density")
+dp     = util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
+nu_s     = util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
+c_init        = util.GetParamNumber("-c_init", 0.625, "max volume fraction")
+
+
+alpha_max        = util.GetParamNumber("-alpha_max", 0.635, "max volume fraction")
+alpha_min        = util.GetParamNumber("-min alpha_min", 0.57, "max volume fraction")
+packing_factor        = util.GetParamNumber("-packing_factor", 0.625, "max volume fraction")
+granular_model        = util.GetParamNumber("-granular_model", 3, "Options: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein")
+density_model  = util.GetParam("-density_model", "linear", "constant, linear")
+interface_value  = util.GetParamNumber("-interface_value",  10, "interface value")
+drag_mod = util.GetParamNumber("-drag_model", 2, "Options:  0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel") --Model 0 pow(0.63+4.8/sqrt(RE),2.0);
+
+FR = 0.05
+B_phi = 1
+deltaGamma = 1e-05;
+Visc_limit = 1e15
+
+deltaPs = 1.48e-04;
+deltaI = 1e-03;
+FricMu_1=0.38
+FricMu_2=0.64
+I_0 = 0.279
+
+
 
 
 ------------------------------------------------------------------------------------------
@@ -40,7 +125,7 @@ numPreRefs     = util.GetParamNumber("-numPreRefs", 0, "number of prerefinements
 
 -- Geometry parameters
 
-if geom_name == "tri" then
+if elem_type == "tri" then
 	geometry	= util.GetParam ("-geom", "Dune2D_tri_double")
 	file_name = "TriDoubleParallel"
 else
@@ -60,19 +145,11 @@ if not DirectoryExists (folder) then
     CreateDirectory (folder)
 end
 
-
 vtk_file_name = file_name .. "-lev" .. numRefs
 if jumpPressure then
-
     vtk_file_name =vtk_file_name .. "-Press"
-    value_beta =-0.005         --value_beta = -0.005
-    jac = 0.0
-    damping_mg = 1.0        --damping_mg = 0.15
 else
     vtk_file_name =vtk_file_name .. "-NoPress"
-    value_beta = -0.4       --0.01--quad
-    jac = 0.0
-    damping_mg = 1.0   --0.9  --Tri
 end
 
 if boolRelativeVel then
@@ -115,98 +192,6 @@ if not DirectoryExists (folder) then
 end
 
 vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
-
-
-
--- Physical parameters
-dim 		= util.GetParamNumber("-dim", 2, "dimensionality of the problem")
-nu_a 	= util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity")
-rho_a 	= util.GetParamNumber("-rho_a", 1.2, "Air Density")
-rho_s 	= util.GetParamNumber("-rho_s", 2500, "Sand Density")
-dp 	= util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
-nu_s 	= util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
-inflow		= util.GetParamNumber("-inflow", 10.0, "max. inflow velocity")
-c_init		= util.GetParamNumber("-initial concentration", 0.625, "max volume fraction")
-
-
-alpha_max		= util.GetParamNumber("-max_concentration", 0.635, "max volume fraction")
-alpha_min		= util.GetParamNumber("-min concentration", 0.57, "max volume fraction")
-packing_factor        = util.GetParamNumber("-packing_factor", 0.625, "max volume fraction")
-viscosity_model		= util.GetParamNumber("-granular_model", 3, "Options:  0 Constant, 1 Proportional, 2 Einstein model, 3 Rheology(I) + Einstein model")
-density_model  = util.GetParam("-density_model", "linear", "constant, linear")
-interface_value  = util.GetParamNumber("-interface_value",  10, "interface value")
-FR = 0.05
-B_phi = 1
-deltaGamma = 1e-05;
-Visc_limit = 1e15
-
-deltaPs = 1.48e-04;
-deltaI = 1e-03;
-FricMu_1=0.38
-FricMu_2=0.64
-I_0 = 0.279
-ReferencePressure = 1.7493e2
-
-drag_mod = util.GetParamNumber("-drag_model", 2, "Options:  0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel") --Model 0 pow(0.63+4.8/sqrt(RE),2.0);
-
-    
-
-
-bStokes 	= util.GetParamNumber("-Stokes", true ,"If defined, only Stokes Eq. computed")
-bNoLaplace 	= util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
-bExactJac 	= util.GetParamNumber("-exactJac", jac,"If defined, exact jacobian used")
-bPecletBlend= util.GetParamNumber("-PecletBlend", false,"If defined, Peclet Blend used")
-upwind_m      = util.GetParam("-upwind_m", "full", "Upwind type full or lps")
-upwind_t      = util.GetParam("-upwind_t", "full", "Upwind type full or lps")
-bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
-diffLength  = util.GetParam("-difflength", "raw", "fivepoint, raw, corDiffusion length type")
-stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
-
-
-numTimeSteps =  util.GetParamNumber("-numTimeSteps", 20  )
-outputFactor     = util.GetParam("-output", 1, "output every ... steps")
-
-time_years = util.GetParamNumber("-dT_y",0.0)
-time_days = util.GetParamNumber("-dT_d",0.0)
-time_hours = util.GetParamNumber("-dT_h",0.0)
-time_seconds = util.GetParamNumber("-dT_ss",10.0)
-
-dt_s =  31536000 * time_years + 86400*time_days +  3600*time_hours+ time_seconds
-DTmax= util.GetParamNumber("-DTmax", dt_s, "max  DT")
-DTmin= util.GetParamNumber("-DTmin", 0.001, "min  DT")
-dt = util.GetParamNumber("-dt",  DTmax  )
-
-
--- Parameters of the solver
-
-modifyDT     = util.GetParamNumber("-modifyDT", true)
-
-incr_factor     = util.GetParamNumber("-CFL_factor", 1.15)
-red_factor_fail     = util.GetParamNumber("-CFL_factor", 0.7)
-red_factor_success     = util.GetParamNumber("-CFL_factor", 0.8)
-
-maxConvRate = util.GetParamNumber("-maxConvRate", 0.8)
-minConvRate = util.GetParamNumber("-minConvRate", 0.6)
-
-
-max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100)
-max_newton_steps_transcient=util.GetParamNumber("-numNewtonSteps", 100)
-max_linear_steps=util.GetParamNumber("-numLinearIter", 200)
-AbsDefect = 1e-05
-RedDefect = 1e-06
-
-
-
-timeMethod = util.GetParam("-timeMethod","euler","cn euler   fracstep   alex")
-
-
-
-
-turbViscMethod = util.GetParam("-turbulenceModel","no","TurbVismodel type no , dyn or sma")
-modellconstant = util.GetParamNumber("-c",0.1)
-
-
-
 
 
 
@@ -521,7 +506,7 @@ Density:set_interface_volume_fraction(interface_value)
 ---------------------------------------------------------------------- Viscosity
 Visc = GranularViscosityLinker(); 
 
-Visc:set_granular_model(viscosity_model)
+Visc:set_granular_model(granular_model)
 Visc:set_particle_diameter(dp)
 Visc:set_particle_density(rho_s)
 Visc:set_particle_kinematicVisc(nu_s)
