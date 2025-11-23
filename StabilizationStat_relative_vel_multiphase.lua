@@ -38,11 +38,11 @@ minConvRate = util.GetParamNumber("-minConvRate", 0.6)
 
 max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100)
 max_newton_steps_transcient=util.GetParamNumber("-numNewtonSteps", 100)
-max_linear_steps=util.GetParamNumber("-numLinearIter", 200)
+max_linear_steps=util.GetParamNumber("-max_linear_steps", 200)
 AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05)
 RedDefect = util.GetParamNumber("-RedDefect", 1e-05)
-damping_mg = util.GetParamNumber("-RedDefect", 1.0)
-value_beta = util.GetParamNumber("-RedDefect", -0.4)
+damping_mg = util.GetParamNumber("-damping_mg", 1.0)
+value_beta = util.GetParamNumber("-value_beta", -0.4)
 
 
 
@@ -713,7 +713,6 @@ W:set_pressure_grad(NavierStokesDisc:pressure_grad())
 W:set_einstein_visc(NavierStokesDisc:einstein_viscosity())
 W:set_ps_grad(NavierStokesDisc:particle_pressure_grad())
 
---GradientPsSource:set_particle_pressure(NavierStokesDisc:particle_pressure())
 
 ---------------------------------------------------------------------- Scale
 
