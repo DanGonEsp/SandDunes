@@ -146,6 +146,11 @@ if not DirectoryExists (folder) then
 end
 
 vtk_file_name = file_name .. "-lev" .. numRefs
+
+if bStokes then
+    vtk_file_name = vtk_file_name .. "-Stokes"
+end
+
 if jumpPressure then
     vtk_file_name =vtk_file_name .. "-Press"
 else
