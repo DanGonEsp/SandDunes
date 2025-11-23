@@ -13,9 +13,6 @@ ug_load_script("util/conv_rates_kinetic.lua")
 
 
 
-
-
-
 timeMethod = util.GetParam("-timeMethod","euler","cn euler   fracstep   alex")
 
 time_years = util.GetParamNumber("-dT_y",0.0)
@@ -31,7 +28,7 @@ dt = util.GetParamNumber("-dt",  DTmax  )
 
 -- Parameters solver
 
-modifyDT     = util.GetParamNumber("-modifyDT", true)
+modifyDT     = util.GetParamBool("-modifyDT", true)
 incr_factor     = util.GetParamNumber("-incr_factor", 1.15)
 red_factor_fail     = util.GetParamNumber("-CFL_factor", 0.7)
 red_factor_success     = util.GetParamNumber("-CFL_factor", 0.8)
@@ -62,14 +59,14 @@ outputFactor     = util.GetParam("-output", 1, "output every ... steps")
 
 
 -- Physical phenomenon of simulation
-StatBool = util.GetParam("-StatBool", true)
-jumpPressure = util.GetParam("-jumpPressure", false)
-boolSource = util.GetParam("-boolSource", true)
-consistentRho_in_source = util.GetParam("-consistentRho_in_source", true)
-boolRelativeVel = util.GetParam("-boolRelativeVel", true)
-boolGradientPsSource = util.GetParam("-boolGradientPsSource", true)
-boolViscPs = util.GetParam("-boolViscPs", true)
-boolAveDiff = util.GetParam("-boolAveDiff", false)
+StatBool = util.GetParamBool("-StatBool", true)
+jumpPressure = util.GetParamBool("-jumpPressure", false)
+boolSource = util.GetParamBool("-boolSource", true)
+consistentRho_in_source = util.GetParamBool("-consistentRho_in_source", true)
+boolRelativeVel = util.GetParamBool("-boolRelativeVel", true)
+boolGradientPsSource = util.GetParamBool("-boolGradientPsSource", true)
+boolViscPs = util.GetParamBool("-boolViscPs", true)
+boolAveDiff = util.GetParamBool"-boolAveDiff", true)
 
 
 
@@ -77,10 +74,10 @@ boolAveDiff = util.GetParam("-boolAveDiff", false)
 
 inflow             = util.GetParamNumber("-inflow", 10.0, "max. inflow velocity")
 ReferencePressure  = util.GetParamNumber("-ReferencePressure",  1.7493e2, "interface value")
-bStokes     = util.GetParamNumber("-Stokes", false ,"If defined, only Stokes Eq. computed")
+bStokes     = util.GetParamBool("-Stokes", false ,"If defined, only Stokes Eq. computed")
 bNoLaplace     = util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
 bExactJac     = util.GetParamNumber("-exactJac", 0.0,"If defined, exact jacobian used")
-bPecletBlend= util.GetParamNumber("-PecletBlend", false,"If defined, Peclet Blend used")
+bPecletBlend = util.GetParamBool("-PecletBlend", false,"If defined, Peclet Blend used")
 upwind_m      = util.GetParam("-upwind_m", "full", "Upwind type full or lps")
 upwind_t      = util.GetParam("-upwind_t", "full", "Upwind type full or lps")
 bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
@@ -117,7 +114,17 @@ FricMu_2=0.64
 I_0 = 0.279
 
 
+function stringToBoolean(str)
+    -- Normalize the input to lowercase for case-insensitivity
+    local lower_str = string.lower(str)
 
+    if lower_str == "true" or lower_str == "yes" or lower_str == "1" then
+        return true
+    else
+        -- Default to false for "false", "no", "0", nil, or any other string
+        return false
+    end
+end
 
 ------------------------------------------------------------------------------------------
 -- Get command line parameters
@@ -200,12 +207,18 @@ vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
 
 
 
-
 print (" Geometry: " .. geometry .. " (file " .. gridName .. "), dim = " .. dim)
 print (" Physical parameter:")
 print ("	inflow		= " .. inflow)
 print ("	Stokes		= " .. tostring (bStokes))
 print ("	Pressure Jump	= " .. tostring (jumpPressure))
+print ("    Steady state    = " .. tostring (StatBool))
+print ("    BodyForce    = " .. tostring (boolSource))
+print ("    Consisten Gravity  = " .. tostring (consistentRho_in_source))
+print ("    Relative Vel    = " .. tostring (boolRelativeVel))
+print ("    Ps gradient    = " .. tostring (boolGradientPsSource))
+print ("    Ps in visc    = " .. tostring (boolViscPs))
+print ("    Diffusion    = " .. tostring (boolAveDiff))
 print (" Numerical parameter:")
 print ("	numRefs		= " .. numRefs)
 print ("	numPreRefs	= " .. numPreRefs)
@@ -519,7 +532,6 @@ Visc:set_fluid_density(rho_a)
 Visc:set_fluid_Visc(nu_a*rho_a)
 Visc:set_alpha_max(alpha_max)
 Visc:set_alpha_min(alpha_min)
---Visc:set_packing_factor(packing_factor)
 Visc:set_mix_density(Density)
 Visc:set_interface_volume_fraction(interface_value)
 Visc:set_limit(Visc_limit)
@@ -549,10 +561,6 @@ PjumpShape:set_interface_volume_fraction(interface_value)
 
 normal = InterfaceNormalLinker()
 normal:set_interface_volume_fraction(interface_value)
-
---GradientPsSource = ParticlePressureGradientLinker()
---GradientPsSource:set_interface_volume_fraction(interface_value)
-
 
 Source = GranularSourceLinker()
 Source:set_particle_density(rho_s)
@@ -595,11 +603,7 @@ W:set_alpha_max(alpha_max)
 W:set_phase_parameters(InterfaceValues)
 ---------------------------------------------------------------------- VelocityGradMag
 
-
-
 gamma = ShearStressFV1(approxSpace,u)
-
-
 
 ---------------------------------------------------------------------- Diffusion
 
