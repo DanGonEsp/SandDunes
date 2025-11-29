@@ -68,7 +68,7 @@ boolRelativeVel = util.GetParamBool("-boolRelativeVel", true)
 boolGradientPsSource = util.GetParamBool("-boolGradientPsSource", false)
 boolViscPs = util.GetParamBool("-boolViscPs", true)
 boolAveDiff = util.GetParamBool("-boolAveDiff", true)
-boolDebugStep = util.GetParamBool("-boolDebugStep", true)
+boolDebugStep = util.GetParamBool("-boolDebugStep", false)
 
 
 -- Physical parameters
