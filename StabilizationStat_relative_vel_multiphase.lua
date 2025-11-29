@@ -1152,7 +1152,7 @@ for step = 1, numTimeSteps do
     
 	if step % outputFactor == 0 then
 	
-		out1:print_subsets(vtk_file_name, u,allSubsets,step,time)
+		out:print_subsets(vtk_file_name, u,allSubsets,step,time)
 		--out2:print_subsets(vtk_file_name_var, u,allSubsets,step,time)
 		print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
 		print(" ")
