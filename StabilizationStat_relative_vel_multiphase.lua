@@ -10,19 +10,20 @@ ug_load_script ("util/load_balancing_util.lua")
 ug_load_script("util/domain_disc_util.lua")
 ug_load_script("navier_stokes_util.lua")
 ug_load_script("util/conv_rates_kinetic.lua")
+rank = ProcRank()
 
-
+			
 
 timeMethod = util.GetParam("-timeMethod","euler","cn euler   fracstep   alex")
 
 time_years = util.GetParamNumber("-dT_y",0.0)
 time_days = util.GetParamNumber("-dT_d",0.0)
 time_hours = util.GetParamNumber("-dT_h",0.0)
-time_seconds = util.GetParamNumber("-dT_ss",10.0)
+time_seconds = util.GetParamNumber("-dT_ss",1.0)
 
 dt_s =  31536000 * time_years + 86400*time_days +  3600*time_hours+ time_seconds
 DTmax= util.GetParamNumber("-DTmax", dt_s, "max  DT")
-DTmin= util.GetParamNumber("-DTmin", 0.001, "min  DT")
+DTmin= util.GetParamNumber("-DTmin", 0.01, "min  DT")
 dt = util.GetParamNumber("-dt",  DTmax  )
 
 
@@ -39,8 +40,8 @@ minConvRate = util.GetParamNumber("-minConvRate", 0.6)
 max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100)
 max_newton_steps_transcient=util.GetParamNumber("-numNewtonSteps", 100)
 max_linear_steps=util.GetParamNumber("-max_linear_steps", 200)
-AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05)
-RedDefect = util.GetParamNumber("-RedDefect", 1e-05)
+AbsDefect = util.GetParamNumber("-AbsDefect", 1e-07)
+RedDefect = util.GetParamNumber("-RedDefect", 1e-07)
 damping_mg = util.GetParamNumber("-damping_mg", 1.0)
 value_beta = util.GetParamNumber("-value_beta", -0.4)
 lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 8)
@@ -54,20 +55,20 @@ dim         = util.GetParamNumber("-dim", 2, "dimensionality of the problem")
 elem_type = util.GetParam("-elem_type", "tri", "tri, quad")
 numRefs     = util.GetParamNumber("-numRefs", 1, "number of grid refinements")
 numPreRefs     = util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)")
-numTimeSteps =  util.GetParamNumber("-numTimeSteps", 20  )
+numTimeSteps =  util.GetParamNumber("-numTimeSteps", 50  )
 outputFactor     = util.GetParam("-output", 1, "output every ... steps")
 
 
 -- Physical phenomenon of simulation
 StatBool = util.GetParamBool("-StatBool", true)
 jumpPressure = util.GetParamBool("-jumpPressure", false)
-boolSource = util.GetParamBool("-boolSource", true)
+boolSource = util.GetParamBool("-boolSource", false)
 consistentRho_in_source = util.GetParamBool("-consistentRho_in_source", true)
 boolRelativeVel = util.GetParamBool("-boolRelativeVel", true)
-boolGradientPsSource = util.GetParamBool("-boolGradientPsSource", true)
+boolGradientPsSource = util.GetParamBool("-boolGradientPsSource", false)
 boolViscPs = util.GetParamBool("-boolViscPs", true)
 boolAveDiff = util.GetParamBool("-boolAveDiff", true)
-
+boolDebugStep = util.GetParamBool("-boolDebugStep", true)
 
 
 -- Physical parameters
@@ -194,17 +195,13 @@ else
     vtk_file_name = vtk_file_name .. "-NoAveDiff"
 end
 
-if bStokes then
-    vtk_file_name = vtk_file_name .. "-Stokes"
-end
-
 folder = folder .. "/" .. vtk_file_name
 if not DirectoryExists (folder) then
     CreateDirectory (folder)
 end
 
 vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
-
+vtk_file_name_var = vtk_file_name .. "_var"
 
 
 print (" Geometry: " .. geometry .. " (file " .. gridName .. "), dim = " .. dim)
@@ -972,10 +969,7 @@ print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
 
 solver:init(op)
 solver:add_step_update(viscosityData)
-
-if boolAveDiff then
-	solver:add_inner_step_update(gamma)
-end
+solver:add_step_update(gamma)
 
 
 if solver:prepare(u) == false then
@@ -993,11 +987,12 @@ solTimeSeries:push(uOld, time)
 Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
 Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
 
-
-local file = io.open(folder .. "/Integral.txt", "w+")
-file:write(string.format("Step\tTime\t\tVol-Dom_1\tVol-Dom_2\tWork time\tTNSteps\tSNSteps\tFNSteps\tLinCalls LinSteps\n"))
-file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n",step, time, Value_inner1, Value_inner2, time_work_step, 1, 1, 0,linsolver_calls,linsolver_steps))
-file:close()
+if rank == 0 then
+	local file = io.open(folder .. "/Integral.txt", "w+")
+	file:write(string.format("Step\tTime\t\tVol-Dom_1\tVol-Dom_2\tWork time\tTNSteps\tSNSteps\tFNSteps\tLinCalls LinSteps\n"))
+	file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n",step, time, Value_inner1, Value_inner2, time_work_step, 1, 1, 0,linsolver_calls,linsolver_steps))
+	file:close()
+end
 
 total_Newton_Steps = 0
 total_Newton_Steps_fail = 0
@@ -1020,7 +1015,7 @@ for step = 1, numTimeSteps do
 		-- choose time step
 
 		do_dt = math.min(dt,math.max((time+DTmax-time2), 0.0))
-  
+		print("Size of timestep dt: " .. do_dt)
 		-- setup time Disc for old solutions and timestep
 		timeDisc:prepare_step(solTimeSeries, do_dt)
 	
@@ -1038,13 +1033,37 @@ for step = 1, numTimeSteps do
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Reducing Timestep in step  " .. step-1 + (time2+do_dt-time)/DTmax .. ".")
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   new DT          =    " .. dt .. "     Time = " .. time2 .."")
+			print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   old DT    		=    " .. do_dt .."")
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   DTmax       =    " .. DTmax .. "     DTmin = " .. DTmin .."")
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Rho         =    " .. solver:total_average_non_linear_rates() .. ".")
             print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Dt_factor   =    " .. red_factor_fail .. ".")
             
 			
 			if dt < DTmin  or modifyDT== false then
-				print ("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx            Time step below minimum. Aborting. Failed at point with step  " .. step-1+ (time2+do_dt-time)/DTmax .. "."); exit();
+				print ("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx            Time step below minimum. Aborting. Failed at point with step  " .. step-1+ (time2+do_dt-time)/DTmax .. ".");
+				if boolDebugStep then
+					convCheck =
+						{
+							type		= "standard",
+							iterations	= 10,
+							absolute	= AbsDefect,
+							reduction	= RedDefect,
+							verbose		= true
+						}
+
+					solverDesc.debug = true
+					solverDesc.convCheck = convCheck
+					solver = util.solver.CreateSolver(solverDesc)
+					solver:init(op)
+					timeDisc:prepare_step(solTimeSeries, do_dt)
+					if solver:prepare(u) == false then
+						print ("Newton solver failed at DEBUG step "..step..".");
+					end
+					print("++++++ DEBUG STEP  BEGIN ++++++")
+					solver:apply(u)
+				end
+				print ("Newton solver failed at DEBUG step "..step..".");
+				exit();
 
 			else
 				VecScaleAssign(u, 1.0, solTimeSeries:latest())
@@ -1058,7 +1077,7 @@ for step = 1, numTimeSteps do
                                                                                 
                 oldestSol = solTimeSeries:oldest()                                  -- get oldest solution
                                                                                     
-                VecAssign(oldestSol, u)                                             -- copy values into oldest solution (we reuse the memory here)
+				VecScaleAssign(oldestSol, 1.0, u)                                             -- copy values into oldest solution (we reuse the memory here)
                                                                                     
                 solTimeSeries:push_discard_oldest(oldestSol, time)                  -- push oldest solutions with new values to front, oldest sol pointer is poped from end
                 
@@ -1071,7 +1090,7 @@ for step = 1, numTimeSteps do
                                                                                     
                 oldestSol = solTimeSeries:oldest()                                  -- get oldest solution
                                                                                     
-                VecAssign(oldestSol, u)                                             -- copy values into oldest solution (we reuse the memory here)
+				VecScaleAssign(oldestSol, 1.0, u)                                             -- copy values into oldest solution (we reuse the memory here)
                                                                                     
                 solTimeSeries:push_discard_oldest(oldestSol, time2)                 -- push oldest solutions with new values to front, oldest sol pointer is poped from end
                 
@@ -1133,26 +1152,8 @@ for step = 1, numTimeSteps do
     
 	if step % outputFactor == 0 then
 	
-		out = VTKOutput()
-		out:clear_selection()
-		out:select_all(false)
-		out:select_nodal("u,v", "velocity")
-		out:select_nodal("u", "u")
-		out:select_nodal("v", "v")
-		out:select_nodal("p", "p")
-		out:select_nodal("c", "c")
-		out:select(Density, "Rho")
-		out:select(Viscosity, "Mu")
-		out:select(gamma, "G")
-		out:select(Viscosity2, "Mu2")
-		out:select(W, "W")
-		out:select(NavierStokesDisc:particle_pressure(), "Ps")
-		out:select(NavierStokesDisc:particle_pressure_grad(), "DPs")
-		out:select(Diffusion, "D")
-
-		
-
-		out:print_subsets(vtk_file_name, u,allSubsets,step,time)
+		out1:print_subsets(vtk_file_name, u,allSubsets,step,time)
+		--out2:print_subsets(vtk_file_name_var, u,allSubsets,step,time)
 		print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
 		print(" ")
 	end
@@ -1182,11 +1183,12 @@ for step = 1, numTimeSteps do
     Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
     Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
     tAfter_step = os.clock()
-    
-    file = io.open(folder .. "/Integral.txt", "a")
-    file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n",
-    step, time, Value_inner1, Value_inner2, tAfter_step - tBefore_step, Newton_Steps, Newton_Steps-Newton_Steps_fail, Newton_Steps_fail,linsolver_calls_step,linsolver_steps_step))
-    file:close()
+    if rank == 0 then
+		local file = io.open(folder .. "/Integral.txt", "a")
+		file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n",
+		step, time, Value_inner1, Value_inner2, tAfter_step - tBefore_step, Newton_Steps, Newton_Steps-Newton_Steps_fail, Newton_Steps_fail,linsolver_calls_step,linsolver_steps_step))
+		file:close()
+	end
     
     
 end
@@ -1202,12 +1204,13 @@ print("")
 print("")
 print ("Output to file " .. vtk_file_name .. ".vtu")
 print("done.")
-
-file = io.open(folder .. "/Integral.txt", "a")
-file:write(string.format("-----------------------------------------------------------------------------------------------------------\n"))
-file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\n",
-numTimeSteps, time, Value_inner1, Value_inner2, tAfter-tBefore+tAfter-tBefore, total_Newton_Steps, total_Newton_Steps-total_Newton_Steps_fail, total_Newton_Steps_fail,total_linsolver_calls_step,total_linsolver_steps_step))
-file:close()
+if rank == 0 then
+	file = io.open(folder .. "/Integral.txt", "a")
+	file:write(string.format("-----------------------------------------------------------------------------------------------------------\n"))
+	file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\n",
+	numTimeSteps, time, Value_inner1, Value_inner2, tAfter-tBefore+tAfter-tBefore, total_Newton_Steps, total_Newton_Steps-total_Newton_Steps_fail, total_Newton_Steps_fail,total_linsolver_calls_step,total_linsolver_steps_step))
+	file:close()
+end
 
 
 
