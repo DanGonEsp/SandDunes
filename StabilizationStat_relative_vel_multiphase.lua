@@ -12,7 +12,6 @@ ug_load_script("navier_stokes_util.lua")
 ug_load_script("util/conv_rates_kinetic.lua")
 rank = ProcRank()
 
-			
 
 timeMethod = util.GetParam("-timeMethod","euler","cn euler   fracstep   alex")
 
@@ -40,7 +39,7 @@ minConvRate = util.GetParamNumber("-minConvRate", 0.6)
 max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100)
 max_newton_steps_transcient=util.GetParamNumber("-numNewtonSteps", 100)
 max_linear_steps=util.GetParamNumber("-max_linear_steps", 200)
-AbsDefect = util.GetParamNumber("-AbsDefect", 1e-06)
+AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05)
 RedDefect = util.GetParamNumber("-RedDefect", 1e-05)
 damping_mg = util.GetParamNumber("-damping_mg", 1.0)
 value_beta = util.GetParamNumber("-value_beta", -0.4)
@@ -52,6 +51,7 @@ lambdaStart  = util.GetParamNumber("-lambdaStart", 2)
 
 -- Numerical parameters of the discretization
 dim         = util.GetParamNumber("-dim", 2, "dimensionality of the problem")
+file_name = util.GetParam("-file_name", "Test")
 elem_type = util.GetParam("-elem_type", "tri", "tri, quad")
 numRefs     = util.GetParamNumber("-numRefs", 1, "number of grid refinements")
 numPreRefs     = util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)")
@@ -61,7 +61,6 @@ outputFactor     = util.GetParam("-output", 1, "output every ... steps")
 
 -- Physical phenomenon of simulation
 StatBool = util.GetParamBool("-StatBool", true)
-jumpPressure = util.GetParamBool("-jumpPressure", false)
 boolSource = util.GetParamBool("-boolSource", false)
 consistentRho_in_source = util.GetParamBool("-consistentRho_in_source", true)
 boolRelativeVel = util.GetParamBool("-boolRelativeVel", true)
@@ -135,10 +134,10 @@ end
 
 if elem_type == "tri" then
 	geometry	= util.GetParam ("-geom", "Dune2D_tri_double")
-	file_name = "TriDoubleParallel"
+	file_name = "TriDouble" .. file_name
 else
 	geometry	= util.GetParam ("-geom", "Dune2D_quads_double")
-	file_name = "QuadsDoubleParallel"
+	file_name = "QuadsDouble" ..file_name
 end
 gridName = geometry .. ".ugx"
 -- Subsets used in the problem
@@ -157,12 +156,6 @@ vtk_file_name = file_name .. "-lev" .. numRefs
 
 if bStokes then
     vtk_file_name = vtk_file_name .. "-Stokes"
-end
-
-if jumpPressure then
-    vtk_file_name =vtk_file_name .. "-Press"
-else
-    vtk_file_name =vtk_file_name .. "-NoPress"
 end
 
 if boolRelativeVel then
@@ -208,7 +201,6 @@ print (" Geometry: " .. geometry .. " (file " .. gridName .. "), dim = " .. dim)
 print (" Physical parameter:")
 print ("	inflow			= " .. inflow)
 print ("	Stokes			= " .. tostring (bStokes))
-print ("	Pressure Jump		= " .. tostring (jumpPressure))
 print ("	Steady state    	= " .. tostring (StatBool))
 print ("	BodyForce       	= " .. tostring (boolSource))
 print ("	Consisten Gravity	= " .. tostring (consistentRho_in_source))
@@ -552,12 +544,6 @@ viscosityData:set_kinematic_viscosity(Visc)
 
 
 ---------------------------------------------------------------------- Pjump
-PjumpShape= JumpShapeLinker()
-PjumpShape:set_interface_volume_fraction(interface_value)
-
-
-normal = InterfaceNormalLinker()
-normal:set_interface_volume_fraction(interface_value)
 
 Source = GranularSourceLinker()
 Source:set_particle_density(rho_s)
@@ -596,7 +582,6 @@ W:set_dragCoeff(Cd)
 W:activate_relative_vel(boolRelativeVel)
 W:set_fluid_viscosity(nu_a*rho_a)
 W:set_alpha_max(alpha_max)
---W:set_gravity_force(Source)
 W:set_phase_parameters(InterfaceValues)
 ---------------------------------------------------------------------- VelocityGradMag
 
@@ -628,12 +613,10 @@ NavierStokesDisc:set_upwind (upwind_m)
 NavierStokesDisc:set_upwind_vol(upwind_t) 
 NavierStokesDisc:set_peclet_blend (bPecletBlend)
 NavierStokesDisc:set_stabilization (stab, diffLength)
---NavierStokesDisc:set_pac_upwind (bPac)
 
 
 NavierStokesDisc:set_density(Density)
 NavierStokesDisc:set_relative_velocity(W)
-NavierStokesDisc:set_interface_value(interface_value)
 NavierStokesDisc:set_phase_parameters(InterfaceValues)
 if boolAveDiff then
 	NavierStokesDisc:set_diffusion(Diffusion)
@@ -651,7 +634,6 @@ end
 
 
 InletDisc = NavierStokesInflowFV1M (NavierStokesDisc)
---InletDisc:add ("inflowVel3d", "Inlet,Top,Bottom")
 InletDisc:add ("inflowVel2d","Left,Top")
 
 -- boundary condition at the outlet
@@ -663,14 +645,6 @@ OutletDisc:set_phase_parameters(InterfaceValues)
 WallDisc = NavierStokesWall (NavierStokesDisc)
 WallDisc:add ("Bottom")
 
---PressureOutlet = DirichletBoundary()
---PressureOutlet:add("PressureBoundary", "p", "Bottom")
-
-
-
---Stress = NavierStokesInflowStressFV1(NavierStokesDisc)
---Stress:add("Left,Top")
---Stress:set_velocity(Vel)
 
 
 
@@ -690,18 +664,6 @@ else
 end
 
 
-PjumpShape:set_volume_fraction(NavierStokesDisc:volume_fraction())
-
-
-
-if (jumpPressure) then
-	NavierStokesDisc:set_jump_shape(PjumpShape,diffLength)
-	NavierStokesDisc:set_interface_normal(normal)
-	--NavierStokesDisc:set_vol_fraction(VolFraction)
-end
-
-normal:set_volume_fraction(NavierStokesDisc:volume_fraction())
-normal:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
 
 
 W:set_volume_fraction(NavierStokesDisc:volume_fraction())
@@ -1061,8 +1023,9 @@ for step = 1, numTimeSteps do
 					end
 					print("++++++ DEBUG STEP  BEGIN ++++++")
 					solver:apply(u)
+					print ("Newton solver failed at DEBUG step "..step..".");
 				end
-				print ("Newton solver failed at DEBUG step "..step..".");
+				
 				exit();
 
 			else
