@@ -33,7 +33,7 @@ incr_factor     = util.GetParamNumber("-incr_factor", 1.15)
 red_factor_fail     = util.GetParamNumber("-CFL_factor", 0.7)
 red_factor_success     = util.GetParamNumber("-CFL_factor", 0.8)
 
-maxConvRate = util.GetParamNumber("-maxConvRate", 0.8)
+maxConvRate = util.GetParamNumber("-maxConvRate", 0.85)
 minConvRate = util.GetParamNumber("-minConvRate", 0.6)
 
 max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100)
@@ -80,6 +80,7 @@ bExactJac     = util.GetParamNumber("-exactJac", 0.0,"If defined, exact jacobian
 bPecletBlend = util.GetParamBool("-PecletBlend", false,"If defined, Peclet Blend used")
 upwind_m      = util.GetParam("-upwind_m", "full", "Upwind type full or lps")
 upwind_t      = util.GetParam("-upwind_t", "full", "Upwind type full or lps")
+upwind_r      = util.GetParam("-upwind_r", "full", "Upwind type full or lps")
 bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used")
 diffLength  = util.GetParam("-difflength", "raw", "fivepoint, raw, corDiffusion length type")
 stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)")
@@ -616,20 +617,22 @@ NavierStokesDisc:set_stabilization (stab, diffLength)
 
 
 NavierStokesDisc:set_density(Density)
-NavierStokesDisc:set_relative_velocity(W)
-NavierStokesDisc:set_phase_parameters(InterfaceValues)
+if boolRelativeVel then
+	NavierStokesDisc:set_relative_velocity(W)
+	NavierStokesDisc:set_upwind_rel(upwind_r)
+end
 if boolAveDiff then
 	NavierStokesDisc:set_diffusion(Diffusion)
 end
 if (boolSource) then
 	NavierStokesDisc:set_source(Source)
 end
-
 if turbViscMethod=="no" then
 	NavierStokesDisc:set_kinematic_viscosity (Visc)
 else
 	NavierStokesDisc:set_kinematic_viscosity(viscosityData)
 end
+NavierStokesDisc:set_phase_parameters(InterfaceValues)
 
 
 
