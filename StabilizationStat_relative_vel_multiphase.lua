@@ -29,22 +29,23 @@ dt = util.GetParamNumber("-dt",  DTmax  )
 -- Parameters solver
 
 modifyDT     = util.GetParamBool("-modifyDT", true)
-incr_factor     = util.GetParamNumber("-incr_factor", 1.15)
-red_factor_fail     = util.GetParamNumber("-CFL_factor", 0.7)
+incr_factor     = util.GetParamNumber("-incr_factor", 1.1)
+red_factor_fail     = util.GetParamNumber("-CFL_factor", 0.5)
 red_factor_success     = util.GetParamNumber("-CFL_factor", 0.8)
+optimal_newton_steps = util.GetParamNumber("-optimal_newton_steps", 15)
 
 maxConvRate = util.GetParamNumber("-maxConvRate", 0.85)
 minConvRate = util.GetParamNumber("-minConvRate", 0.6)
 
 max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100)
-max_newton_steps_transcient=util.GetParamNumber("-numNewtonSteps", 100)
+max_newton_steps_transcient=util.GetParamNumber("-numNewtonSteps", 50)
 max_linear_steps=util.GetParamNumber("-max_linear_steps", 200)
 AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05)
 RedDefect = util.GetParamNumber("-RedDefect", 1e-05)
 damping_mg = util.GetParamNumber("-damping_mg", 1.0)
 value_beta = util.GetParamNumber("-value_beta", -0.4)
 lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 8)
-lambdaStart  = util.GetParamNumber("-lambdaStart", 2)
+lambdaStart  = util.GetParamNumber("-lambdaStart", 1.4)
 
 
 
@@ -60,7 +61,7 @@ outputFactor     = util.GetParam("-output", 1, "output every ... steps")
 
 
 -- Physical phenomenon of simulation
-StatBool = util.GetParamBool("-StatBool", true)
+StatBool = util.GetParamBool("-StatBool", false)
 boolSource = util.GetParamBool("-boolSource", false)
 consistentRho_in_source = util.GetParamBool("-consistentRho_in_source", true)
 boolRelativeVel = util.GetParamBool("-boolRelativeVel", true)
@@ -143,7 +144,9 @@ end
 gridName = geometry .. ".ugx"
 -- Subsets used in the problem
 allSubsets = "Inner, Inner2,Left, Right,Top, Bottom"
-
+Inner_total={"Inner","Inner2"}
+--allSubsets = "Inner,Left, Right,Top, Bottom"
+--Inner_total={"Inner"}
 ------------------------------------------------------------------------------------------
 -- Folder and files
 ------------------------------------------------------------------------------------------
@@ -594,10 +597,13 @@ Diff_beta = 0.217
 d1= 250e-06
 A1= 1.673
 k0 = 1.0 + A1 * (1-dp/d1)
-Diff_factor = Diff_beta*k0*k0*Ws*nu_a/9.81
+Diff_factor = Diff_beta*k0*k0*Ws/9.81
 Diffusion = GranularDiffusionLinker(); 
 Diffusion:set_gamma(gamma)
+Diffusion:set_mix_viscosity(Visc)
 Diffusion:set_diff_factor(Diff_factor)
+Diffusion:set_phase_parameters(InterfaceValues)
+Diffusion:const_kinematic_visc(true)
 print ("	--------------------------Diff	factor	= " .. Diff_factor)
 
 ------------------------------------------------------------------------------------------
@@ -606,7 +612,7 @@ print ("	--------------------------Diff	factor	= " .. Diff_factor)
 
 -- inner space
 
-NavierStokesDisc = NavierStokesFV1M (fct_cmp_tbl, {"Inner","Inner2"})
+NavierStokesDisc = NavierStokesFV1M (fct_cmp_tbl, Inner_total)
 NavierStokesDisc:set_exact_jacobian (bExactJac)
 NavierStokesDisc:set_stokes (bStokes)
 NavierStokesDisc:set_laplace ( bNoLaplace)
@@ -658,15 +664,16 @@ WallDisc:add ("Bottom")
 Density:set_volume_fraction(NavierStokesDisc:volume_fraction())
 
 Visc:set_volume_fraction(NavierStokesDisc:volume_fraction())
-Visc:set_mix_viscosity(NavierStokesDisc:einstein_viscosity())
+Visc:set_eins_viscosity(NavierStokesDisc:einstein_viscosity())
 Visc:set_velocity_gradient(NavierStokesDisc:velocity_grad())
+
 if(true) then
     Visc:set_particle_pressure(NavierStokesDisc:particle_pressure())
 else
     Visc:set_particle_pressure(NavierStokesDisc:pressure())
 end
 
-
+Diffusion:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 
 
 W:set_volume_fraction(NavierStokesDisc:volume_fraction())
@@ -885,7 +892,7 @@ convCheck =
 {
 	type		= "standard",
 	iterations	= max_newton_steps_transcient,
-	absolute	= DTmax*AbsDefect,
+	absolute	= AbsDefect,
 	reduction	= RedDefect,
 	verbose		= true
 }
@@ -1082,8 +1089,8 @@ for step = 1, numTimeSteps do
                 if(average_non_linear_rates>maxConvRate and num_newton_steps>30) then
                     dt = math.max(do_dt*red_factor_success,1.00001*DTmin)
                     print ("-------------------------------------------------------------------Time step decrease at Step " .. step-1 + (time2-time)/DTmax .. ", dt =  " .. dt .. ". ")
-                else if CompletedStep== false then
-                    if(average_non_linear_rates<minConvRate or num_newton_steps<30) then
+                else if (CompletedStep== false or Dt_factor > 0.98) then
+                    if(average_non_linear_rates<minConvRate or num_newton_steps<optimal_newton_steps) then
                         dt=math.min(incr_factor*dt,DTmax)
                         print ("-------------------------------------------------------------------Time step increased at Step " .. step-1 + (time2-time)/DTmax ..", dt =  " .. dt .. ". ")
                     end
