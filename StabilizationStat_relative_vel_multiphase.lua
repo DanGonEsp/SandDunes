@@ -38,7 +38,7 @@ maxConvRate = util.GetParamNumber("-maxConvRate", 0.85)
 minConvRate = util.GetParamNumber("-minConvRate", 0.6)
 
 max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100)
-max_newton_steps_transcient=util.GetParamNumber("-numNewtonSteps", 100)
+max_newton_steps_transcient=util.GetParamNumber("-max_newton_steps_transcient", 100)
 max_linear_steps=util.GetParamNumber("-max_linear_steps", 200)
 AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05)
 RedDefect = util.GetParamNumber("-RedDefect", 1e-05)
@@ -74,6 +74,7 @@ boolDebugStep = util.GetParamBool("-boolDebugStep", false)
 -- Physical parameters
 
 inflow             = util.GetParamNumber("-inflow", 10.0, "max. inflow velocity")
+H_0= util.GetParamNumber("-Height", 1.5, "Dune Height")
 ReferencePressure  = util.GetParamNumber("-ReferencePressure",  1.7493e2, "interface value")
 bStokes     = util.GetParamBool("-Stokes", false ,"If defined, only Stokes Eq. computed")
 bNoLaplace     = util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
@@ -98,7 +99,6 @@ c_init        = util.GetParamNumber("-c_init", 0.625, "max volume fraction")
 
 alpha_max        = util.GetParamNumber("-alpha_max", 0.635, "max volume fraction")
 alpha_min        = util.GetParamNumber("-min alpha_min", 0.57, "max volume fraction")
-packing_factor        = util.GetParamNumber("-packing_factor", 0.625, "max volume fraction")
 granular_model        = util.GetParamNumber("-granular_model", 3, "Options: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein")
 density_model  = util.GetParam("-density_model", "linear", "constant, linear")
 interface_value  = util.GetParamNumber("-interface_value",  10, "interface value")
@@ -278,21 +278,11 @@ u:set(0)
 ------------------------------------------------------------------------------------------
 -- Lua Functions
 ------------------------------------------------------------------------------------------
-H_domain=5
-H_0=2
 h_0=0.0
 sigma=3--0.4
 mu_c=20
 L2=5
 L=6--2.5
---[[
-H_0=1.5
-h_0=0.1
-sigma=5
-mu_c=14
-L2=0*4	
-L=10--2.5]]
-
 
 mu_c1=mu_c-L2/2
 mu_c2=mu_c+L2/2
@@ -554,7 +544,6 @@ Source:set_particle_density(rho_s)
 Source:set_fluid_density(rho_a)
 Source:set_mix_density(Density)
 Source:set_gravity(-9.81)
---Source:set_packing_factor(packing_factor)
 Source:set_cons_gravity(consistentRho_in_source)
 
 
