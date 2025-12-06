@@ -44,7 +44,7 @@ AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05)
 RedDefect = util.GetParamNumber("-RedDefect", 1e-05)
 damping_mg = util.GetParamNumber("-damping_mg", 1.0)
 value_beta = util.GetParamNumber("-value_beta", -0.4)
-lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 8)
+lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 5)
 lambdaStart  = util.GetParamNumber("-lambdaStart", 1.4)
 
 
