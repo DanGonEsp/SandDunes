@@ -74,7 +74,7 @@ boolDebugStep = util.GetParamBool("-boolDebugStep", false)
 -- Physical parameters
 
 inflow             = util.GetParamNumber("-inflow", 10.0, "max. inflow velocity")
-H_0= util.GetParamNumber("-Height", 1.5, "Dune Height")
+H_0= util.GetParamNumber("-Height", 2.0, "Dune Height")
 ReferencePressure  = util.GetParamNumber("-ReferencePressure",  1.7493e2, "interface value")
 bStokes     = util.GetParamBool("-Stokes", false ,"If defined, only Stokes Eq. computed")
 bNoLaplace     = util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used")
@@ -195,6 +195,8 @@ end
 folder = folder .. "/" .. vtk_file_name
 if not DirectoryExists (folder) then
     CreateDirectory (folder)
+else
+	print(" You must erase the content")
 end
 
 vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
