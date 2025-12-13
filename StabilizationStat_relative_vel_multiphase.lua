@@ -29,7 +29,7 @@ dt = util.GetParamNumber("-dt",  DTmax  )
 -- Parameters solver
 
 modifyDT     = util.GetParamBool("-modifyDT", true)
-incr_factor     = util.GetParamNumber("-incr_factor", 1.1)
+incr_factor     = util.GetParamNumber("-incr_factor", 1.2)
 red_factor_fail     = util.GetParamNumber("-CFL_factor", 0.5)
 red_factor_success     = util.GetParamNumber("-CFL_factor", 0.8)
 optimal_newton_steps = util.GetParamNumber("-optimal_newton_steps", 15)
@@ -38,13 +38,13 @@ maxConvRate = util.GetParamNumber("-maxConvRate", 0.85)
 minConvRate = util.GetParamNumber("-minConvRate", 0.6)
 
 max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100)
-max_newton_steps_transcient=util.GetParamNumber("-max_newton_steps_transcient", 100)
+max_newton_steps_transcient=util.GetParamNumber("-max_newton_steps_transcient", 50)
 max_linear_steps=util.GetParamNumber("-max_linear_steps", 200)
-AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05)
+AbsDefect = util.GetParamNumber("-AbsDefect", 1e-06)
 RedDefect = util.GetParamNumber("-RedDefect", 1e-05)
 damping_mg = util.GetParamNumber("-damping_mg", 1.0)
 value_beta = util.GetParamNumber("-value_beta", -0.4)
-lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 5)
+lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 7)
 lambdaStart  = util.GetParamNumber("-lambdaStart", 1.4)
 
 
@@ -61,7 +61,7 @@ outputFactor     = util.GetParam("-output", 1, "output every ... steps")
 
 
 -- Physical phenomenon of simulation
-StatBool = util.GetParamBool("-StatBool", false)
+StatBool = util.GetParamBool("-StatBool", true)
 boolSource = util.GetParamBool("-boolSource", false)
 consistentRho_in_source = util.GetParamBool("-consistentRho_in_source", true)
 boolRelativeVel = util.GetParamBool("-boolRelativeVel", true)
@@ -519,7 +519,6 @@ Visc:set_alpha_max(alpha_max)
 Visc:set_alpha_min(alpha_min)
 Visc:set_mix_density(Density)
 Visc:set_interface_volume_fraction(interface_value)
-Visc:set_limit(Visc_limit)
 Visc:set_deltaPs(deltaPs)
 Visc:set_deltaI(deltaI)
 Visc:set_FricMu_1(FricMu_1)
@@ -629,6 +628,7 @@ if turbViscMethod=="no" then
 else
 	NavierStokesDisc:set_kinematic_viscosity(viscosityData)
 end
+NavierStokesDisc:set_average_gamma(gamma)
 NavierStokesDisc:set_phase_parameters(InterfaceValues)
 
 
@@ -917,6 +917,7 @@ out:select(NavierStokesDisc:particle_pressure(), "Ps")
 out:select(NavierStokesDisc:particle_pressure_grad(), "DPs")
 out:select(Diffusion, "D")
 out:select(gamma, "G")
+out:select(NavierStokesDisc:velocity_grad(), "G2")
 out:print_subsets(vtk_file_name, u,allSubsets,step,time)
 print ("Output to file " .. vtk_file_name .. ".vtu  in time t = 0")
 print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
@@ -1117,7 +1118,6 @@ for step = 1, numTimeSteps do
 	if step % outputFactor == 0 then
 	
 		out:print_subsets(vtk_file_name, u,allSubsets,step,time)
-		--out2:print_subsets(vtk_file_name_var, u,allSubsets,step,time)
 		print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
 		print(" ")
 	end
