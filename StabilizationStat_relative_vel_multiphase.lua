@@ -10,57 +10,50 @@ ug_load_script ("util/load_balancing_util.lua")
 ug_load_script("util/domain_disc_util.lua")
 ug_load_script("navier_stokes_util.lua")
 ug_load_script("util/conv_rates_kinetic.lua")
+
+RequiredPlugins({"Limex", "NavierStokes"})
+
 rank = ProcRank()
 
 
-timeMethod = util.GetParam("-timeMethod","euler","cn euler   fracstep   alex")
-
-time_years = util.GetParamNumber("-dT_y",0.0)
-time_days = util.GetParamNumber("-dT_d",0.0)
-time_hours = util.GetParamNumber("-dT_h",0.0)
-time_seconds = util.GetParamNumber("-dT_ss",1.0)
-
-dt_s =  31536000 * time_years + 86400*time_days +  3600*time_hours+ time_seconds
-DTmax= util.GetParamNumber("-DTmax", dt_s, "max  DT")
-DTmin= util.GetParamNumber("-DTmin", 0.01, "min  DT")
-dt = util.GetParamNumber("-dt",  DTmax  )
-
-
--- Parameters solver
-
+timeMethod = util.GetParam("-timeMethod","euler","euler limex")
 modifyDT     = util.GetParamBool("-modifyDT", true)
 incr_factor     = util.GetParamNumber("-incr_factor", 1.2)
 red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.5)
 red_factor_success     = util.GetParamNumber("-red_factor_success", 0.9)
 optimal_newton_steps = util.GetParamNumber("-optimal_newton_steps", 25)
-
 maxConvRate = util.GetParamNumber("-maxConvRate", 0.9)
 minConvRate = util.GetParamNumber("-minConvRate", 0.6)
 
-max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100)
-max_newton_steps_transcient=util.GetParamNumber("-max_newton_steps_transcient", 50)
-max_linear_steps=util.GetParamNumber("-max_linear_steps", 200)
-AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05)
-RedDefect = util.GetParamNumber("-RedDefect", 1e-05)
-damping_mg = util.GetParamNumber("-damping_mg", 1.0)
-value_beta = util.GetParamNumber("-value_beta", -0.4)
-lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 7)
-lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0)
-
-
-
-
--- Numerical parameters of the discretization
+	-- Numerical parameters of the discretization
 dim         = util.GetParamNumber("-dim", 2, "dimensionality of the problem")
 file_name = util.GetParam("-file_name", "Test")
 elem_type = util.GetParam("-elem_type", "tri", "tri, quad")
 numRefs     = util.GetParamNumber("-numRefs", 1, "number of grid refinements")
 numPreRefs     = util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)")
-numTimeSteps =  util.GetParamNumber("-numTimeSteps", 50  )
+startTime  = util.GetParamNumber("-start", 0.0, "start time")
+endTime    = util.GetParamNumber("-end", 100.0, "end time")
+numTimeSteps    = util.GetParamNumber("-numTimeSteps", 5, "time steps")
+DTmin= util.GetParamNumber("-DTmin", 0.01, "min  DT")
+DTmax = (endTime - startTime) / numTimeSteps
+dt			= util.GetParamNumber("-dt", DTmax, "dt")
 outputFactor     = util.GetParam("-output", 1, "output every ... steps")
 
 
--- Physical phenomenon of simulation
+max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100)
+max_newton_steps_transcient=util.GetParamNumber("-max_newton_steps_transcient", 50)
+AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05)
+RedDefect = util.GetParamNumber("-RedDefect", 1e-05)
+
+max_linear_steps=util.GetParamNumber("-max_linear_steps", 200)
+damping_mg = util.GetParamNumber("-damping_mg", 1.0)
+value_beta = util.GetParamNumber("-value_beta", -0.4)
+
+lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 7)
+lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0)
+
+
+	-- Physical phenomenon of simulation
 StatBool = util.GetParamBool("-StatBool", true)
 boolSource = util.GetParamBool("-boolSource", false)
 consistentRho_in_source = util.GetParamBool("-consistentRho_in_source", true)
@@ -70,9 +63,6 @@ boolViscPs = util.GetParamBool("-boolViscPs", true)
 boolAveDiff = util.GetParamBool("-boolAveDiff", true)
 boolSlipDiff = util.GetParamBool("-boolSlipDiff", true)
 boolDebugStep = util.GetParamBool("-boolDebugStep", false)
-
-
--- Physical parameters
 
 inflow             = util.GetParamNumber("-inflow", 10.0, "max. inflow velocity")
 H_0= util.GetParamNumber("-Height", 2.0, "Dune Height")
@@ -90,6 +80,7 @@ stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or 
 turbViscMethod = util.GetParam("-turbulenceModel","no","TurbVismodel type no , dyn or sma")
 modellconstant = util.GetParamNumber("-c",0.1)
 
+--Material Properties
 nu_a     = util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity")
 rho_a     = util.GetParamNumber("-rho_a", 1.2, "Air Density")
 rho_s     = util.GetParamNumber("-rho_s", 2500, "Sand Density")
@@ -97,37 +88,26 @@ dp     = util.GetParamNumber("-diameter", 1e-03, "Particle Diameter")
 nu_s     = util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity")
 c_init        = util.GetParamNumber("-c_init", 0.625, "max volume fraction")
 
-
 alpha_max        = util.GetParamNumber("-alpha_max", 0.635, "max volume fraction")
 alpha_min        = util.GetParamNumber("-min alpha_min", 0.57, "max volume fraction")
-granular_model        = util.GetParamNumber("-granular_model", 3, "Options: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein")
+granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein")
 density_model  = util.GetParam("-density_model", "linear", "constant, linear")
 interface_value  = util.GetParamNumber("-interface_value",  10, "interface value")
-drag_mod = util.GetParamNumber("-drag_model", 2, "Options:  0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel") --Model 0 pow(0.63+4.8/sqrt(RE),2.0);
+drag_mod = util.GetParamNumber("-drag_model", 2, "Opt: 0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel")
+--Model 0 pow(0.63+4.8/sqrt(RE),2.0);
 
 FR = 0.05
 B_phi = 1
-deltaGamma = 1e-05;
+deltaGamma = 1e-05
 Visc_limit = 1e15
 
-deltaPs = 1.48e-04;
-deltaI = 1e-03;
+deltaPs = 1.48e-04
+deltaI = 1e-03
 FricMu_1=0.38
 FricMu_2=0.64
 I_0 = 0.279
 
 
-function stringToBoolean(str)
-    -- Normalize the input to lowercase for case-insensitivity
-    local lower_str = string.lower(str)
-
-    if lower_str == "true" or lower_str == "yes" or lower_str == "1" then
-        return true
-    else
-        -- Default to false for "false", "no", "0", nil, or any other string
-        return false
-    end
-end
 
 ------------------------------------------------------------------------------------------
 -- Get command line parameters
@@ -137,17 +117,16 @@ end
 
 if elem_type == "tri" then
 	geometry	= util.GetParam ("-geom", "Dune2D_tri_double")
-	file_name = "TriDouble" .. file_name
+	local file_name = "TriDouble" .. file_name
 else
 	geometry	= util.GetParam ("-geom", "Dune2D_quads_double")
-	file_name = "QuadsDouble" ..file_name
+	file_name = "QuadsDouble" .. file_name
 end
 gridName = geometry .. ".ugx"
 -- Subsets used in the problem
 allSubsets = "Inner, Inner2,Left, Right,Top, Bottom"
 Inner_total={"Inner","Inner2"}
---allSubsets = "Inner,Left, Right,Top, Bottom"
---Inner_total={"Inner"}
+
 ------------------------------------------------------------------------------------------
 -- Folder and files
 ------------------------------------------------------------------------------------------
@@ -207,7 +186,6 @@ else
 end
 
 vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
-vtk_file_name_var = vtk_file_name .. "_var"
 
 
 print (" Geometry: " .. geometry .. " (file " .. gridName .. "), dim = " .. dim)
@@ -233,6 +211,12 @@ print ("	upwind_t		= " .. upwind_t)
 print ("	pac			= " .. tostring (bPac))
 print ("	stab			= " .. stab)
 print ("	difflength		= " .. diffLength)
+
+--------------------------------------------------------------------------------
+-- Problem setup.
+--------------------------------------------------------------------------------
+local myProblem=require("SandDunesConfig")
+--myProblem:Init(params)
 
 ------------------------------------------------------------------------------------------
 -- Initialize UG4, load, refine and distribute the grid
@@ -836,83 +820,31 @@ solverDesc =
 
 solver = util.solver.CreateSolver(solverDesc)
 
+------------------------------------------------------------------------------------------
+-- Interpolate initial values
+------------------------------------------------------------------------------------------
+
+--Interpolate(StartValueX, u, "u")
+Interpolate(1.0e-5, u, "u")
+Interpolate("StartValueY", u, "v")
+Interpolate("StartValueP", u, "p")
+Interpolate("InitialValue_FractionVolume", u, "c")
+
 	
 ------------------------------------------------------------------------------------------
--- Prepare the initial guess for the pressure
+-- Prepare the initial Solution
 ------------------------------------------------------------------------------------------
-time_work_step = 0.0
-num_newton_steps = 0.0
-linsolver_calls = 0.0
-linsolver_steps = 0.0
-average_linear_steps = 0.0
-average_non_linear_rates = 0.0
-tAfter_s=0.0
-tBefore_s=0.0
+time_work_steady=0.0
+linsolver_calls = 0
+linsolver_steps = 0
 if StatBool then
-	--Interpolate(StartValueX, u, "u")
-	Interpolate(1.0e-5, u, "u")
-	Interpolate("StartValueY", u, "v")
-	Interpolate("StartValueP", u, "p")
-	Interpolate("InitialValue_FractionVolume", u, "c")
-
-	-- grid function for the solution
-
-	-- Fix the mass fraction and solve the linear problem for the momentum
-
-	fixer = DirichletBoundary()
-	domainDisc:add(fixer)
-	fixer:invert_subset_selection()
-	fixer:add("c", "")
-
-	solver:init(AssembledOperator(domainDisc))
-	solver:add_inner_step_update(viscosityData)
-
-	
-	solver:prepare(u)
-
-	-- apply the solver for the stationary pressure problem
-     print("++++++ STEADY STATE CALCULATION BEGIN ++++++")
-	tBefore_s= os.clock()
-	if not solver:apply(u) then
-		print("===> THE PREPARATION PHASE FAILED! <===")
-		exit()
-	end
-	tAfter_s = os.clock()
-    num_newton_steps = solver:num_newton_steps()
-    linsolver_calls = solver:total_linsolver_calls()
-    linsolver_steps = solver:total_linsolver_steps()
-    average_linear_steps = solver:total_average_linear_steps()
-    average_non_linear_rates = solver:total_average_non_linear_rates()
-    
-    print("num_newton_steps = " .. num_newton_steps .. ".")
-    print("linsolver_calls = " .. linsolver_calls .. ".")
-    print("linsolver_steps = " .. linsolver_steps .. ".")
-    print("average_linear_steps = " .. average_linear_steps .. ".")
-    print("average_non_linear_rates = " .. average_non_linear_rates .. ".")
-    
-    solver:clear_average_convergence();
-    
-    time_work_step = tAfter_s-tBefore_s
-	print("Computation for steady state took " .. time_work_step .. " seconds.")
-	domainDisc:remove (fixer)
-	
-	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")	
-	
-	
-	
+	-- Steady state solution.
+	time_work_steady, linsolver_calls, linsolver_steps = myProblem:ComputeNonLinearSteadyStateSolution(u, domainDisc, solver)
 	
 	W:activate_relative_vel(boolRelativeVel)
     if not(boolViscPs) then
         Visc:set_particle_pressure(NavierStokesDisc:pressure())
     end
-	
-else
-
-	Interpolate(0.0, u, "u")
-	Interpolate("StartValueY", u, "v")
-	Interpolate("StartValueP", u, "p")
-	Interpolate("InitialValue_FractionVolume", u, "c")
-	
 end
 
 convCheck =
@@ -995,7 +927,7 @@ Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
 if rank == 0 then
 	local file = io.open(folder .. "/Integral.txt", "w+")
 	file:write(string.format("Step\tTime\t\tVol-Dom_1\tVol-Dom_2\tWork time\tTNSteps\tSNSteps\tFNSteps\tLinCalls LinSteps\n"))
-	file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n",step, time, Value_inner1, Value_inner2, time_work_step, 1, 1, 0,linsolver_calls,linsolver_steps))
+	file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n",step, time, Value_inner1, Value_inner2, time_work_steady, 1, 1, 0,linsolver_calls,linsolver_steps))
 	file:close()
 end
 
@@ -1201,9 +1133,9 @@ tAfter = os.clock()
 --solver:print_average_convergence()
 print("-			-")
 print("-------------------------------------------------------------------------------")
-print("Steady state Computation took " .. tAfter_s-tBefore_s .. " seconds.")
+print("Steady state Computation took " .. time_work_steady .. " seconds.")
 print("Temporal Computation took " .. tAfter-tBefore .. " seconds.")
-print("Total Computation took " .. tAfter_s-tBefore_s+tAfter-tBefore .. " seconds.")
+print("Total Computation took " .. time_work_steady+tAfter-tBefore .. " seconds.")
 print("-------------------------------------------------------------------------------")
 print("")
 print("")
