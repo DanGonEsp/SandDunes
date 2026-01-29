@@ -1,6 +1,206 @@
 
 local myProblem = {}
 
+-- TODO: This should be integrated into a constructor!
+myProblem.Init = function(self, o)
+
+  self.dim = o.dim
+  
+
+  self.doSteadyState = o.doSteadyState
+  
+  self.bExactJac = o.bExactJac or true
+  self.bStokes= o.bStokes or false
+  self.bLaplace  = o.bLaplace or false
+  self.bPecletBlend  = o.bPecletBlend or false
+  
+  self.upwind  = o.upwind or "full"
+  
+  self.stab = o.stab
+  self.diffLength = o.diffLength
+  
+  self.stabGrad = o.stabGrad
+  self.stabStreamline = o.stabStreamline
+  self.stabDiv =  o.stabDiv
+  
+  self.viscosity=1e-3  -- 1.0  -- kinematic (nu=1/Re) or dynamic (mu) does not matter, since \rho=1.
+  self.density=1.2
+  self.Um = 1.5
+  self.Umean2 = math.pow(2/3*self.Um, 2)
+  
+  self.L = GLOBAL_CYLINDER_CONFIG.L
+  self.H = GLOBAL_CYLINDER_CONFIG.H
+  
+
+  
+end
+
+------------------------------------------------------------------------------------------
+-- Lua Functions
+------------------------------------------------------------------------------------------
+h_0=0.0
+sigma=3
+mu_c=20
+L2=5
+L=6--2.5
+
+mu_c1=mu_c-L2/2
+mu_c2=mu_c+L2/2
+sigma1=sigma
+sigma2=0.5*sigma
+ss=1.0
+k1=0.05
+k2=0.05
+---------------------------------------------------------------------- Initial DuneShape
+function Dune(x)
+	if (x< mu_c1) then
+		return H_0*   math.exp(     -0.5*math.pow((x-mu_c1)/sigma1,2) ) -h_0+(ss-math.exp(-k1*(x-mu_c1)))
+	else
+		if (x< mu_c2) then
+			return H_0-h_0
+		else
+			return H_0*   math.exp(     -0.5*math.pow((x-mu_c2)/sigma2,2) ) -h_0  -(ss-math.exp(-k2*(x-mu_c2)))
+			
+		end
+	end
+end
+function Dune1(x)
+	if (x< mu_c1) then
+		return -(Dune(x)+h_0)*(x-mu_c1)/math.pow(sigma1,2)+(k1*math.exp(-k1*(x-mu_c1)))
+	else
+		if (x< mu_c2) then
+			return 0
+		else
+			return -(Dune(x)+h_0)*(x-mu_c2)/math.pow(sigma2,2)+(-k2*math.exp(-k2*(x-mu_c2)))
+		end
+	end
+end
+function Dune2(x)
+	if (x< mu_c1) then
+		return (Dune(x)+h_0)*(math.pow((x-mu_c1)/math.pow(sigma1,2),2)-1/math.pow(sigma1,2))-(k1*k1*math.exp(-k1*(x-mu_c1)))
+	else
+		if (x< mu_c2) then
+			return 0
+		else
+			return  (Dune(x)+h_0)*(math.pow((x-mu_c2)/math.pow(sigma2,2),2)-1/math.pow(sigma2,2))+(k2*k2*math.exp(-k2*(x-mu_c2)))
+		end
+	end
+end
+
+function dist(x0,y0)
+	e=1
+	x1=20
+	x2=20
+	y1=Dune(x0)
+	n=1
+	while (e>1e-04 and n<100) do
+		x1=x2
+		y1=Dune(x1)
+		x2=x1-(x0-x1  + (y0-y1)*Dune1(x1))/(Dune2(x1)*(y0-Dune(x1))-(math.pow(Dune1(x1),2)+1) )
+
+		e=math.abs(x2-x1)
+		n=n+1
+	end
+	return math.sqrt(math.pow(x2-x0,2)+math.pow(Dune(x2)-y0,2))
+end
+
+dx=math.pow(1/2,(numRefs+2))
+---------------------------------------------------------------------- Initial Velocity
+--[[function StartValueX(x,y)
+	hh=14.1856
+	nn=2.5
+	cc=math.pow(y/hh,5)
+	return inflow*(math.min(1.0, math.pow(y/hh,1/nn))*(1-cc) +(cc)* (2*hh - y) * (y ) / (hh * hh))
+end]]
+function StartValueX(x,y)
+	hh=14.1856
+	return inflow* (2*hh - y) * (y ) / (hh * hh)
+end
+function StartValueY(x,y)
+	return 0.0*inflow
+end
+function StartValueZ(x,y)
+	return 0
+end
+
+---------------------------------------------------------------------- Initial Pressure
+Pstd=0.0
+function StartValueP(x,y)
+	if y>Dune(x) then
+		return Pstd *(x+30)
+	else
+		return  Pstd *(x+30)
+	end
+end
+function PressureBoundary(x,y)
+	return  -1.2*y*9.81
+end
+
+---------------------------------------------------------------------- Initial VolumeFraction
+
+
+
+
+function VolumeFraction(x,y)
+	dd=dist(x,y)
+	ds=0*dx
+	kk1=1600
+	kk2=1600
+	
+	if y>Dune(x,y) then
+		if dd<ds then
+			dd=-dd
+			k=k
+			return c_init / (1.0 + math.exp(-kk1*dd))
+		else
+			return 0.0
+		end
+	else
+		if dd<ds then
+			k=k
+			return c_init / (1.0 + math.exp(-kk2*dd))
+		else
+			return c_init
+		end
+	end
+	
+	
+	
+end
+
+
+function StartValueC(x,y)
+	return VolumeFraction(x,y)
+end
+---------------------------------------------------------------------- Boundary Condition
+----------------------------------------------------------- Inlet
+local H=1
+
+function inflowVel2d(x, y, t)
+
+	return StartValueX(x,y),StartValueY(x,y)
+end
+
+function ConstValue(x, y, t)
+	if (y < 1) then
+		return 1e-03
+	else return 0.0
+	end
+end
+
+----------------------------------------------------------- Bottom
+
+function BoundaryVolumeFraction(x,y)
+	a= 10
+	b = 20
+	if x>a and x<b then--y>Dune(x,y) then
+		return c_init
+	else
+		return 0.0
+	end
+end
+
+function BottomFlux(x,y) return 0 end
 
 -- Reference values for Schaefer /Turek benchmarks
 local ref2D_1 = {
@@ -62,43 +262,7 @@ end
 
 
 
--- TODO: This should be integrated into a constructor!
-myProblem.Init = function(self, o)
 
-  self.dim = o.dim
-  
-  self.discType = o.discType
-  self.vorder = o.vorder
-  self.porder = o.porder
-  
-  
-  self.doSteadyState = o.doSteadyState
-  
-  self.bExactJac = o.bExactJac or true
-  self.bStokes= o.bStokes or false
-  self.bLaplace  = o.bLaplace or false
-  self.bPecletBlend  = o.bPecletBlend or false
-  
-  self.upwind  = o.upwind or "full"
-  
-  self.stab = o.stab
-  self.diffLength = o.diffLength
-  
-  self.stabGrad = o.stabGrad
-  self.stabStreamline = o.stabStreamline
-  self.stabDiv =  o.stabDiv
-  
-  self.viscosity=1e-3  -- 1.0  -- kinematic (nu=1/Re) or dynamic (mu) does not matter, since \rho=1. 
-  self.density=1.2
-  self.Um = 1.5
-  self.Umean2 = math.pow(2/3*self.Um, 2)
-  
-  self.L = GLOBAL_CYLINDER_CONFIG.L
-  self.H = GLOBAL_CYLINDER_CONFIG.H
-  
-
-  
-end
 
 myProblem.CreateDomain=function(self, gridName, numRefs, numPreRefs)
   
@@ -301,6 +465,31 @@ myProblem.CreateSolver = function (self, approxSpace, discType, p)
   return newtonSolver
 end
 
+myProblem.WriteValues = function (folder, step, time, Value_inner1, Value_inner2, WorkTime, Newton_Steps, Newton_Steps_fail,linsolver_calls,linsolver_steps,boolTotal)
+	if(boolTotal) then
+		file = io.open(folder .. "/Integral.txt", "a")
+		file:write(string.format("-----------------------------------------------------------------------------------------------------------\n"))
+		file:close()
+	end
+	if(step == 0) then
+		file = io.open(folder .. "/Integral.txt", "w+")
+		file:write(string.format("Step\tTime\t\tVol-Dom_1\tVol-Dom_2\tWork time\tTNSteps\tSNSteps\tFNSteps\tLinCalls LinSteps\n"))
+		file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n", step, time, Value_inner1, Value_inner2, WorkTime, Newton_Steps, Newton_Steps-Newton_Steps_fail, Newton_Steps_fail,linsolver_calls,linsolver_steps))
+		file:close()
+	else
+		file = io.open(folder .. "/Integral.txt", "a")
+		file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n", step, time, Value_inner1, Value_inner2, WorkTime, Newton_Steps, Newton_Steps-Newton_Steps_fail, Newton_Steps_fail,linsolver_calls,linsolver_steps))
+		file:close()
+	end
+end
+
+myProblem.SetInitialValues = function (self, u)
+	  --Interpolate(StartValueX, u, "u")
+	Interpolate(1.0e-5, u, "u")
+	Interpolate("StartValueY", u, "v")
+	Interpolate("StartValueP", u, "p")
+	Interpolate("StartValueC", u, "c")
+end
 
 myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, solver, cmp)
 
@@ -336,17 +525,14 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
     
     solver:clear_average_convergence();
     
-    time_work_step = tAfter_s-tBefore_s
-	print("Computation for steady state took " .. time_work_step .. " seconds.")
+	time_work_steady = tAfter_s-tBefore_s
+	print("Computation for steady state took " .. time_work_steady .. " seconds.")
 	domainDisc:remove (fixer)
 	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")
 	return time_work_steady, linsolver_calls, linsolver_steps
 
 end
 
-myProblem.SetInitialValues = function (self, u)
-  u:set(0.0)
-end
 
 -- Evaluate drag, lift and deltaP
 myProblem.EvalIntegralQuantities2D = function (self, u, step, time)

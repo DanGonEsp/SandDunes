@@ -32,8 +32,8 @@ elem_type = util.GetParam("-elem_type", "tri", "tri, quad")
 numRefs     = util.GetParamNumber("-numRefs", 1, "number of grid refinements")
 numPreRefs     = util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)")
 startTime  = util.GetParamNumber("-start", 0.0, "start time")
-endTime    = util.GetParamNumber("-end", 100.0, "end time")
-numTimeSteps    = util.GetParamNumber("-numTimeSteps", 5, "time steps")
+endTime    = util.GetParamNumber("-end", 2.0, "end time")
+numTimeSteps    = util.GetParamNumber("-numTimeSteps", 2, "time steps")
 DTmin= util.GetParamNumber("-DTmin", 0.01, "min  DT")
 DTmax = (endTime - startTime) / numTimeSteps
 dt			= util.GetParamNumber("-dt", DTmax, "dt")
@@ -263,218 +263,6 @@ util.solver.defaults.approxSpace = approxSpace
 -- grid function for the solution
 u = GridFunction (approxSpace)
 u:set(0)
-
---------------------------------
---------------------------------
--- Lua Functions
---------------------------------
---------------------------------
-------------------------------------------------------------------------------------------
--- Lua Functions
-------------------------------------------------------------------------------------------
-h_0=0.0
-sigma=3--0.4
-mu_c=20
-L2=5
-L=6--2.5
-
-mu_c1=mu_c-L2/2
-mu_c2=mu_c+L2/2
-sigma1=sigma
-sigma2=0.5*sigma
-d=1.2*math.pow(1/2,numRefs-1)
-ss=1.0
-k1=0.05 
-k2=0.05 
----------------------------------------------------------------------- Initial DuneShape
-function Dune(x) 
-	if (x< mu_c1) then
-		return H_0*   math.exp(     -0.5*math.pow((x-mu_c1)/sigma1,2) ) -h_0+(ss-math.exp(-k1*(x-mu_c1)))
-	else
-		if (x< mu_c2) then
-			return H_0-h_0
-		else
-			return H_0*   math.exp(     -0.5*math.pow((x-mu_c2)/sigma2,2) ) -h_0  -(ss-math.exp(-k2*(x-mu_c2)))
-			
-		end
-	end
-end
-function Dune1(x) 
-	if (x< mu_c1) then
-		return -(Dune(x)+h_0)*(x-mu_c1)/math.pow(sigma1,2)+(k1*math.exp(-k1*(x-mu_c1)))
-	else
-		if (x< mu_c2) then
-			return 0
-		else
-			return -(Dune(x)+h_0)*(x-mu_c2)/math.pow(sigma2,2)+(-k2*math.exp(-k2*(x-mu_c2)))			
-		end
-	end
-end
-function Dune2(x) 
-	if (x< mu_c1) then
-		return (Dune(x)+h_0)*(math.pow((x-mu_c1)/math.pow(sigma1,2),2)-1/math.pow(sigma1,2))-(k1*k1*math.exp(-k1*(x-mu_c1)))
-	else
-		if (x< mu_c2) then
-			return 0
-		else
-			return  (Dune(x)+h_0)*(math.pow((x-mu_c2)/math.pow(sigma2,2),2)-1/math.pow(sigma2,2))+(k2*k2*math.exp(-k2*(x-mu_c2)))			
-		end
-	end
-end
-
-function dist(x0,y0)
-	e=1
-	x1=20
-	x2=20
-	y1=Dune(x0)
-	n=1
-	while (e>1e-04 and n<100) do
-		x1=x2
-		y1=Dune(x1)
-		x2=x1-(x0-x1  + (y0-y1)*Dune1(x1))/(Dune2(x1)*(y0-Dune(x1))-(math.pow(Dune1(x1),2)+1) )
-
-		e=math.abs(x2-x1)
-		n=n+1
-	end
-	return math.sqrt(math.pow(x2-x0,2)+math.pow(Dune(x2)-y0,2))
-end
-
-dx=math.pow(1/2,(numRefs+2))
----------------------------------------------------------------------- Initial Velocity
---[[function StartValueX(x,y) 
-	hh=14.1856
-	nn=2.5
-	cc=math.pow(y/hh,5)
-	return inflow*(math.min(1.0, math.pow(y/hh,1/nn))*(1-cc) +(cc)* (2*hh - y) * (y ) / (hh * hh))
-end]]
-function StartValueX(x,y) 
-	hh=14.1856
-	return inflow* (2*hh - y) * (y ) / (hh * hh)
-end
-function StartValueY(x,y) 
-	return 0.0*inflow
-end
-function StartValueZ(x,y) 
-	return 0
-end
-
----------------------------------------------------------------------- Initial Pressure
-Pstd=0.0	
-function StartValueP(x,y) 
-	if y>Dune(x) then
-		return Pstd *(x+30)
-	else 
-		return  Pstd *(x+30)
-	end
-end
-function PressureBoundary(x,y) 
-	return  -1.2*y*9.81
-end
-
----------------------------------------------------------------------- Initial VolumeFraction 
-
-
-
---[[function VolumeFraction2(x,y)
-	interface_o=0
-	interface_i=0
-	dd=dist(x,y)
-	ds_o=4*dx
-	ds_i=4*dx
-	if (dd<ds_o) then
-		interface_o=1
-	end
-	if dd<ds_i then
-		interface_i=1
-	end
-	if y>Dune(x,y) then
-		if interface_o==0 then
-			return 0.00
-		else
-			return interface_value*(1.0 - dd/ds_o)
-			--return 0.0
-		end
-	else
-		if interface_i==0 then
-			return  c_init
-		else
-			return interface_value*(1.0 - dd/ds_o)+ c_init*dd/ds_i
-			--return math.min(1.0, interface*(dd/(ds-dd)+1.0))
-			--return c_init 
-		end
-	end
-	
-	
-end]]
-
-function VolumeFraction(x,y)
-	dd=dist(x,y)
-	ds=0*dx
-	kk1=1600
-	kk2=1600 
-	
-	if y>Dune(x,y) then
-		if dd<ds then
-			dd=-dd
-			k=k
-			return c_init / (1.0 + math.exp(-kk1*dd))
-		else
-			return 0.0
-		end
-	else
-		if dd<ds then
-			k=k
-			return c_init / (1.0 + math.exp(-kk2*dd))
-		else
-			return c_init 
-		end
-	end
-	
-	
-	
-end
-
-function VolumeFraction2(x,y)
-	return  c_init
-end
-
-function InitialValue_FractionVolume(x,y)
-	--if   y < 5 and x>-1 and x<50  then 
-		value= VolumeFraction(x,y)
-	--else
-		--value = VolumeFraction2(x,y)
-	--end
-	return value
-end
----------------------------------------------------------------------- Boundary Condition  
------------------------------------------------------------ Inlet
-local H=1
-
-function inflowVel2d(x, y, t)
-
-	return StartValueX(x,y),StartValueY(x,y)
-end
-
-function ConstValue(x, y, t)
-	if (y < 1) then
-		return 1e-03
-	else return 0.0
-	end
-end
-
------------------------------------------------------------ Bottom
-
-function BoundaryVolumeFraction(x,y)
-	a= 10
-	b = 20
-	if x>a and x<b then--y>Dune(x,y) then
-		return c_init
-	else
-		return 0.0
-	end
-end
-
-function BottomFlux(x,y) return 0 end
 
 ---------------------------------------------------------------------- Interface Properties
 
@@ -824,11 +612,8 @@ solver = util.solver.CreateSolver(solverDesc)
 -- Interpolate initial values
 ------------------------------------------------------------------------------------------
 
---Interpolate(StartValueX, u, "u")
-Interpolate(1.0e-5, u, "u")
-Interpolate("StartValueY", u, "v")
-Interpolate("StartValueP", u, "p")
-Interpolate("InitialValue_FractionVolume", u, "c")
+
+myProblem:SetInitialValues(u)
 
 	
 ------------------------------------------------------------------------------------------
@@ -925,10 +710,7 @@ Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
 Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
 
 if rank == 0 then
-	local file = io.open(folder .. "/Integral.txt", "w+")
-	file:write(string.format("Step\tTime\t\tVol-Dom_1\tVol-Dom_2\tWork time\tTNSteps\tSNSteps\tFNSteps\tLinCalls LinSteps\n"))
-	file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n",step, time, Value_inner1, Value_inner2, time_work_steady, 1, 1, 0,linsolver_calls,linsolver_steps))
-	file:close()
+	myProblem.WriteValues( folder, step, time, Value_inner1, Value_inner2, time_work_steady, 1, 0, linsolver_calls, linsolver_steps,false)
 end
 
 total_Newton_Steps = 0
@@ -1121,10 +903,7 @@ for step = 1, numTimeSteps do
     Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
     tAfter_step = os.clock()
     if rank == 0 then
-		local file = io.open(folder .. "/Integral.txt", "a")
-		file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n",
-		step, time, Value_inner1, Value_inner2, tAfter_step - tBefore_step, Newton_Steps, Newton_Steps-Newton_Steps_fail, Newton_Steps_fail,linsolver_calls_step,linsolver_steps_step))
-		file:close()
+		myProblem.WriteValues( folder, step, time, Value_inner1, Value_inner2, tAfter_step - tBefore_step, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
 	end
     
     
@@ -1141,12 +920,9 @@ print("")
 print("")
 print ("Output to file " .. vtk_file_name .. ".vtu")
 print("done.")
+
 if rank == 0 then
-	file = io.open(folder .. "/Integral.txt", "a")
-	file:write(string.format("-----------------------------------------------------------------------------------------------------------\n"))
-	file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\n",
-	numTimeSteps, time, Value_inner1, Value_inner2, tAfter-tBefore+tAfter-tBefore, total_Newton_Steps, total_Newton_Steps-total_Newton_Steps_fail, total_Newton_Steps_fail,total_linsolver_calls_step,total_linsolver_steps_step))
-	file:close()
+	myProblem.WriteValues( folder, numTimeSteps, time, Value_inner1, Value_inner2, time_work_steady+tAfter-tBefore, total_Newton_Steps, total_Newton_Steps_fail, total_linsolver_calls_step, total_linsolver_steps_step,true)
 end
 
 
