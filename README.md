@@ -15,10 +15,11 @@ To install the Daniel's version of the simulator, run the following commands in 
 	5. 	git clone -b ConvergenceRate https://github.com/DanGonEsp/ugcore.git					## Clonning the Daniel's repository
 	6.	../ughub/ughub install ugcore --ignore	
 	7.	mkdir plugins; cd plugins										  		
-	8.	git clone -b MultiphaseFlowLinkers https://github.com/DanGonEsp/plugin_NavierStokes.git NavierStokes 
-	9.	cd ../..
-	10.	mkdir build; cd build																	## Creating the temporary build folder
-	11.	cmake ../ug4 -DDIM=2 -DCPU="1;4" -DNavierStokes=ON										## Initializing the directory and setting the build arguments
+	8.	git clone -b MultiphaseFlowLinkers https://github.com/DanGonEsp/plugin_NavierStokes.git NavierStokes
+	9.	git clone -b master https://github.com/UG4/plugin_Limex.git Limex  
+	10.	cd ../..
+	11.	mkdir build; cd build																	## Creating the temporary build folder
+	12.	cmake ../ug4 -DDIM=2 -DCPU="1;4" -DNavierStokes=ON -DLimex=ON										## Initializing the directory and setting the build arguments
 																								## In case of cmake incompatibility run with additional argument:
 																								## -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 	12.	make																					## Compiling and linking the ug4 code (consider "make -j")
