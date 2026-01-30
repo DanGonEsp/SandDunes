@@ -4,203 +4,103 @@ local myProblem = {}
 -- TODO: This should be integrated into a constructor!
 myProblem.Init = function(self, o)
 
-  self.dim = o.dim
-  
+		-- Numerical parameters of the discretization
+	self.dim = o.dim
+	self.file_name = o.file_name
+	self.elem_type = o.elem_type
+	self.numRefs = o.numRefs
+	self.numPreRefs = o.numPreRefs
+	self.startTime = o.startTime
+	self.endTime = o.endTime
+	self.numTimeSteps = o.numTimeSteps
+	self.DTmax = o.DTmax
+	self.DTmin = o.DTmin
+	self.outputFactor = o.outputFactor
 
-  self.doSteadyState = o.doSteadyState
-  
-  self.bExactJac = o.bExactJac or true
-  self.bStokes= o.bStokes or false
-  self.bLaplace  = o.bLaplace or false
-  self.bPecletBlend  = o.bPecletBlend or false
-  
-  self.upwind  = o.upwind or "full"
-  
-  self.stab = o.stab
-  self.diffLength = o.diffLength
-  
-  self.stabGrad = o.stabGrad
-  self.stabStreamline = o.stabStreamline
-  self.stabDiv =  o.stabDiv
-  
-  self.viscosity=1e-3  -- 1.0  -- kinematic (nu=1/Re) or dynamic (mu) does not matter, since \rho=1.
-  self.density=1.2
-  self.Um = 1.5
-  self.Umean2 = math.pow(2/3*self.Um, 2)
-  
-  self.L = GLOBAL_CYLINDER_CONFIG.L
-  self.H = GLOBAL_CYLINDER_CONFIG.H
-  
-
-  
-end
-
-------------------------------------------------------------------------------------------
--- Lua Functions
-------------------------------------------------------------------------------------------
-h_0=0.0
-sigma=3
-mu_c=20
-L2=5
-L=6--2.5
-
-mu_c1=mu_c-L2/2
-mu_c2=mu_c+L2/2
-sigma1=sigma
-sigma2=0.5*sigma
-ss=1.0
-k1=0.05
-k2=0.05
----------------------------------------------------------------------- Initial DuneShape
-function Dune(x)
-	if (x< mu_c1) then
-		return H_0*   math.exp(     -0.5*math.pow((x-mu_c1)/sigma1,2) ) -h_0+(ss-math.exp(-k1*(x-mu_c1)))
-	else
-		if (x< mu_c2) then
-			return H_0-h_0
-		else
-			return H_0*   math.exp(     -0.5*math.pow((x-mu_c2)/sigma2,2) ) -h_0  -(ss-math.exp(-k2*(x-mu_c2)))
-			
-		end
-	end
-end
-function Dune1(x)
-	if (x< mu_c1) then
-		return -(Dune(x)+h_0)*(x-mu_c1)/math.pow(sigma1,2)+(k1*math.exp(-k1*(x-mu_c1)))
-	else
-		if (x< mu_c2) then
-			return 0
-		else
-			return -(Dune(x)+h_0)*(x-mu_c2)/math.pow(sigma2,2)+(-k2*math.exp(-k2*(x-mu_c2)))
-		end
-	end
-end
-function Dune2(x)
-	if (x< mu_c1) then
-		return (Dune(x)+h_0)*(math.pow((x-mu_c1)/math.pow(sigma1,2),2)-1/math.pow(sigma1,2))-(k1*k1*math.exp(-k1*(x-mu_c1)))
-	else
-		if (x< mu_c2) then
-			return 0
-		else
-			return  (Dune(x)+h_0)*(math.pow((x-mu_c2)/math.pow(sigma2,2),2)-1/math.pow(sigma2,2))+(k2*k2*math.exp(-k2*(x-mu_c2)))
-		end
-	end
-end
-
-function dist(x0,y0)
-	e=1
-	x1=20
-	x2=20
-	y1=Dune(x0)
-	n=1
-	while (e>1e-04 and n<100) do
-		x1=x2
-		y1=Dune(x1)
-		x2=x1-(x0-x1  + (y0-y1)*Dune1(x1))/(Dune2(x1)*(y0-Dune(x1))-(math.pow(Dune1(x1),2)+1) )
-
-		e=math.abs(x2-x1)
-		n=n+1
-	end
-	return math.sqrt(math.pow(x2-x0,2)+math.pow(Dune(x2)-y0,2))
-end
-
-dx=math.pow(1/2,(numRefs+2))
----------------------------------------------------------------------- Initial Velocity
---[[function StartValueX(x,y)
-	hh=14.1856
-	nn=2.5
-	cc=math.pow(y/hh,5)
-	return inflow*(math.min(1.0, math.pow(y/hh,1/nn))*(1-cc) +(cc)* (2*hh - y) * (y ) / (hh * hh))
-end]]
-function StartValueX(x,y)
-	hh=14.1856
-	return inflow* (2*hh - y) * (y ) / (hh * hh)
-end
-function StartValueY(x,y)
-	return 0.0*inflow
-end
-function StartValueZ(x,y)
-	return 0
-end
-
----------------------------------------------------------------------- Initial Pressure
-Pstd=0.0
-function StartValueP(x,y)
-	if y>Dune(x) then
-		return Pstd *(x+30)
-	else
-		return  Pstd *(x+30)
-	end
-end
-function PressureBoundary(x,y)
-	return  -1.2*y*9.81
-end
-
----------------------------------------------------------------------- Initial VolumeFraction
-
-
-
-
-function VolumeFraction(x,y)
-	dd=dist(x,y)
-	ds=0*dx
-	kk1=1600
-	kk2=1600
+	self.timeMethod  = o.timeMethod
+	self.modifyDT  = o.modifyDT
+	self.incr_factor = o.incr_factor
+	self.red_factor_fail = o.red_factor_fail
+	self.red_factor_success = o.red_factor_success
+	self.optimal_newton_steps = o.optimal_newton_steps
+	self.maxConvRate = o.maxConvRate
+	self.minConvRate = o.minConvRate
+	self.boolDebugStep = o.boolDebugStep
 	
-	if y>Dune(x,y) then
-		if dd<ds then
-			dd=-dd
-			k=k
-			return c_init / (1.0 + math.exp(-kk1*dd))
-		else
-			return 0.0
-		end
-	else
-		if dd<ds then
-			k=k
-			return c_init / (1.0 + math.exp(-kk2*dd))
-		else
-			return c_init
-		end
-	end
+	self.tol = o.tol
+	self.nstages = o.nstages
+	self.limex_partial_mask = o.limex_partial_mask
+	self.limex_debug_level = o.limex_debug_level
+
+	self.max_newton_steps_steady_state = o.max_newton_steps_steady_state
+	self.max_newton_steps_transcient = o.max_newton_steps_transcient
+	self.AbsDefect = o.AbsDefect
+	self.RedDefect = o.RedDefect
+
+	self.max_linear_steps = o.max_linear_steps
+	self.damping_mg = o.damping_mg
+	self.value_beta = o.value_beta
+
+	self.lambdamaxSteps = o.lambdamaxSteps
+	self.lambdaStart = o.lambdaStart
 	
+		-- Physical phenomenon of simulation
+	self.doSteadyState = o.doSteadyState
+	self.boolSource = o.boolSource
+	self.consistentRho_in_source = o.consistentRho_in_source
+	self.boolRelativeVel = o.boolRelativeVel
+	self.boolGradientPsSource = o.boolGradientPsSource
+	self.boolViscPs = o.boolViscPs
+	self.boolAveDiff = o.boolAveDiff
+	self.boolSlipDiff = o.boolSlipDiff
 	
+	self.inflow = o.inflow
+	self.H_0 = o.H_0
+	self.ReferencePressure = o.ReferencePressure
+	self.bStokes = o.bStokes or false
+	self.bNoLaplace = o.bNoLaplace or false
+	self.bExactJac = o.bExactJac or false
+	self.bPecletBlend = o.bPecletBlend or false
+	self.upwind_m = o.upwind_m or "full"
+	self.upwind_t = o.upwind_t or "full"
+	self.upwind_r = o.upwind_r or "full"
+	self.bPac = o.bPac
+	self.diffLength = o.diffLength
+	self.stab = o.stab
+	self.turbViscMethod = o.turbViscMethod
+	self.modellconstant = o.modellconstant
+
 	
+	--Material Properties
+	self.nu_a = o.nu_a
+	self.rho_a = o.rho_a
+	self.rho_s = o.rho_s
+	self.dp = o.dp
+	self.nu_s = o.nu_s
+	self.c_init = o.c_init
+
+	self.alpha_max = o.alpha_max
+	self.alpha_min = o.alpha_min
+	self.granular_model = o.granular_model
+	self.density_model = o.density_model
+	self.interface_value = o.interface_value
+	self.drag_mod = o.drag_mod
+
+
+	self.FR = o.FR
+	self.B_phi = o.B_phi
+	self.deltaGamma = o.deltaGamma
+	self.Visc_limit = o.Visc_limit
+
+	self.deltaPs = o.deltaPs
+	self.deltaI = o.deltaI
+	self.FricMu_1 = o.FricMu_1
+	self.FricMu_2 = o.FricMu_2
+	self.I_0 = o.I_0
+  
+  
 end
 
-
-function StartValueC(x,y)
-	return VolumeFraction(x,y)
-end
----------------------------------------------------------------------- Boundary Condition
------------------------------------------------------------ Inlet
-local H=1
-
-function inflowVel2d(x, y, t)
-
-	return StartValueX(x,y),StartValueY(x,y)
-end
-
-function ConstValue(x, y, t)
-	if (y < 1) then
-		return 1e-03
-	else return 0.0
-	end
-end
-
------------------------------------------------------------ Bottom
-
-function BoundaryVolumeFraction(x,y)
-	a= 10
-	b = 20
-	if x>a and x<b then--y>Dune(x,y) then
-		return c_init
-	else
-		return 0.0
-	end
-end
-
-function BottomFlux(x,y) return 0 end
 
 -- Reference values for Schaefer /Turek benchmarks
 local ref2D_1 = {
@@ -465,7 +365,7 @@ myProblem.CreateSolver = function (self, approxSpace, discType, p)
   return newtonSolver
 end
 
-myProblem.WriteValues = function (folder, step, time, Value_inner1, Value_inner2, WorkTime, Newton_Steps, Newton_Steps_fail,linsolver_calls,linsolver_steps,boolTotal)
+myProblem.WriteValues = function (self, folder, step, time, Value_inner1, Value_inner2, WorkTime, Newton_Steps, Newton_Steps_fail,linsolver_calls,linsolver_steps,boolTotal)
 	if(boolTotal) then
 		file = io.open(folder .. "/Integral.txt", "a")
 		file:write(string.format("-----------------------------------------------------------------------------------------------------------\n"))
@@ -483,15 +383,7 @@ myProblem.WriteValues = function (folder, step, time, Value_inner1, Value_inner2
 	end
 end
 
-myProblem.SetInitialValues = function (self, u)
-	  --Interpolate(StartValueX, u, "u")
-	Interpolate(1.0e-5, u, "u")
-	Interpolate("StartValueY", u, "v")
-	Interpolate("StartValueP", u, "p")
-	Interpolate("StartValueC", u, "c")
-end
-
-myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, solver, cmp)
+myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, solver)
 
 	-- Fix the mass fraction and solve the linear problem for the momentum
 	fixer = DirichletBoundary()
@@ -534,174 +426,270 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
 end
 
 
--- Evaluate drag, lift and deltaP
-myProblem.EvalIntegralQuantities2D = function (self, u, step, time)
-    print("EvalIntegralQuantities2D")
+myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTimeSeries, dt, step, StartTime, EndTime)
 
-    local DL = DragLift(u, "u,v,p", "CylinderWall", "Inner", self.viscosity, 1.0, self.vorder+3)
-    
-    local L = self.L
-    
-    local C_D = 2*DL[1]/(self.Umean2*L)
-    local C_L = 2*DL[2]/(self.Umean2*L)
+	                    
+	local red_factor_fail = self.red_factor_fail
+	local red_factor_success = self.red_factor_success
+	local incr_factor = self.incr_factor
+	local optimal_newton_steps = self.optimal_newton_steps
+	local DTmin = self.DTmin
+	local DTmax = EndTime-StartTime
+	local modifyDT = self.modifyDT
+	local boolDebugStep = self.boolDebugStep
+	local AbsDefect = self.AbsDefect
+	local RedDefect = self.RedDefect
+	local maxConvRate = self.maxConvRate
+	local minConvRate = self.minConvRate
+
+	local solverDesc = self.solverDesc
+		
+    local Newton_Steps = 0
+    local Newton_Steps_fail = 0
+    local linsolver_calls_step = 0
+    local linsolver_steps_step = 0
+    local CompletedStep = false
+    local time = StartTime
+    local time2 = StartTime
+    local dt_in = dt
+
+        
+	while CompletedStep==false  do
+        Newton_Steps = Newton_Steps+1
+		-- choose time step
+
+		do_dt = math.min(dt_in,math.max((time+DTmax-time2), 0.0))
+		print("Size of timestep dt: " .. do_dt)
+		-- setup time Disc for old solutions and timestep
+		timeDisc:prepare_step(solTimeSeries, do_dt)
+	
+		-- prepare newton solver
+		if solver:prepare(u) == false then
+			print ("Newton solver failed at step "..step.."."); exit();
+		end
+	
+		-- apply newton solver
+            
+        print("++++++ TIMESTEP " .. step-1 + (time2+do_dt-time)/DTmax .. " BEGIN ++++++")
+		if solver:apply(u)  == false then
+            Newton_Steps_fail = Newton_Steps_fail+1
+            dt_in = math.max(dt_in*red_factor_fail,0.99999*DTmin)
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Reducing Timestep in step  " .. step-1 + (time2+do_dt-time)/DTmax .. ".")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   new DT          =    " .. dt_in .. "     Time = " .. time2 .."")
+			print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   old DT    		=    " .. do_dt .."")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   DTmax       =    " .. DTmax .. "     DTmin = " .. DTmin .."")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Rho         =    " .. solver:total_average_non_linear_rates() .. ".")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Dt_factor   =    " .. red_factor_fail .. ".")
+            
+			
+			if dt_in < DTmin  or modifyDT== false then
+				print ("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx            Time step below minimum. Aborting. Failed at step  " .. step-1+ (time2+do_dt-time)/DTmax .. ".");
+				if boolDebugStep then
+					convCheck =
+						{
+							type		= "standard",
+							iterations	= 5,
+							absolute	= AbsDefect,
+							reduction	= RedDefect,
+							verbose		= true
+						}
+
+					solverDesc.debug = true
+					solverDesc.convCheck = convCheck
+					solver = util.solver.CreateSolver(solverDesc)
+					solver:init(op)
+					timeDisc:prepare_step(solTimeSeries, do_dt)
+					if solver:prepare(u) == false then
+						print ("Newton solver failed at DEBUG step "..step..".");
+					end
+					print("++++++ DEBUG STEP  BEGIN ++++++")
+					solver:apply(u)
+					print ("Newton solver failed at DEBUG step "..step..".");
+				end
+				
+				exit();
+
+			else
+				VecScaleAssign(u, 1.0, solTimeSeries:latest())
+			
+			end
+		else
+            
+            if  (time2 + do_dt + (1e-07) * DTmin -time)/DTmax > 1.0 then
+            
+                time= timeDisc:future_time()                                        -- update new time
+                                                                                
+                oldestSol = solTimeSeries:oldest()                                  -- get oldest solution
+                                                                                    
+				VecScaleAssign(oldestSol, 1.0, u)                                             -- copy values into oldest solution (we reuse the memory here)
+                                                                                    
+                solTimeSeries:push_discard_oldest(oldestSol, time)                  -- push oldest solutions with new values to front, oldest sol pointer is poped from end
+                
+                CompletedStep = true
+                
+                
+            else
+                
+                time2 = timeDisc:future_time()                                      -- update new time
+                                                                                    
+                oldestSol = solTimeSeries:oldest()                                  -- get oldest solution
+                                                                                    
+				VecScaleAssign(oldestSol, 1.0, u)                                             -- copy values into oldest solution (we reuse the memory here)
+                                                                                    
+                solTimeSeries:push_discard_oldest(oldestSol, time2)                 -- push oldest solutions with new values to front, oldest sol pointer is poped from end
+                
+                CompletedStep = false
+                
+            
+            end
+            
+            average_non_linear_rates = solver:total_average_non_linear_rates()
+            num_newton_steps = solver:num_newton_steps()
+            
+            if CompletedStep then
+                frac_step = 0
+                Local_Time = time
+                Dt_factor = dt_in/do_dt
+            else
+                frac_step = -1 + (time2-time)/DTmax
+                Local_Time = time2
+            end
+            
+            
+            if modifyDT then
+                if(average_non_linear_rates>maxConvRate and num_newton_steps>30) then
+                    dt_in = math.max(do_dt*red_factor_success,1.00001*DTmin)
+                    print ("-------------------------------------------------------------------Time step decrease at Step " .. step-1 + (time2-time)/DTmax .. ", dt =  " .. dt_in .. ". ")
+                else if (CompletedStep== false or Dt_factor < 0.98 ) then
+                    if(average_non_linear_rates<minConvRate or num_newton_steps<optimal_newton_steps) then
+                        dt_in=math.min(incr_factor*dt_in,DTmax)
+                        print ("-------------------------------------------------------------------Time step increased at Step " .. step-1 + (time2-time)/DTmax ..", dt =  " .. dt_in .. ". ")
+                    end
+                    end
+                end
+            end
+            
+            
+            
+            CFL=cflNumber(u,do_dt)                                              -- compute CFL number
+            print("DT=" .. do_dt .. "");
+            print("Time=" .. Local_Time .. "");
+            
+            print("++++++ TIMESTEP " .. step + frac_step.. "  END ++++++")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Successful semi Timestep in step  " .. step + frac_step  .. ".")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   new DT    =    " .. dt_in .. "     Time = " .. Local_Time .."")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   old DT    =    " .. do_dt .."")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   DTmax =    " .. DTmax .. "     DTmin = " .. DTmin .."")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Dt_factor   =    " .. dt_in/do_dt .. ".")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   Rho   =    " .. average_non_linear_rates .. ".")
+                        
+
+		end
   
-    local PEval = GlobalGridFunctionNumberData(u, "p")
-    local Delta_P = PEval:evaluate(Vec2d(0.15, 0.2)) - PEval:evaluate(Vec2d(0.25, 0.2))
-  
-    print("EVAL_P1:\t"..time.."\t"..PEval:evaluate(Vec2d(0.15, 0.2)))
-    print("EVAL_P2:\t"..time.."\t"..PEval:evaluate(Vec2d(0.25, 0.2)))
-    print("EVAL_DELTA_P:\t"..time.."\t"..Delta_P)
-  
-    print("EVAL_C_D:\t"..time.."\t"..C_D)
-    print("EVAL_C_L:\t"..time.."\t"..C_L)
+        
+        linsolver_calls_step = linsolver_calls_step + solver:total_linsolver_calls()
+        linsolver_steps_step = linsolver_steps_step + solver:total_linsolver_steps()
+        solver:clear_average_convergence();
+			
+	end
+
+  return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, dt_in
 end
 
-myProblem.SolveNonlinearProblemLimex = function (
-  self,
-  u,
-  domainDisc,
-  newtonSolver,
-  out,
-  filename,
-  startTime,
-  endTime,
-  numTimeSteps,
-  dt,
-  minStepSize,
-  maxStepSize,
-  adaptiveDesc,
-  postProcess)
+myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 
 
-  -- read adaptive stuff
-  local inc_fac = adaptiveDesc["INCREASE"] or 1.5        -- increase of time step
- 
-  -- check parameters
-  if filename == nil then filename = "sol" end
-  if minStepSize == nil then minStepSize = maxStepSize end
+	-- local refObserver = PlotRefOutputObserver("DirichletValue", vtk) -- now obsolete
+	local luaObserver = LuaCallbackObserver()
+
+	-- work-around (waiting for implementation of SmartPtr forward to lua...)
+	function luaPostProcess(step, time, currdt)
+	  print("LUAPostProcess: "..step..","..time..","..currdt)
+	  postProcess(luaObserver:get_current_solution(), step, time, currdt)
+	  return 0;
+	end
+	luaObserver:set_callback("luaPostProcess")
+
+	local dtlimex = self.DTmax
+	local gridSize = 1.0
+	--  Euclidean (algebraic) norm
+	--local estimator = Norm2Estimator()
+	--tol = 0.37/(gridSize)*tol
 
 
-  -- Check input parameters.
-  if u == nil or domainDisc == nil or newtonSolver == nil
-    or startTime == nil or endTime == nil or maxStepSize == nil then
-    print("Wrong usage found. Please specify parameters as below:")
-    
-    if (u == nil) then print ("Did not find u!"); end;
-    if (domainDisc == nil) then print ("Did not find domainDisc!"); end;
+	--print (estimator)
+	local limexEstimator = CompositeGridFunctionEstimator()
+	--limexEstimator:add(H1SemiComponentSpace("u", 2 ))
+	--limexEstimator:add(H1SemiComponentSpace("v", 2 ))
 
-    if (startTime == nil) then print ("Did not find endTime!"); end;
-    if (endTime == nil) then print ("Did not find endTime!"); end;
-    if (maxStepSize == nil) then print ("Did not find maxStepSize!"); end;
-    --util.PrintUsageOfSolveTimeProblem()
-    exit()
-  end
+	--limexEstimator:add(L2ComponentSpace("u", 2))
+	--limexEstimator:add(L2ComponentSpace("v", 2))
 
+	--limexEstimator:add(H1SemiComponentSpace("p", 2))
+	limexEstimator:add(L2ComponentSpace("c", 2))
 
-  print ("maxStepSize ="..maxStepSize)
-  print ("minStepSize ="..minStepSize)
+	-- descriptor for integrator
+	local limexDesc = {
 
-  print ("startTime ="..startTime)
-  print ("endTime ="..endTime)
-  
-  
-  -- Create LIMEX descriptor
-  local limexDesc = {
-
-        nstages = adaptiveDesc["STAGES"] or 2,
-        steps = {1,2,3,4,5,6},
-        nthreads = 1, 
-        tol = adaptiveDesc["TOLERANCE"] or  1e-3,
-        rhoSafetyOPT = adaptiveDesc["SAFETY"] or 0.25,
-
-        dt = dt,
-        dtmin = minStepSize,
-        dtmax = maxStepSize,
-        dtred = adaptiveDesc["REDUCTION"] or 0.5,  -- reduction of time step
-
-        -- set disc & solver
-        domainDisc= domainDisc,
-        nonlinSolver = newtonSolver,   
-        -- makeConsistent = true,
-
-        matrixCache = true, -- or true,
-        -- costStrategyOPT = time.limexDesc.costStrategyOPT,
-        debugOPT = 5,
-
-       -- dampScheideggerOPT = time.limexDesc.dampScheideggerOPT or 1.0,
-       -- partialVeloMaskOPT = time.limexDesc.partialVeloMaskOPT or 0,
-     }
-  -- Create LIMEX object
-  local limex = util.limex.CreateIntegrator(limexDesc)
-      
-   limex:set_time_step(limexDesc.dt)
-   limex:set_dt_min(limexDesc.dtmin)
-   limex:set_dt_max(limexDesc.dtmax)
-   limex:set_reduction_factor(limexDesc.dtred)
-  
-    if (adaptiveDesc["DEBUG"]) then 
-      --limex:set_debug(adaptiveDesc["DEBUG"])
-      limex:set_debug_for_timestepper(adaptiveDesc["DEBUG"])
-    end
-  -- Register LUA callback.
-  if type(postProcess) == "function" then 
-    -- a) LUA functions
-    local luaobserver = LuaCallbackObserver()
-    
-     function __util_LimexLuaCallbackPost(step, t, currdt) 
-            local sol=luaobserver:get_current_solution()
-            print(postProcess)
-            postProcess(sol, step, t, currdt)
-            return 1
-      end
-      luaobserver:set_callback("__util_LimexLuaCallbackPost") 
-    limex:attach_observer(luaobserver)
-   end
-   
-   
-   local limexErrorEst 
-   limexErrorEst = CompositeGridFunctionEstimator() 
-   
-   if (type(adaptiveDesc["SPACES"])=="table") then
-    for i, _spacei in ipairs(adaptiveDesc["SPACES"]) do 
-      print(_spacei)
-      limexErrorEst:add(_spacei)
-      
-    end
-   end -- table
-  
- 
-  -- limex:set_space(limexErrorSpace)
+	  nstages = self.nstages,
+	  steps = {1,2,3,4,5,6},
+	  nthreads = 1,
+	  domainDisc=domainDisc,
+	  nonlinSolver = limexNLSolver,
+	  -- makeConsistent = true,
+	  
+	  tol = self.tol,
+	  dt = dtlimex,
+	  dtmax = dtlimex,
+	  dtmin = 1e-5,
+	  rhoSafetyOPT = 0.25,
+	  dtred = 0.5,
+	  dtIncr = 2.0,
+	  matrixCache = true,
+	  conservative = false
+	  
+	}
 
 
-   print(limexErrorEst:config_string())
-   limex:add_error_estimator(limexErrorEst)
-   
-   -- Solve problem
-    print(">> Solve using LIMEX...")
-    
-    -- Replace convergence check.
-    local limexConvCheck = ConvCheck()
-    limexConvCheck:set_maximum_steps(10)
-    limexConvCheck:set_minimum_defect(1e-5)
-    limexConvCheck:set_reduction(1e-9)
-    limexConvCheck:set_verbose(true)
-    --limexConvCheck:set_supress_unsuccessful(true)
-    
-    newtonSolver:set_convergence_check(limexConvCheck) 
-    newtonSolver:disable_line_search()
-    
-    -- Execute solver
-    local sw = CuckooClock()
-    sw:tic()
-    out:print("Sol", u,0,startTime)	
-    print(newtonSolver:config_string())
-    for step = 1, numTimeSteps do
-	StepTime=startTime+(step)*dt
-	limex:apply(u, StepTime, u, StepTime-dt)
-	out:print("Sol", u,step,StepTime)	
-    end	
-    print ("CDELTA="..sw:toc())
-  return 
+	-- setup for time integrator
+	local limex = util.limex.CreateIntegrator(limexDesc)
+
+	limex:set_dt_min(limexDesc.dtmin)
+	limex:set_dt_max(limexDesc.dtmax)
+	limex:set_reduction_factor(limexDesc.dtred)
+	limex:set_increase_factor(limexDesc.dtIncr)
+	limex:add_error_estimator(limexEstimator)
+	limex:set_stepsize_greedy_order_factor(1.0)
+	limex:select_cost_strategy(LimexNonlinearCost())
+
+
+	if (false) then
+		
+		--limex:attach_observer(vtkObserver)
+		limex:attach_observer(luaObserver)
+	end
+
+
+	--limex:attach_observer(refObserver)
+
+	print ("dtLimex   = "..dtlimex)
+	print ("tolLimex  = "..params.tol)
+	return limex
+end
+
+myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, StartTime, EndTime)
+
+	limex:apply(u, EndTime, u, StartTime)
+	
+    local Newton_Steps = NLSolver:total_linsolver_calls()
+	local Newton_Steps_fail = 0
+	linsolver_calls_step = NLSolver:total_linsolver_calls()
+	linsolver_steps_step =  NLSolver:total_linsolver_steps()
+	NLSolver:clear_average_convergence();
+
+  return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step
 end
 
 return myProblem
