@@ -26,7 +26,7 @@ params =
 	startTime  = util.GetParamNumber("-start", 0.0, "start time"),
 	endTime    = util.GetParamNumber("-end", 1000.0, "end time"),
 	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 2, "time steps"),
-	DTmin= util.GetParamNumber("-DTmin", 0.01, "min  DT"),
+	DTmin= util.GetParamNumber("-DTmin", 1e-05, "min  DT"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	
 	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
@@ -51,7 +51,7 @@ params =
 
 	max_linear_steps=util.GetParamNumber("-max_linear_steps", 200),
 	damping_mg = util.GetParamNumber("-damping_mg", 1.0),
-	value_beta = util.GetParamNumber("-value_beta", -0.4),
+	value_beta = util.GetParamNumber("-value_beta", -0.001),
 
 	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 7),
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),

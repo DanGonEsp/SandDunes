@@ -149,8 +149,8 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		{
 			type		= "standard",
 			iterations	= self.max_linear_steps,
-			absolute	= 1e-12,
-			reduction	= 1e-3,
+			absolute	= 1e-9,
+			reduction	= 1e-9,
 			verbose		= true
 		}
 	}
@@ -492,6 +492,7 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	luaObserver:set_callback("luaPostProcess")
 
 	local dtlimex = self.DTmax
+	local dtmin = self.DTmin
 	local gridSize = 1.0
 	--  Euclidean (algebraic) norm
 	--local estimator = Norm2Estimator()
@@ -506,7 +507,7 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	--limexEstimator:add(L2ComponentSpace("u", 2))
 	--limexEstimator:add(L2ComponentSpace("v", 2))
 
-	--limexEstimator:add(H1SemiComponentSpace("p", 2))
+	limexEstimator:add(H1SemiComponentSpace("p", 2))
 	limexEstimator:add(L2ComponentSpace("c", 2))
 
 	-- descriptor for integrator
@@ -522,10 +523,10 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	  tol = self.tol,
 	  dt = dtlimex,
 	  dtmax = dtlimex,
-	  dtmin = 1e-5,
+	  dtmin = dtmin,
 	  rhoSafetyOPT = 0.25,
-	  dtred = 0.5,
-	  dtIncr = 2.0,
+	  dtred = 0.7,
+	  dtIncr = 1.5,
 	  matrixCache = true,
 	  conservative = false
 	  
