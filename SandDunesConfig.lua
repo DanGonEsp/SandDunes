@@ -1,7 +1,8 @@
-
+--------------------------------------------------------------------------------
+-- Initial Parameters
+--------------------------------------------------------------------------------
 local myProblem = {}
 
--- TODO: This should be integrated into a constructor!
 myProblem.Init = function(self, o)
 
 		-- Numerical parameters of the discretization
@@ -97,273 +98,141 @@ myProblem.Init = function(self, o)
 	self.FricMu_1 = o.FricMu_1
 	self.FricMu_2 = o.FricMu_2
 	self.I_0 = o.I_0
+	
+	
+	self.boolSolverDesc = false
+	self.NewtonSolverDescSteady = {}
+	self.NewtonSolverDesc = {}
   
   
 end
 
 
--- Reference values for Schaefer /Turek benchmarks
-local ref2D_1 = {
-  CD = 5.57953523384,
-  CL = 0.010618948146,
-  DeltaP = 0.11752016697,
-  
-  Um =  1.5 --0.15 -- 1.5
-}
-
-local ref2D_3 = {
-  
-  CD = 2.950921575, tCD=3.93625, -- maximum value and time (cited according to in John, Rang)
-  CL = 0.47795, tCL= 5.693125,
-  DeltaP = -0.1116,  -- at t=8
-  
-  Um = 1.5
-}
-
-
-local Cylinder2D_FE = {
-
-  disc = {
-    walls = "UpperWall,LowerWall,CylinderWall",
-    inlet = function (x, y, t) return 4 * Um * y * (H-y) / (H*H), 0.0 end,
-  }
-
-}
-
-local Cylinder3D_FE = {
- 
-  disc = {
-    walls = "UpperWall,LowerWall,CylinderWall,FrontWall,BackWall",
-    inlet = function (x, y, z, t) return 16 * Um * y * z * (H-y) * (H-z) / (H*H*H*H), 0.0, 0.0  end,
-  }
-  
-}
-
-GLOBAL_CYLINDER_CONFIG = { H = 0.41, L = 0.1, Um=0.5 }
-
-
-function GLOBAL_CYLINDER_inletVel2d(x, y, t)
-   local H  = GLOBAL_CYLINDER_CONFIG.H
-   local Um = GLOBAL_CYLINDER_CONFIG.Um
-   return 4 * Um * y * (H-y) / (H*H), 0.0
-end
-
-function GLOBAL_CYLINDER_inletVelX2d(x, y, t)
-   local H  = GLOBAL_CYLINDER_CONFIG.H
-   local Um = GLOBAL_CYLINDER_CONFIG.Um
-   return 4 * Um * y * (H-y) / (H*H)
-end
-
-function GLOBAL_CYLINDER_inletVel3d(x, y, z, t)
-   local H  = GLOBAL_CYLINDER_CONFIG.H
-   local Um = GLOBAL_CYLINDER_CONFIG.Um
-   return 16 * Um * y * z * (H-y) * (H-z) / (H*H*H*H), 0.0, 0.0
-end
-
-
-
-
-
-myProblem.CreateDomain=function(self, gridName, numRefs, numPreRefs)
-  
- 
-  local dom = Domain()
-  LoadDomain(dom, gridName)
-  
-  -- Create a refiner instance. This is a factory method
-  -- which automatically creates a parallel refiner if required.
-  local refiner =  GlobalDomainRefiner(dom)
-  
-  write("Pre-Refining("..numPreRefs.."): ")
-  for i=1,numPreRefs do write(i .. " ");  refiner:refine(); end
-  write("done. Distributing...")
-  if util.DistributeDomain(dom, distributionMethod, verticalInterfaces, numTargetProcs, distributionLevel, wFct) == false then
-    print("Error while Distributing Grid. Aborting.")
-    exit();
-  end
-  write(" done. Post-Refining("..(numRefs-numPreRefs).."): ")
-  for i=numPreRefs+1,numRefs do refiner:refine(); write(i-numPreRefs .. " "); end
-  write("done.\n")
-  
-  SaveGridHierarchyTransformed(dom:grid(), dom:subset_handler(), "grid_p"..ProcRank()..".ugx", 0.5)
-  
-  return dom
-end
-
-
-myProblem.CreateApproxSpace=function (self, dom)
-
-  local discType = self.discType
-  local vorder = self.vorder
-  local porder = self.porder
-  
-  self.approxSpace = util.ns.CreateApproxSpace(dom, discType, vorder, porder)
-  
-  -- print statistic on the distributed dofs
-  self.approxSpace:init_levels()
-  self.approxSpace:init_top_surface()
-  self.approxSpace:print_statistic()
-  self.approxSpace:print_local_dof_statistic(2)
-  
-  -- OrderLex(approxSpace,"x")
-  -- OrderCuthillMcKee(approxSpace,true)
-  return self.approxSpace
-end
-
--- Extract velocity components from approx space.
-myProblem.GetVelocityCmps =function(self)
-local FctCmp = self.approxSpace:names()
-local VelCmp = {}
-for d = 1,#FctCmp-1 do VelCmp[d] = FctCmp[d] end
- return VelCmp
-end
 
 --------------------------------------------------------------------------------
--- Discretization
+-- SOLVER
 --------------------------------------------------------------------------------
+myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
+
+		-- For debugging only (to write the intermediate data): --
+	--util.debug_dir = "FLOW_DEBUG"
+	--util.debug = { vtk = true, conn_viewer = false }
+	--util.CreateGridFuncDebugWriter (approxSpace)
+	-- --
+	local LinearSolverDesc =
+	{
+		type = "bicgstab",
+		precond =
+		{
+			type = "gmg",
+			rap = true,
+			rim = true,
+			cycle = "V",
+			smoother =
+			{
+				type = "ilu",
+				beta = self.value_beta,
+				damping 	= self.damping_mg,
+				sort	= false,
+				--sortEps 	= 1.e-50,
+				inversionEps 	= 1.e-16,
+				consistentInterfaces   = false,     --consistentInterfaces and overlap shouldnot be activated at the same time
+				overlap 		= true,             --consistentInterfaces and overlap shouldnot be activated at the same time
+				--ordering 		= nil
+			},
+			preSmooth = 2,
+			postSmooth = 2,
+			baseSolver = "lu",
+			baseLevel = self.numPreRefs
+		},
+		convCheck =
+		{
+			type		= "standard",
+			iterations	= self.max_linear_steps,
+			absolute	= 1e-12,
+			reduction	= 1e-3,
+			verbose		= true
+		}
+	}
+	NewtonConvCheckSteady =
+	{
+		type		= "standard",
+		iterations	= self.max_newton_steps_steady_state,
+		absolute	= self.AbsDefect,
+		reduction	= self.RedDefect,
+		verbose		= true
+	}
+	NewtonConvCheck =
+	{
+		type		= "standard",
+		iterations	= self.max_newton_steps_transcient,
+		absolute	= self.AbsDefect,
+		reduction	= self.RedDefect,
+		verbose		= true
+	}
+	NewtonSolverDescSteady =
+	{
+		type = "newton",
+		debug = false, -- for the debug output from the Newton's method
+		linSolver = LinearSolverDesc
+		,
+		lineSearch =
+		{
+			type			= "standard",
+			maxSteps		=self.lambdamaxSteps,
+			lambdaStart		= self.lambdaStart,
+			lambdaReduce	= 0.7,
+			acceptBest 		= true,
+			checkAll		= false,
+			suffDesc		= 0.3,
+			maxDefect	= 2e20
+			
+		},
+		convCheck = NewtonConvCheckSteady
+	}
+
+	NewtonSolverDesc = NewtonSolverDescSteady
+	NewtonSolverDesc.convCheck = NewtonConvCheck
+
+	local NewtonSolverSteady = nil
+	if self.doSteadyState then NewtonSolverSteady = util.solver.CreateSolver(NewtonSolverDesc) end
+	local LinearSolver = util.solver.CreateSolver(LinearSolverDesc)
+
+	local limexConvCheck=ConvCheck(1, 5e-5, 1e-8, true)
+	limexConvCheck:set_supress_unsuccessful(true)
 
 
--- Creates the domain discretization
 
-myProblem.CreateDomainDisc = function (self,approxSpace) --, vorder, porder)
-  local discType = self.discType
-  local FctCmp = approxSpace:names()
-  local NavierStokesDisc = NavierStokes(FctCmp, {"Inner"}, discType)
-  NavierStokesDisc:set_exact_jacobian(self.bExactJac)
-  NavierStokesDisc:set_stokes(self.bStokes)
-  NavierStokesDisc:set_laplace(not(self.bLaplace))
-  NavierStokesDisc:set_kinematic_viscosity( self.viscosity );
-  --NavierStokesDisc:set_density( self.density );
-        
-  local dim = self.dim      
-  local vorder = approxSpace:lfeid(0):order()
-  local porder = approxSpace:lfeid(self.dim):order()
- 
-  
-  --upwind if available
-  if discType == "fv1" or discType == "fvcr" then
-    NavierStokesDisc:set_upwind(self.upwind)
-    NavierStokesDisc:set_peclet_blend(self.bPecletBlend)
-  end
-  
-  -- fv1 must be stablilized
-  if discType == "fv1" then
-    NavierStokesDisc:set_stabilization(self.stab, self.diffLength)
-    NavierStokesDisc:set_pac_upwind(false)
-  end
-  
-  -- fe must be stabilized for (Pk, Pk) space
-  if (discType == "fe") and (porder == vorder) then
-    NavierStokesDisc:set_stabilization(self.stabGrad)
-    NavierStokesDisc:set_stab_streamline(self.stabStreamline) 
-  end
-  
-  if discType == "fe" then
-   NavierStokesDisc:set_quad_order(math.pow(vorder, dim)+2)
-   -- NavierStokesDisc:set_quad_order(3)
-   NavierStokesDisc:set_stab_div(self.stabDiv)
-  end
-  if discType == "fv" then
-    NavierStokesDisc:set_quad_order(math.pow(vorder, dim)+2)
-  end
-  
-  -- setup Outlet
-   OutletDisc = NavierStokesNoNormalStressOutflow(NavierStokesDisc)
-   OutletDisc:add("Outlet")
-  
-  -- setup Inlet
+	local NLSolver = nil
+	local limex = nil
+	if self.timeMethod == "limex" then
+		NLSolver = NewtonSolver()
+		NLSolver:set_linear_solver(LinearSolver)
+		NLSolver:set_convergence_check(limexConvCheck)
+		limex = myProblem:LimexObject( domainDisc, NLSolver)
+	else
+		NLSolver = util.solver.CreateSolver(NewtonSolverDesc)
+		op = AssembledOperator(timeDisc)
+		op:init()
+		NLSolver:init(op)
+		if NLSolver:prepare(u) == false then
+			print ("Newton solver prepare failed.") exit()
+		end
+	end
 
-  
-  local InletDisc = NavierStokesInflow(NavierStokesDisc)
-  InletDisc:add("GLOBAL_CYLINDER_inletVel"..dim.."d", "Inlet")
-  
-  -- John's (physically unrealistic) BC
-  --local InletDisc = DirichletBoundary()
-  --InletDisc:add("GLOBAL_CYLINDER_inletVelX"..dim.."d", "u" ,"Inlet, Outlet")
-  --InletDisc:add(0.0, "v" ,"Inlet, Outlet")
-  
-  --setup Walls
-  local WallDisc = NavierStokesWall(NavierStokesDisc)
-  if dim == 2 then
-    WallDisc:add("UpperWall,LowerWall,CylinderWall")
-  elseif dim == 3 then
-    WallDisc:add("UpperWall,LowerWall,CylinderWall,FrontWall,BackWall") 
-  end
+	self.NewtonSolverDescSteady = NewtonSolverDescSteady
+	self.NewtonSolverDesc = NewtonSolverDesc
+	self.boolSolverDesc = true
 
-  local DirichletBnd = DirichletBoundary()
-  -- DirichletBnd:add(0, "p", "FIXP")  -- fix pressure => oscillations
-  -- DirichletBnd:add("inletVelX2d", "u", "Outlet")  -- fix pressure
-  -- DirichletBnd:add(0.0, "v", "Outlet")  -- fix pressure
-  
-  --local NoSlipBnd = DirichletBoundary()
-  --NoSlipBnd:add(0, "u", "UpperWall,LowerWall,CylinderWall")  -- no slip
-  --NoSlipBnd:add(0, "v", "UpperWall,LowerWall,CylinderWall")  -- no slip
-  
-  
-  -- Finally we create the discretization object which combines all the
-  -- separate discretizations into one domain discretization.
-  local domainDisc = DomainDiscretization(approxSpace)
-  domainDisc:add(NavierStokesDisc)
-  domainDisc:add(InletDisc)
-  domainDisc:add(WallDisc)
-  --domainDisc:add(DirichletBnd)
-  --domainDisc:add(NoSlipBnd)
-  domainDisc:add(OutletDisc)
-  
-  return domainDisc
+	  
+	return op, NLSolver, NewtonSolverSteady, limex
 end
 
---------------------------------------------------------------------------------
--- Solution of the Problem
---------------------------------------------------------------------------------
-myProblem.CreateSolver = function (self, approxSpace, discType, p)
 
-  local discType=self.discType
-  local p = nil
-  
-  local base = LU()
-  
-  local smoother = nil
-  if discType == "fvcr" or discType == "fecr" then 
-    smoother = ComponentGaussSeidel(0.1, {"p"}, {1,2}, {1})
-  elseif discType == "fv1" then 
-    smoother = ILU()
-    smoother:set_damp(0.7)
-  else
-     smoother = ComponentGaussSeidel(1.0, {"p"})
-     smoother:set_alpha(1.0)
-     smoother:set_beta(1.0)
-     smoother:set_weights(true)
-  end
-  
-  local numPreSmooth, numPostSmooth, baseLev, cycle, bRAP = util.gmg.parseParams()
-  local cycleType = "W"
-  local bRAP= true
-  local gmg = util.gmg.create(approxSpace, smoother, numPreSmooth, numPostSmooth,
-               cycleType, base, baseLev, bRAP)
-  --gmg:add_prolongation_post_process(AverageComponent("p"))
-  local transfer = StdTransfer()
-  transfer:enable_p1_lagrange_optimization(false)
-  gmg:set_transfer(transfer)
-  
-  local sol = util.solver.parseParams()
-  local solver = util.solver.create(sol, gmg)
-  if self.bStokes then
-    solver:set_convergence_check(ConvCheck(10000, 5e-12, 1e-99, true))
-  else 
-    solver:set_convergence_check(ConvCheck(10000, 5e-12, 1e-2, true)) 
-  end
-    
-  local convCheck = ConvCheck(50, 1e-11, 1e-99, true)
-  
-  local newtonSolver = NewtonSolver()
-  newtonSolver:set_linear_solver(solver)
-  newtonSolver:set_convergence_check(convCheck)
-  newtonSolver:set_line_search(StandardLineSearch(10, 1.0, 0.9, true, true))
-  newtonSolver:set_debug(GridFunctionDebugWriter(approxSpace))
-  
-  return newtonSolver
-end
+
+--------------------------------------------------------------------------------
+-- Writing Output parameters
+--------------------------------------------------------------------------------
 
 myProblem.WriteValues = function (self, folder, step, time, Value_inner1, Value_inner2, WorkTime, Newton_Steps, Newton_Steps_fail,linsolver_calls,linsolver_steps,boolTotal)
 	if(boolTotal) then
@@ -383,6 +252,10 @@ myProblem.WriteValues = function (self, folder, step, time, Value_inner1, Value_
 	end
 end
 
+
+--------------------------------------------------------------------------------
+-- SteadyState Solution
+--------------------------------------------------------------------------------
 myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, solver)
 
 	-- Fix the mass fraction and solve the linear problem for the momentum
@@ -425,7 +298,9 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
 
 end
 
-
+--------------------------------------------------------------------------------
+-- Solution of NonLinear Problem  (Euler temporal discretization)
+--------------------------------------------------------------------------------
 myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTimeSeries, dt, step, StartTime, EndTime)
 
 	                    
@@ -442,7 +317,8 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 	local maxConvRate = self.maxConvRate
 	local minConvRate = self.minConvRate
 
-	local solverDesc = self.solverDesc
+	if(self.boolSolverDesc == false) then print("SolverDesc Not initialized ") exit() end
+	local solverDesc = self.NewtonSolverDesc
 		
     local Newton_Steps = 0
     local Newton_Steps_fail = 0
@@ -490,8 +366,8 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 						{
 							type		= "standard",
 							iterations	= 5,
-							absolute	= AbsDefect,
-							reduction	= RedDefect,
+							absolute	= self.AbsDefect,
+							reduction	= self.RedDefect,
 							verbose		= true
 						}
 
@@ -598,6 +474,9 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
   return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, dt_in
 end
 
+--------------------------------------------------------------------------------
+-- LIMEX
+--------------------------------------------------------------------------------
 myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 
 
@@ -675,10 +554,12 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	--limex:attach_observer(refObserver)
 
 	print ("dtLimex   = "..dtlimex)
-	print ("tolLimex  = "..params.tol)
+	print ("tolLimex  = "..self.tol)
 	return limex
 end
-
+--------------------------------------------------------------------------------
+-- SolutionNonLinearProblem LIMEX
+--------------------------------------------------------------------------------
 myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, StartTime, EndTime)
 
 	limex:apply(u, EndTime, u, StartTime)

@@ -8,7 +8,6 @@ ug_load_script ("ug_util.lua")
 ug_load_script ("util/load_balancing_util.lua")
 
 ug_load_script("util/domain_disc_util.lua")
-ug_load_script("navier_stokes_util.lua")
 ug_load_script("util/conv_rates_kinetic.lua")
 
 RequiredPlugins({"Limex", "NavierStokes"})
@@ -18,7 +17,6 @@ rank = ProcRank()
 
 params =
 {
-
 			-- Numerical parameters of the discretization
 	dim         = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
 	file_name = util.GetParam("-file_name", "Test"),
@@ -26,7 +24,7 @@ params =
 	numRefs     = util.GetParamNumber("-numRefs", 1, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)"),
 	startTime  = util.GetParamNumber("-start", 0.0, "start time"),
-	endTime    = util.GetParamNumber("-end", 2.0, "end time"),
+	endTime    = util.GetParamNumber("-end", 1000.0, "end time"),
 	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 2, "time steps"),
 	DTmin= util.GetParamNumber("-DTmin", 0.01, "min  DT"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
@@ -644,7 +642,7 @@ WallDisc:add ("Bottom")
 
 
 ---------------------------------------------------------------------------------------
--- Viscosity, Density and Gravitation Input
+-- Parameters Inputs
 ---------------------------------------------------------------------------------------
 
 Density:set_volume_fraction(NavierStokesDisc:volume_fraction())
@@ -670,7 +668,9 @@ W:set_ps_grad(NavierStokesDisc:particle_pressure_grad())
 
 
 
----------------------------------------------------------------------- Scale
+---------------------------------------------------------------------------------------
+-- Global Discretization
+---------------------------------------------------------------------------------------
 
 -- the global discretization
 domainDisc = DomainDiscretization (approxSpace)
@@ -686,10 +686,12 @@ domainDisc:add(flowBnd)
 --domainDisc:add(OutflowBND)
 
 
-
+---------------------------------------------------------------------------------------
+-- Time Discretization
+---------------------------------------------------------------------------------------
 
 -- create the assembled operator for the solver
-
+local timeDisc = nil
 -- create time discretization
 if params.timeMethod=="cn" then
 	timeDisc = ThetaTimeStep(domainDisc)
@@ -710,111 +712,8 @@ end
 -- Set up the solver
 ------------------------------------------------------------------------------------------
 
--- For debugging only (to write the intermediate data): --
---util.debug_dir = "FLOW_DEBUG"
---util.debug = { vtk = true, conn_viewer = false }
---util.CreateGridFuncDebugWriter (approxSpace)
--- --
-local LinearSolverDesc =
-{
-	type = "bicgstab",
-	precond =
-	{
-		type = "gmg",
-		rap = true,
-		rim = true,
-		cycle = "V",
-		smoother =
-		{
-			type = "ilu",
-			beta = params.value_beta,
-			damping 	= params.damping_mg,
-			sort	= false,
-			--sortEps 	= 1.e-50,
-			inversionEps 	= 1.e-16,
-			consistentInterfaces   = false,     --consistentInterfaces and overlap shouldnot be activated at the same time
-			overlap 		= true,             --consistentInterfaces and overlap shouldnot be activated at the same time
-			--ordering 		= nil
-		},
-		preSmooth = 2,
-		postSmooth = 2,
-		baseSolver = "lu",
-		baseLevel = params.numPreRefs
-	},
-	convCheck =
-	{
-		type		= "standard",
-		iterations	= max_linear_steps,
-		absolute	= 1e-12,
-		reduction	= 1e-3,
-		verbose		= true
-	}
-}
-NewtonConvCheckSteady =
-{
-	type		= "standard",
-	iterations	= params.max_newton_steps_steady_state,
-	absolute	= params.AbsDefect,
-	reduction	= params.RedDefect,
-	verbose		= true
-}
-NewtonConvCheck =
-{
-	type		= "standard",
-	iterations	= params.max_newton_steps_transcient,
-	absolute	= params.AbsDefect,
-	reduction	= params.RedDefect,
-	verbose		= true
-}
-NewtonSolverDescSteady =
-{
-	type = "newton",
-	debug = false, -- for the debug output from the Newton's method
-	linSolver = LinearSolverDesc
-	,
-	lineSearch =
-	{
-		type			= "standard",
-		maxSteps		=params.lambdamaxSteps,
-		lambdaStart		= params.lambdaStart,
-		lambdaReduce	= 0.7,
-		acceptBest 		= true,
-		checkAll		= false,
-		suffDesc		= 0.3,
-		maxDefect	= 2e20
-		
-	},
-	convCheck = NewtonConvCheckSteady
-}
-NewtonSolverDesc = NewtonSolverDescSteady
-NewtonSolverDesc.convCheck = NewtonConvCheck
 
-local NewtonSolverSteady = nil
-if params.doSteadyState then NewtonSolverSteady = util.solver.CreateSolver(NewtonSolverDesc) end
-local LinearSolver = util.solver.CreateSolver(LinearSolverDesc)
-
-local limexConvCheck=ConvCheck(1, 5e-5, 1e-8, true)
-limexConvCheck:set_supress_unsuccessful(true)
-
-
-
-local NLSolver = nil
-if params.timeMethod == "limex" then
-	NLSolver = NewtonSolver()
-	NLSolver:set_linear_solver(LinearSolver)
-	NLSolver:set_convergence_check(limexConvCheck)
-	limex = myProblem:LimexObject( domainDisc, NLSolver)
-else
-	NLSolver = util.solver.CreateSolver(NewtonSolverDesc)
-	op = AssembledOperator(timeDisc)
-	op:init()
-	NLSolver:init(op)
-	if NLSolver:prepare(u) == false then
-		print ("Newton solver prepare failed.") exit()
-	end
-end
-
-
+op, NLSolver, NewtonSolverSteady, limex = myProblem:CreateSolver(domainDisc, approxSpace, timeDisc)
 
 
 
@@ -849,7 +748,7 @@ end
 
 
 ------------------------------------------------------------------------------------------
--- Apply the solver
+-- Printing Initial Conditions
 ------------------------------------------------------------------------------------------
 -- start
 time = 0
@@ -882,15 +781,12 @@ print ("Output to file " .. vtk_file_name .. ".vtu  in time t = 0")
 print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
 print ("                                                            ")
 print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-print ("                                                            ")
-print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-print ("                                                            ")
-print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-print ("                                                            ")
-print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
 
 
-    
+
+------------------------------------------------------------------------------------------
+-- Final Setting
+------------------------------------------------------------------------------------------
 -- create new grid function for old value
 uOld = u:clone()
 
@@ -916,6 +812,9 @@ total_Newton_Steps_fail = 0
 total_linsolver_calls_step = 0
 total_linsolver_steps_step = 0
 tBefore = os.clock()
+------------------------------------------------------------------------------------------
+-- Time Steps Loop    (Solution)
+------------------------------------------------------------------------------------------
 
 for step = 1, params.numTimeSteps do
 
@@ -972,6 +871,15 @@ for step = 1, params.numTimeSteps do
     
 end
 tAfter = os.clock()
+
+
+
+
+------------------------------------------------------------------------------------------
+-- Solution Done
+------------------------------------------------------------------------------------------
+
+
 
 print("-			-")
 print("-------------------------------------------------------------------------------")
