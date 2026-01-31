@@ -140,8 +140,8 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 				overlap 		= true,             --consistentInterfaces and overlap shouldnot be activated at the same time
 				--ordering 		= nil
 			},
-			preSmooth = 2,
-			postSmooth = 2,
+			preSmooth = 3,
+			postSmooth = 3,
 			baseSolver = "lu",
 			baseLevel = self.numPreRefs
 		},
@@ -149,8 +149,8 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		{
 			type		= "standard",
 			iterations	= self.max_linear_steps,
-			absolute	= 1e-9,
-			reduction	= 1e-9,
+			absolute	= 1e-7,
+			reduction	= 1e-7,
 			verbose		= true
 		}
 	}
@@ -362,6 +362,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 			if dt_in < DTmin  or modifyDT== false then
 				print ("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx            Time step below minimum. Aborting. Failed at step  " .. step-1+ (time2+do_dt-time)/DTmax .. ".");
 				if boolDebugStep then
+				
 					convCheck =
 						{
 							type		= "standard",
@@ -491,8 +492,9 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	end
 	luaObserver:set_callback("luaPostProcess")
 
-	local dtlimex = self.DTmax
+	local dtmax = self.DTmax
 	local dtmin = self.DTmin
+	local dtlimex = 1.0
 	local gridSize = 1.0
 	--  Euclidean (algebraic) norm
 	--local estimator = Norm2Estimator()
@@ -522,10 +524,10 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	  
 	  tol = self.tol,
 	  dt = dtlimex,
-	  dtmax = dtlimex,
+	  dtmax = dtmax,
 	  dtmin = dtmin,
 	  rhoSafetyOPT = 0.25,
-	  dtred = 0.7,
+	  dtred = 0.5,
 	  dtIncr = 1.5,
 	  matrixCache = true,
 	  conservative = false
