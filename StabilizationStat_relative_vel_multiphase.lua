@@ -49,9 +49,9 @@ params =
 	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-07),
 	RedDefect = util.GetParamNumber("-RedDefect", 1e-05),
 
-	max_linear_steps=util.GetParamNumber("-max_linear_steps", 200),
-	damping_mg = util.GetParamNumber("-damping_mg", 1.0),
-	value_beta = util.GetParamNumber("-value_beta", -0.1),
+	max_linear_steps=util.GetParamNumber("-max_linear_steps", 100),
+	damping_mg = util.GetParamNumber("-damping_mg", 0.9),
+	value_beta = util.GetParamNumber("-value_beta", 0.0001),
 
 	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 7),
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),

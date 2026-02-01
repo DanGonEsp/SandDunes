@@ -119,6 +119,27 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	--util.debug = { vtk = true, conn_viewer = false }
 	--util.CreateGridFuncDebugWriter (approxSpace)
 	-- --
+	
+	----------------------------------------------------------
+	-- preconditioners used by FETI sub solvers
+	----------------------------------------------------------
+	-- base solver
+
+
+	basePre = ILUT()
+	basePre:set_threshold(1e-7)
+
+	--basePre=ElementGaussSeidel()
+	
+	
+	baseSolver = LinearSolver()
+	baseSolver:set_preconditioner(basePre)
+	baseSolver:set_convergence_check(ConvCheck(10000, 1e-07,1e-04,true))
+	
+	--baseSolver=LU()
+	
+	
+	
 	local LinearSolverDesc =
 	{
 		type = "bicgstab",
@@ -126,7 +147,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		{
 			type = "gmg",
 			rap = true,
-			rim = true,
+			rim = false,
 			cycle = "V",
 			smoother =
 			{
@@ -140,9 +161,9 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 				overlap 		= true,             --consistentInterfaces and overlap shouldnot be activated at the same time
 				--ordering 		= nil
 			},
-			preSmooth = 3,
-			postSmooth = 3,
-			baseSolver = "lu",
+			preSmooth = 2,
+			postSmooth = 2,
+			baseSolver = ilutSolver,
 			baseLevel = self.numPreRefs
 		},
 		convCheck =
@@ -506,8 +527,8 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	--limexEstimator:add(H1SemiComponentSpace("u", 2 ))
 	--limexEstimator:add(H1SemiComponentSpace("v", 2 ))
 
-	--limexEstimator:add(L2ComponentSpace("u", 2))
-	--limexEstimator:add(L2ComponentSpace("v", 2))
+	limexEstimator:add(L2ComponentSpace("u", 2))
+	limexEstimator:add(L2ComponentSpace("v", 2))
 
 	limexEstimator:add(H1SemiComponentSpace("p", 2))
 	limexEstimator:add(L2ComponentSpace("c", 2))
@@ -526,11 +547,11 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	  dt = dtlimex,
 	  dtmax = dtmax,
 	  dtmin = dtmin,
-	  rhoSafetyOPT = 0.25,
+	  rhoSafetyOPT = 0.2,
 	  dtred = 0.5,
-	  dtIncr = 1.5,
+	  dtIncr = 1.3,
 	  matrixCache = true,
-	  conservative = false
+	  conservative = true
 	  
 	}
 
