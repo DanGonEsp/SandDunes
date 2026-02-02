@@ -170,7 +170,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		{
 			type		= "standard",
 			iterations	= self.max_linear_steps,
-			absolute	= 1e-7,
+			absolute	= (1e-02)*self.AbsDefect,
 			reduction	= 1e-3,
 			verbose		= true
 		}
@@ -219,7 +219,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	if self.doSteadyState then NewtonSolverSteady = util.solver.CreateSolver(NewtonSolverDesc) end
 	local LinearSolver = util.solver.CreateSolver(LinearSolverDesc)
 
-	local limexConvCheck=ConvCheck(1, 5e-5, 1e-8, true)
+	local limexConvCheck=ConvCheck(1, self.AbsDefect, 1e-8, true)
 	limexConvCheck:set_supress_unsuccessful(true)
 
 
