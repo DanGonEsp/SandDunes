@@ -65,6 +65,7 @@ params =
 	boolViscPs = util.GetParamBool("-boolViscPs", true),
 	boolAveDiff = util.GetParamBool("-boolAveDiff", true),
 	boolSlipDiff = util.GetParamBool("-boolSlipDiff", true),
+	boolSlipVel = util.GetParamBool("-boolSlipVel", false),
 	
 	inflow   = util.GetParamNumber("-inflow", 10.0, "max. inflow velocity"),
 	H_0= util.GetParamNumber("-Height", 2.0, "Dune Height"),
@@ -94,7 +95,7 @@ params =
 	alpha_min        = util.GetParamNumber("-min alpha_min", 0.57, "max volume fraction"),
 	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein"),
 	density_model  = util.GetParam("-density_model", "linear", "constant, linear"),
-	interface_value  = util.GetParamNumber("-interface_value",  10, "interface value"),
+	interface_value  = util.GetParamNumber("-interface_value",  0.1, "interface value"),
 	drag_mod = util.GetParamNumber("-drag_model", 2, "Opt: 0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel"),
 	--Model 0 pow(0.63+4.8/sqrt(RE),2.0);
 
@@ -185,9 +186,14 @@ end
 
 if params.boolSlipDiff then
     vtk_file_name = vtk_file_name .. "-SlipDiff"
-else
-    vtk_file_name = vtk_file_name .. "-NoSlipDiff"
+else if params.boolSlipVel then
+		vtk_file_name = vtk_file_name .. "-SlipVel"
+	else
+		vtk_file_name = vtk_file_name .. "-NoSlip"
+	end
 end
+
+	
 
 folder = folder .. "/" .. vtk_file_name
 if not DirectoryExists (folder) then
@@ -211,6 +217,7 @@ print ("	Ps gradient     	= " .. tostring (params.boolGradientPsSource))
 print ("	Ps in visc      	= " .. tostring (params.boolViscPs))
 print ("	Diffusion       	= " .. tostring (params.boolAveDiff))
 print ("	SlipDiff         	= " .. tostring (params.boolSlipDiff))
+print ("	SlipVel         	= " .. tostring (params.boolSlipVel))
 print (" Numerical parameter:")
 print ("	numRefs			= " .. params.numRefs)
 print ("	numPreRefs		= " .. params.numPreRefs)
@@ -286,7 +293,7 @@ L=6--2.5
 mu_c1=mu_c-L2/2
 mu_c2=mu_c+L2/2
 sigma1=sigma
-sigma2=0.5*sigma
+sigma2=0.3*sigma
 ss=1.0
 k1=0.05
 k2=0.05
@@ -458,6 +465,7 @@ InterfaceValues:set_bool_particle_pressure_force(params.boolGradientPsSource)
 InterfaceValues:set_bool_consistent_gravity(false)
 InterfaceValues:set_reference_pressure(params.ReferencePressure)
 InterfaceValues:set_time_step_factor(dt)
+InterfaceValues:set_interface_volume_fraction(params.interface_value)
 InterfaceValues:set_drag_model(params.drag_mod)
 InterfaceValues:set_bool_initialized(true)
 
@@ -570,17 +578,20 @@ print ("	--------------------------Diff	factor	= " .. Diff_factor)
 
 ss_value = math.atan(params.FricMu_2)*180/3.1415926
 
-
-SlipDiff = SlipDiffusion(approxSpace,u)
-SlipDiff:set_theta(ss_value)
-if params.boolAveDiff then
-	SlipDiff:set_source(Diffusion)
+if params.boolSlipDiff then
+	SlipDiff = SlipDiffusion(approxSpace,u)
+	SlipDiff:set_theta(ss_value)
+	SlipDiff:set_vel(0.1)
+	SlipDiff:set_phase_parameters(InterfaceValues)
+	if params.boolAveDiff then
+		SlipDiff:set_diffusion(Diffusion)
+	end
+else if params.boolSlipVel then
+		SlipVel = SlipVelocity(approxSpace,u)
+		SlipVel:set_theta(ss_value)
+		SlipVel:set_vel(0.1)
+	end
 end
-SlipDiff:set_vel(0.01)
-
-SlipVel = SlipVelocity(approxSpace,u)
-SlipVel:set_theta(ss_value)
-SlipVel:set_vel(1.0)
 ------------------------------------------------------------------------------------------
 -- Compose the discretization
 ------------------------------------------------------------------------------------------
@@ -608,7 +619,12 @@ else
 	if params.boolAveDiff then
 		NavierStokesDisc:set_diffusion(Diffusion)
 	end
+	if params.boolSlipVel then
+		NavierStokesDisc:set_slip_velocity(SlipVel)
+	end
+	
 end
+
 if (params.boolSource) then
 	NavierStokesDisc:set_source(Source)
 end
@@ -773,8 +789,13 @@ out:select(NavierStokesDisc:particle_pressure(), "Ps")
 out:select(NavierStokesDisc:particle_pressure_grad(), "DPs")
 out:select(gamma, "G")
 out:select(NavierStokesDisc:velocity_grad(), "G2")
-out:select(SlipDiff, "SDiff")
-out:select(SlipVel, "SVel")
+if (params.boolSlipDiff) then
+	out:select(SlipDiff, "SDiff")
+else
+	if params.boolSlipVel then
+		out:select(SlipVel, "SVel")
+	end
+end
 out:select(Diffusion, "D")
 out:print_subsets(vtk_file_name, u,allSubsets,step,time)
 print ("Output to file " .. vtk_file_name .. ".vtu  in time t = 0")
@@ -804,8 +825,15 @@ end
 
 NLSolver:add_step_update(viscosityData)
 NLSolver:add_inner_step_update(gamma)
-NLSolver:add_inner_step_update(SlipDiff)
-NLSolver:add_inner_step_update(SlipVel)
+
+if params.boolSlipDiff then
+	NLSolver:add_inner_step_update(SlipDiff)
+else if params.boolSlipVel then
+		NLSolver:add_inner_step_update(SlipVel)
+	end
+end
+
+
 
 total_Newton_Steps = 0
 total_Newton_Steps_fail = 0

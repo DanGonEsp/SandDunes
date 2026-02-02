@@ -171,7 +171,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 			type		= "standard",
 			iterations	= self.max_linear_steps,
 			absolute	= 1e-7,
-			reduction	= 1e-7,
+			reduction	= 1e-3,
 			verbose		= true
 		}
 	}
