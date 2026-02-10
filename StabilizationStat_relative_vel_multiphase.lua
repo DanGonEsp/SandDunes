@@ -18,7 +18,7 @@ RequiredPlugins({"Limex", "NavierStokes"})
 ------------------------------------------------------------------------------------------
 local dim         = util.GetParamNumber("-dim", 2, "dimensionality of the problem")
 local numProc         = util.GetParamNumber("-numProc", 1, "dimensionality of the problem")
-InitUG (dim, AlgebraType("CPU", 1))
+InitUG (dim, AlgebraType("CPU", dim+2))
 
 ------------------------------------------------------------------------------------------
 -- Split communicator
@@ -97,7 +97,7 @@ params =
 	
 	max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100),
 	max_newton_steps_transcient=util.GetParamNumber("-max_newton_steps_transcient", 50),
-	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-04),
+	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05),
 	RedDefect = util.GetParamNumber("-RedDefect", 1e-07),
 
 	max_linear_steps=util.GetParamNumber("-max_linear_steps", 100),
@@ -793,14 +793,6 @@ Interpolate("StartValueP", u, "p")
 Interpolate("StartValueC", u, "c")
 
 
-local Tablename0 = "Table_out0.csv"
-lineWriter = LineWriter()
-lineWriter:write_line(Tablename0,rank_t, inflow, H_0, L2)
-
-local Tablename1 = "Table_out1.csv"
-lineWriter = LineWriter()
-lineWriter:write_line(Tablename1,rank_t, inflow, H_0, L2)
-
 ------------------------------------------------------------------------------------------
 -- Steady State Solution
 ------------------------------------------------------------------------------------------
@@ -817,10 +809,6 @@ if params.doSteadyState then
     end
 end
 
-
-local Tablename2 = "Table_out2.csv"
-lineWriter = LineWriter()
-lineWriter:write_line(Tablename2,rank_t, inflow, H_0, L2)
 ------------------------------------------------------------------------------------------
 -- Printing Initial Conditions
 ------------------------------------------------------------------------------------------
