@@ -88,7 +88,22 @@ function read(path, sep, tonum, null)
         table.insert(csvFile, fields)
     end
     file:close()
-    return csvFile
+    
+    local num_rows = #csvFile					-- Output: Number of rows:
+	local num_cols = #csvFile[1]				-- Output: Number of columns:
+	print("num_rows = "..num_rows .. "  num_cols = " ..num_cols)
+	
+	for i_ind = 2, num_rows do
+		for j_ind = 1, num_cols do
+			if (type(csvFile[i_ind][j_ind]) == nil or type(csvFile[i_ind][j_ind]) ~= "number") then
+				print ("Invalid Input parametrs (ERROR) value[" .. i_ind-1 .."][".. j_ind .."]  = " .. type(csvFile[i_ind][j_ind])); exit();
+			end
+		end
+	end
+
+    return csvFile,num_rows,num_cols
+    
+    
 end
 
 ---------------------------------------------------------------------

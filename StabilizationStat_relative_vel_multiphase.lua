@@ -28,28 +28,20 @@ SpaceTimeComm:split(numProc)
 
 local rank = ProcRank()
 local rank_t=SpaceTimeComm:get_temporal_rank()
-local rank_s=SpaceTimeComm:get_spatial_rank()
 
 local TemporalSize = SpaceTimeComm:get_temporal_size()
 local SpaceSize = SpaceTimeComm:get_spatial_size()
 
+print("TemporalSize = " ..TemporalSize)
+print("SpaceSize = " ..SpaceSize)
 
+------------------------------------------------------------------------------------------
+-- Input parameter table
+------------------------------------------------------------------------------------------
 local csvfile = require "simplecsv"
-local InValues = csvfile.read('./table_in.csv') -- read file csv1.txt to matrix m
-local num_rows = #InValues					-- Output: Number of rows: 3
-local num_cols = #InValues[1]				-- Output: Number of columns: 3
-
-for i_ind = 2, num_rows do
-	for j_ind = 1, num_cols do
-		if (type(InValues[i_ind][j_ind]) == nil or type(InValues[i_ind][j_ind]) ~= "number") then
-		print ("Invalid Input parametrs (ERROR) value[" .. i_ind-1 .."][".. j_ind .."]  = " .. type(InValues[i_ind][j_ind])); exit();
-		end
-	end
-end
-
-print("num_rows = "..num_rows .. "  num_cols = " ..num_cols)
-
+local InValues, num_rows, num_cols = csvfile.read('./table_in.csv') -- read file csv1.txt to matrix m
 if( TemporalSize > num_rows-1) then print ("TemporalSize larger than rows in input parametrs."); exit(); end
+
 
 inflow = InValues[rank_t+2][1]
 H_0 = InValues[rank_t+2][2]
@@ -62,9 +54,9 @@ print("Width = " ..W0.. "m.")
 local fixedNum = string.format("%04d", rank_t)
 
 
-
-
-
+------------------------------------------------------------------------------------------
+-- parameters
+------------------------------------------------------------------------------------------
 params =
 {
 			-- Numerical parameters of the discretization
@@ -244,9 +236,8 @@ else if params.boolSlipVel then
 	end
 end
 
-	
+folder = folder_name .. "/" .. vtk_file_name
 if (rank== 0) then
-	folder = folder_name .. "/" .. vtk_file_name
 	if not DirectoryExists (folder) then
 		CreateDirectory (folder)
 	else
@@ -303,6 +294,7 @@ end
 -- Create the domain, load the grid and refine it
 dom = util.CreateDomain (gridName, params.numPreRefs)
 balancer.RefineAndRebalanceDomain (dom, params.numRefs - params.numPreRefs)
+--util.refinement.CreateRegularHierarchy(dom, params.numRefs, true)
 
 print ("Domain-info:")
 print (dom:domain_info():to_string())
