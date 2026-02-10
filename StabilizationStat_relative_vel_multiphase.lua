@@ -12,14 +12,65 @@ ug_load_script("util/conv_rates_kinetic.lua")
 
 RequiredPlugins({"Limex", "NavierStokes"})
 
-rank = ProcRank()
+
+------------------------------------------------------------------------------------------
+-- Initialize UG4
+------------------------------------------------------------------------------------------
+local dim         = util.GetParamNumber("-dim", 2, "dimensionality of the problem")
+local numProc         = util.GetParamNumber("-numProc", 1, "dimensionality of the problem")
+InitUG (dim, AlgebraType("CPU", 1))
+
+------------------------------------------------------------------------------------------
+-- Split communicator
+------------------------------------------------------------------------------------------
+SpaceTimeComm = SpaceTimeCommunicator()
+SpaceTimeComm:split(numProc)
+
+local rank = ProcRank()
+local rank_t=SpaceTimeComm:get_temporal_rank()
+local rank_s=SpaceTimeComm:get_spatial_rank()
+
+local TemporalSize = SpaceTimeComm:get_temporal_size()
+local SpaceSize = SpaceTimeComm:get_spatial_size()
+
+
+local csvfile = require "simplecsv"
+local InValues = csvfile.read('./table_in.csv') -- read file csv1.txt to matrix m
+local num_rows = #InValues					-- Output: Number of rows: 3
+local num_cols = #InValues[1]				-- Output: Number of columns: 3
+
+for i_ind = 2, num_rows do
+	for j_ind = 1, num_cols do
+		if (type(InValues[i_ind][j_ind]) == nil or type(InValues[i_ind][j_ind]) ~= "number") then
+		print ("Invalid Input parametrs (ERROR) value[" .. i_ind-1 .."][".. j_ind .."]  = " .. type(InValues[i_ind][j_ind])); exit();
+		end
+	end
+end
+
+print("num_rows = "..num_rows .. "  num_cols = " ..num_cols)
+
+if( TemporalSize > num_rows-1) then print ("TemporalSize larger than rows in input parametrs."); exit(); end
+
+inflow = InValues[rank_t+2][1]
+H_0 = InValues[rank_t+2][2]
+L2 = InValues[rank_t+2][3]
+
+print("Inflow = " ..inflow.."m/s")
+print("Heigh = " ..H_0.. "m.")
+print("Width = " ..L2.. "m.")
+
+local fixedNum = string.format("%04d", rank_t)
+
+
+
 
 
 params =
 {
 			-- Numerical parameters of the discretization
-	dim         = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
-	file_name = util.GetParam("-file_name", "Test"),
+	dim      = dim,
+	file_name = util.GetParam("-file_name", "borrar_borrar") .. fixedNum,
+	folder_name = util.GetParam("-folder_name", "borrar_borrar"),
 	elem_type = util.GetParam("-elem_type", "tri", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 1, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)"),
@@ -67,8 +118,8 @@ params =
 	boolSlipDiff = util.GetParamBool("-boolSlipDiff", true),
 	boolSlipVel = util.GetParamBool("-boolSlipVel", false),
 	
-	inflow   = util.GetParamNumber("-inflow", 10.0, "max. inflow velocity"),
-	H_0= util.GetParamNumber("-Height", 2.0, "Dune Height"),
+	inflow   = inflow,
+	H_0= H_0,
 	ReferencePressure  = util.GetParamNumber("-ReferencePressure",  1.7493e2, "interface value"),
 	bStokes     = util.GetParamBool("-Stokes", true ,"If defined, only Stokes Eq. computed"),
 	bNoLaplace     = util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used"),
@@ -114,14 +165,13 @@ params =
 
 }
 
+
 params.DTmax = (params.endTime - params.startTime) / params.numTimeSteps
 dt = util.GetParamNumber("-dt", params.DTmax, "dt")
+print("fixedNum = "..fixedNum)
 file_name = params.file_name
-dim = params.dim
-inflow = params.inflow
-H_0 = params.H_0
+folder_name = params.folder_name
 c_init = params.c_init
-
 
 
 ------------------------------------------------------------------------------------------
@@ -143,11 +193,12 @@ Inner_total={"Inner","Inner2"}
 -- Folder and files
 ------------------------------------------------------------------------------------------
 
-folder = file_name
-if not DirectoryExists (folder) then
-    CreateDirectory (folder)
+if (rank==0) then
+	if not DirectoryExists (folder_name) then
+		CreateDirectory (folder_name)
+	end
+	print(folder_name)
 end
-print(folder)
 vtk_file_name = file_name .. "-lev" .. params.numRefs
 print(vtk_file_name)
 if params.bStokes then
@@ -194,12 +245,13 @@ else if params.boolSlipVel then
 end
 
 	
-
-folder = folder .. "/" .. vtk_file_name
-if not DirectoryExists (folder) then
-    CreateDirectory (folder)
-else
-	print(" You must erase the content")
+if (rank== 0) then
+	folder = folder_name .. "/" .. vtk_file_name
+	if not DirectoryExists (folder) then
+		CreateDirectory (folder)
+	else
+		print(" You must erase the content")
+	end
 end
 
 vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
@@ -239,8 +291,6 @@ myProblem:Init(params)
 ------------------------------------------------------------------------------------------
 -- Initialize UG4, load, refine and distribute the grid
 ------------------------------------------------------------------------------------------
-
-InitUG (dim, AlgebraType("CPU", dim +2))
 
 if dim == 3 then
 	fct_cmp_tbl = {"u", "v", "w", "p", "c"}
@@ -287,8 +337,6 @@ u:set(0)
 h_0=0.0
 sigma=3
 mu_c=20
-L2=5
-L=6--2.5
 
 mu_c1=mu_c-L2/2
 mu_c2=mu_c+L2/2
@@ -745,6 +793,13 @@ Interpolate("StartValueP", u, "p")
 Interpolate("StartValueC", u, "c")
 
 
+local Tablename0 = "Table_out0.csv"
+lineWriter = LineWriter()
+lineWriter:write_line(Tablename0,rank_t, inflow, H_0, L2)
+
+local Tablename1 = "Table_out1.csv"
+lineWriter = LineWriter()
+lineWriter:write_line(Tablename1,rank_t, inflow, H_0, L2)
 
 ------------------------------------------------------------------------------------------
 -- Steady State Solution
@@ -763,6 +818,9 @@ if params.doSteadyState then
 end
 
 
+local Tablename2 = "Table_out2.csv"
+lineWriter = LineWriter()
+lineWriter:write_line(Tablename2,rank_t, inflow, H_0, L2)
 ------------------------------------------------------------------------------------------
 -- Printing Initial Conditions
 ------------------------------------------------------------------------------------------
@@ -824,13 +882,25 @@ if rank == 0 then
 end
 
 NLSolver:add_step_update(viscosityData)
-NLSolver:add_inner_step_update(gamma)
+if params.timeMethod == "limex" then
+	NLSolver:add_step_update(gamma)
 
-if params.boolSlipDiff then
-	NLSolver:add_inner_step_update(SlipDiff)
-else if params.boolSlipVel then
-		NLSolver:add_inner_step_update(SlipVel)
+	if params.boolSlipDiff then
+		NLSolver:add_step_update(SlipDiff)
+	else if params.boolSlipVel then
+			NLSolver:add_step_update(SlipVel)
+		end
 	end
+else
+	NLSolver:add_inner_step_update(gamma)
+	if params.boolSlipDiff then
+		NLSolver:add_inner_step_update(SlipDiff)
+	else if params.boolSlipVel then
+			NLSolver:add_inner_step_update(SlipVel)
+		end
+	end
+
+	
 end
 
 
@@ -925,4 +995,11 @@ if rank == 0 then
 end
 
 
+local Tablename = "Table_out.csv"
+lineWriter = LineWriter()
+lineWriter:write_line(Tablename,rank_t, inflow, H_0, L2)
 
+
+if true then
+	return
+end

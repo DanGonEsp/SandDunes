@@ -527,10 +527,10 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	--limexEstimator:add(H1SemiComponentSpace("u", 2 ))
 	--limexEstimator:add(H1SemiComponentSpace("v", 2 ))
 
-	limexEstimator:add(L2ComponentSpace("u", 2))
-	limexEstimator:add(L2ComponentSpace("v", 2))
+	--limexEstimator:add(L2ComponentSpace("u", 2))
+	--limexEstimator:add(L2ComponentSpace("v", 2))
 
-	limexEstimator:add(H1SemiComponentSpace("p", 2))
+	--limexEstimator:add(H1SemiComponentSpace("p", 2))
 	limexEstimator:add(L2ComponentSpace("c", 2))
 
 	-- descriptor for integrator
