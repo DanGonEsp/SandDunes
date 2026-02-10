@@ -53,11 +53,11 @@ if( TemporalSize > num_rows-1) then print ("TemporalSize larger than rows in inp
 
 inflow = InValues[rank_t+2][1]
 H_0 = InValues[rank_t+2][2]
-L2 = InValues[rank_t+2][3]
+W0 = InValues[rank_t+2][3]
 
 print("Inflow = " ..inflow.."m/s")
 print("Heigh = " ..H_0.. "m.")
-print("Width = " ..L2.. "m.")
+print("Width = " ..W0.. "m.")
 
 local fixedNum = string.format("%04d", rank_t)
 
@@ -103,6 +103,8 @@ params =
 	max_linear_steps=util.GetParamNumber("-max_linear_steps", 100),
 	damping_mg = util.GetParamNumber("-damping_mg", 0.9),
 	value_beta = util.GetParamNumber("-value_beta", 0.0001),
+	LinAbsDefect = util.GetParamNumber("-LinAbsDefect", 1e-07),
+	LinRedDefect = util.GetParamNumber("-LinRedDefect", 1e-07),
 
 	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 7),
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
@@ -161,8 +163,6 @@ params =
 	FricMu_2=0.64,
 	I_0 = 0.279,
 	
-
-
 }
 
 
@@ -338,8 +338,8 @@ h_0=0.0
 sigma=3
 mu_c=20
 
-mu_c1=mu_c-L2/2
-mu_c2=mu_c+L2/2
+mu_c1=mu_c-W0/2
+mu_c2=mu_c+W0/2
 sigma1=sigma
 sigma2=0.3*sigma
 ss=1.0
@@ -577,33 +577,33 @@ Source:set_cons_gravity(params.consistentRho_in_source)
 
 ---------------------------------------------------------------------- Sediment Velocity
 
-Ws = 6.8598478663758
+Vs = 6.8598478663758
 iter = 0
-Ws = InterfaceValues:RelVel_ext(params.nu_a*params.rho_a,params.rho_a,params.dp,params.rho_s,9.81,1e-05)
-re=InterfaceValues:RE(params.nu_a*params.rho_a,params.rho_a,params.dp,Ws)
+Vs = InterfaceValues:RelVel_ext(params.nu_a*params.rho_a,params.rho_a,params.dp,params.rho_s,9.81,1e-05)
+re=InterfaceValues:RE(params.nu_a*params.rho_a,params.rho_a,params.dp,Vs)
 Cd =InterfaceValues:CD(re,params.drag_mod)
-print(Ws)
+print(Vs)
 print(re)
 print(Cd)
 
 
 DX=1.84*math.pow(1/2,params.numRefs)
-W=RelativeVelocityLinker()
+RelVel=RelativeVelocityLinker()
 
-W:set_mix_density(Density)
-W:set_mix_kinematic_viscosity(Visc)
+RelVel:set_mix_density(Density)
+RelVel:set_mix_kinematic_viscosity(Visc)
 
-W:set_vol_limit(params.alpha_min)
-W:set_fluid_density(params.rho_a)
-W:set_particle_density(params.rho_s)
-W:set_particle_diameter(params.dp)
-W:set_gravity(-9.81)
-W:set_rel_vel(Ws)
-W:set_dragCoeff(Cd)
-W:activate_relative_vel(params.boolRelativeVel)
-W:set_fluid_viscosity(params.nu_a*params.rho_a)
-W:set_alpha_max(params.alpha_max)
-W:set_phase_parameters(InterfaceValues)
+RelVel:set_vol_limit(params.alpha_min)
+RelVel:set_fluid_density(params.rho_a)
+RelVel:set_particle_density(params.rho_s)
+RelVel:set_particle_diameter(params.dp)
+RelVel:set_gravity(-9.81)
+RelVel:set_rel_vel(Vs)
+RelVel:set_dragCoeff(Cd)
+RelVel:activate_relative_vel(params.boolRelativeVel)
+RelVel:set_fluid_viscosity(params.nu_a*params.rho_a)
+RelVel:set_alpha_max(params.alpha_max)
+RelVel:set_phase_parameters(InterfaceValues)
 ---------------------------------------------------------------------- VelocityGradMag
 
 gamma = ShearStressFV1(approxSpace,u)
@@ -614,7 +614,7 @@ Diff_beta = 0.217
 d1= 250e-06
 A1= 1.673
 k0 = 1.0 + A1 * (1-params.dp/d1)
-Diff_factor = Diff_beta*k0*k0*Ws/(2*params.rho_a*9.81)
+Diff_factor = Diff_beta*k0*k0*Vs/(2*params.rho_a*9.81)
 Diffusion = GranularDiffusionLinker();
 Diffusion:set_gamma(gamma)
 Diffusion:set_mix_viscosity(Viscosity)
@@ -658,7 +658,7 @@ NavierStokesDisc:set_stabilization (params.stab, params.diffLength)
 
 NavierStokesDisc:set_density(Density)
 if params.boolRelativeVel then
-	NavierStokesDisc:set_relative_velocity(W)
+	NavierStokesDisc:set_relative_velocity(RelVel)
 	NavierStokesDisc:set_upwind_rel(params.upwind_r)
 end
 if params.boolSlipDiff then
@@ -724,11 +724,11 @@ end
 Diffusion:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 
 
-W:set_volume_fraction(NavierStokesDisc:volume_fraction())
-W:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
-W:set_pressure_grad(NavierStokesDisc:pressure_grad())
-W:set_einstein_visc(NavierStokesDisc:einstein_viscosity())
-W:set_ps_grad(NavierStokesDisc:particle_pressure_grad())
+RelVel:set_volume_fraction(NavierStokesDisc:volume_fraction())
+RelVel:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
+RelVel:set_pressure_grad(NavierStokesDisc:pressure_grad())
+RelVel:set_einstein_visc(NavierStokesDisc:einstein_viscosity())
+RelVel:set_ps_grad(NavierStokesDisc:particle_pressure_grad())
 
 
 
@@ -776,8 +776,8 @@ end
 -- Set up the solver
 ------------------------------------------------------------------------------------------
 
-
-op, NLSolver, NewtonSolverSteady, limex = myProblem:CreateSolver(domainDisc, approxSpace, timeDisc)
+boolSolution = 1
+op, NLSolver, NewtonSolverSteady, limex, boolSolution = myProblem:CreateSolver(domainDisc, approxSpace, timeDisc)
 
 
 
@@ -799,11 +799,12 @@ Interpolate("StartValueC", u, "c")
 time_work_steady=0.0
 linsolver_calls = 0
 linsolver_steps = 0
-if params.doSteadyState then
+
+if params.doSteadyState and boolSolution == 1 then
 	-- Steady state solution.
-	time_work_steady, linsolver_calls, linsolver_steps = myProblem:ComputeNonLinearSteadyStateSolution(u, domainDisc, NewtonSolverSteady)
+	time_work_steady, linsolver_calls, linsolver_steps, boolSolution = myProblem:ComputeNonLinearSteadyStateSolution(u, domainDisc, NewtonSolverSteady)
 	
-	W:activate_relative_vel(params.boolRelativeVel)
+	RelVel:activate_relative_vel(params.boolRelativeVel)
     if not(params.boolViscPs) then
         Visc:set_particle_pressure(NavierStokesDisc:pressure())
     end
@@ -830,7 +831,7 @@ out:select(Density, "Rho")
 out:select(NavierStokesDisc:einstein_viscosity(), "Mu_eins")
 out:select(Viscosity, "Mu")
 out:select(Viscosity2, "Mu2")
-out:select(W, "W")
+out:select(RelVel, "RelVel")
 out:select(NavierStokesDisc:particle_pressure(), "Ps")
 out:select(NavierStokesDisc:particle_pressure_grad(), "DPs")
 out:select(gamma, "G")
@@ -887,7 +888,6 @@ else
 			NLSolver:add_inner_step_update(SlipVel)
 		end
 	end
-
 	
 end
 
@@ -901,71 +901,70 @@ tBefore = os.clock()
 ------------------------------------------------------------------------------------------
 -- Time Steps Loop    (Solution)
 ------------------------------------------------------------------------------------------
+if boolSolution == 1 then
+	for step = 1, params.numTimeSteps do
 
-for step = 1, params.numTimeSteps do
+		print("++++++ TIMESTEP " .. step .. " BEGIN ++++++")
+		tBefore_step = os.clock()
+		StartTime = time
+		EndTime = time + params.DTmax
+		if params.timeMethod == "limex" then
+		
+			Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, boolSolution  = myProblem:SolveNonlinearProblemLimex(u, limex, NLSolver, StartTime, EndTime)
 
-	print("++++++ TIMESTEP " .. step .. " BEGIN ++++++")
-	tBefore_step = os.clock()
-	StartTime = time
-	EndTime = time + params.DTmax
-	if params.timeMethod == "limex" then
-	
-		Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step  = myProblem:SolveNonlinearProblemLimex(u, limex, NLSolver, StartTime, EndTime)
-
-	else
-		Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step , dt = myProblem:SolveNonlinearProblem( u, NLSolver, op, timeDisc, solTimeSeries, dt, step,StartTime,EndTime)
+		else
+			Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step , dt, boolSolution = myProblem:SolveNonlinearProblem( u, NLSolver, op, timeDisc, solTimeSeries, dt, step,StartTime,EndTime)
+		end
+		time = EndTime
+		tAfter_step = os.clock()
+		
+		if step % params.outputFactor == 0 then
+		
+			out:print_subsets(vtk_file_name, u,allSubsets,step,time)
+			print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
+			print(" ")
+		end
+	 
+		print("++++++ TIMESTEP " .. step .. "  END ++++++")
+		print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+		print ("                                                            ")
+		print ("                                                            ")
+		print ("                                                            ")
+		print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+		print ("                                                            ")
+		print ("<<<<<< Total Newton semi   Steps =  " .. Newton_Steps .. "   >>>>>>")
+		print ("<<<<<<       Newton success Steps =  " .. Newton_Steps-Newton_Steps_fail .. "   >>>>>>")
+		print ("<<<<<<       Newton fail   Steps =  " .. Newton_Steps_fail .. "   >>>>>>")
+		print ("                                                            ")
+		print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+		print ("                                                            ")
+		print ("                                                            ")
+		print ("                                                            ")
+		print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+		
+		total_Newton_Steps = total_Newton_Steps + Newton_Steps
+		total_Newton_Steps_fail = total_Newton_Steps_fail + Newton_Steps_fail
+		total_linsolver_calls_step = total_linsolver_calls_step + linsolver_calls_step
+		total_linsolver_steps_step = total_linsolver_steps_step + linsolver_steps_step
+				
+		Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
+		Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
+		
+		if rank == 0 then
+			myProblem:WriteValues( folder, step, time, Value_inner1, Value_inner2, tAfter_step - tBefore_step, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
+		end
+		
+		if (boolSolution == 0) then break end
+		
+		
 	end
-	time = EndTime
-	tAfter_step = os.clock()
-    
-	if step % params.outputFactor == 0 then
-	
-		out:print_subsets(vtk_file_name, u,allSubsets,step,time)
-		print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
-		print(" ")
-	end
- 
-	print("++++++ TIMESTEP " .. step .. "  END ++++++")
-    print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-    print ("                                                            ")
-    print ("                                                            ")
-    print ("                                                            ")
-    print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-    print ("                                                            ")
-    print ("<<<<<< Total Newton semi   Steps =  " .. Newton_Steps .. "   >>>>>>")
-    print ("<<<<<<       Newton success Steps =  " .. Newton_Steps-Newton_Steps_fail .. "   >>>>>>")
-    print ("<<<<<<       Newton fail   Steps =  " .. Newton_Steps_fail .. "   >>>>>>")
-    print ("                                                            ")
-    print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-    print ("                                                            ")
-    print ("                                                            ")
-    print ("                                                            ")
-    print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-    
-    total_Newton_Steps = total_Newton_Steps + Newton_Steps
-    total_Newton_Steps_fail = total_Newton_Steps_fail + Newton_Steps_fail
-    total_linsolver_calls_step = total_linsolver_calls_step + linsolver_calls_step
-    total_linsolver_steps_step = total_linsolver_steps_step + linsolver_steps_step
-            
-    Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
-    Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
-    
-    if rank == 0 then
-		myProblem:WriteValues( folder, step, time, Value_inner1, Value_inner2, tAfter_step - tBefore_step, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
-	end
-    
-    
 end
 tAfter = os.clock()
-
-
 
 
 ------------------------------------------------------------------------------------------
 -- Solution Done
 ------------------------------------------------------------------------------------------
-
-
 
 print("-			-")
 print("-------------------------------------------------------------------------------")
@@ -985,9 +984,6 @@ end
 
 local Tablename = "Table_out.csv"
 lineWriter = LineWriter()
-lineWriter:write_line(Tablename,rank_t, inflow, H_0, L2)
+Headers = " Sim, Vel, H0, W0, Solved\n"
+lineWriter:write_line(Tablename,rank_t, Headers, inflow, H_0, W0, boolSolution)
 
-
-if true then
-	return
-end

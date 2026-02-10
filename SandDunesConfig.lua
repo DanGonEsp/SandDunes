@@ -170,8 +170,8 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		{
 			type		= "standard",
 			iterations	= self.max_linear_steps,
-			absolute	= (1e-02)*self.AbsDefect,
-			reduction	= 1e-3,
+			absolute	= self.LinAbsDefect,
+			reduction	= self.LinRedDefect,
 			verbose		= true
 		}
 	}
@@ -237,7 +237,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		op:init()
 		NLSolver:init(op)
 		if NLSolver:prepare(u) == false then
-			print ("Newton solver prepare failed.") exit()
+			print ("Newton solver prepare failed.") return op, NLSolver, NewtonSolverSteady, limex, 0
 		end
 	end
 
@@ -246,7 +246,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	self.boolSolverDesc = true
 
 	  
-	return op, NLSolver, NewtonSolverSteady, limex
+	return op, NLSolver, NewtonSolverSteady, limex, 1
 end
 
 
@@ -294,7 +294,7 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
 	tBefore_s= os.clock()
 	if not solver:apply(u) then
 		print("===> THE PREPARATION PHASE FAILED! <===")
-		exit()
+		return 0, 0, 0, 0
 	end
 	tAfter_s = os.clock()
     num_newton_steps = solver:num_newton_steps()
@@ -315,7 +315,7 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
 	print("Computation for steady state took " .. time_work_steady .. " seconds.")
 	domainDisc:remove (fixer)
 	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")
-	return time_work_steady, linsolver_calls, linsolver_steps
+	return time_work_steady, linsolver_calls, linsolver_steps, 1.0
 
 end
 
@@ -335,10 +335,12 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 	local boolDebugStep = self.boolDebugStep
 	local AbsDefect = self.AbsDefect
 	local RedDefect = self.RedDefect
+	local LinAbsDefect = self.LinAbsDefect
+	local LinRedDefect = self.LinRedDefect
 	local maxConvRate = self.maxConvRate
 	local minConvRate = self.minConvRate
 
-	if(self.boolSolverDesc == false) then print("SolverDesc Not initialized ") exit() end
+	if(self.boolSolverDesc == false) then print("SolverDesc Not initialized ") return 0, 0, 0, 0, 0, 0 end
 	local solverDesc = self.NewtonSolverDesc
 		
     local Newton_Steps = 0
@@ -362,7 +364,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 	
 		-- prepare newton solver
 		if solver:prepare(u) == false then
-			print ("Newton solver failed at step "..step.."."); exit();
+			print ("Newton solver failed at step "..step.."."); return 0, 0, 0, 0, 0, 0;
 		end
 	
 		-- apply newton solver
@@ -406,7 +408,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 					print ("Newton solver failed at DEBUG step "..step..".");
 				end
 				
-				exit();
+				return 0, 0, 0, 0, 0, 0;
 
 			else
 				VecScaleAssign(u, 1.0, solTimeSeries:latest())
@@ -493,7 +495,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 			
 	end
 
-  return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, dt_in
+  return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, dt_in, 1
 end
 
 --------------------------------------------------------------------------------
@@ -594,7 +596,7 @@ myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, Start
 	linsolver_steps_step =  NLSolver:total_linsolver_steps()
 	NLSolver:clear_average_convergence();
 
-  return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step
+  return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, 1
 end
 
 return myProblem
