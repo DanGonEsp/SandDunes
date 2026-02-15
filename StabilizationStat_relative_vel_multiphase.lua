@@ -17,7 +17,7 @@ RequiredPlugins({"Limex", "NavierStokes"})
 -- Initialize UG4
 ------------------------------------------------------------------------------------------
 local dim         = util.GetParamNumber("-dim", 2, "dimensionality of the problem")
-local numProc         = util.GetParamNumber("-numProc", 1, "dimensionality of the problem")
+local numProc         = util.GetParamNumber("-numProc", 1, "Number of temporal processes")
 InitUG (dim, AlgebraType("CPU", dim+2))
 
 ------------------------------------------------------------------------------------------
@@ -72,14 +72,14 @@ params =
 	DTmin= util.GetParamNumber("-DTmin", 1e-05, "min  DT"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	
-	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
+	timeMethod = util.GetParam("-timeMethod","euler","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", true),
 	incr_factor     = util.GetParamNumber("-incr_factor", 1.2),
 	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.5),
 	red_factor_success     = util.GetParamNumber("-red_factor_success", 0.9),
-	optimal_newton_steps = util.GetParamNumber("-optimal_newton_steps", 25),
+	optimal_newton_steps = util.GetParamNumber("-optimal_newton_steps", 15),
 	maxConvRate = util.GetParamNumber("-maxConvRate", 0.9),
-	minConvRate = util.GetParamNumber("-minConvRate", 0.6),
+	minConvRate = util.GetParamNumber("-minConvRate", 0.1),
 	boolDebugStep = util.GetParamBool("-boolDebugStep", false),
 	
 	tol     = util.GetParamNumber("-limex-tol", 1e-2, "time step size"),
@@ -92,13 +92,13 @@ params =
 	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05),
 	RedDefect = util.GetParamNumber("-RedDefect", 1e-07),
 
-	max_linear_steps=util.GetParamNumber("-max_linear_steps", 100),
+	max_linear_steps=util.GetParamNumber("-max_linear_steps", 200),
 	damping_mg = util.GetParamNumber("-damping_mg", 0.9),
-	value_beta = util.GetParamNumber("-value_beta", 0.0001),
+	value_beta = util.GetParamNumber("-value_beta", -0.2 ),
 	LinAbsDefect = util.GetParamNumber("-LinAbsDefect", 1e-07),
-	LinRedDefect = util.GetParamNumber("-LinRedDefect", 1e-07),
+	LinRedDefect = util.GetParamNumber("-LinRedDefect", 1e-02),
 
-	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 7),
+	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 4),
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
 	
 			-- Physical phenomenon of simulation
@@ -109,7 +109,7 @@ params =
 	boolGradientPsSource = util.GetParamBool("-boolGradientPsSource", false),
 	boolViscPs = util.GetParamBool("-boolViscPs", true),
 	boolAveDiff = util.GetParamBool("-boolAveDiff", true),
-	boolSlipDiff = util.GetParamBool("-boolSlipDiff", true),
+	boolSlipDiff = util.GetParamBool("-boolSlipDiff", false),
 	boolSlipVel = util.GetParamBool("-boolSlipVel", false),
 	
 	inflow   = inflow,
@@ -134,19 +134,19 @@ params =
 	rho_s     = util.GetParamNumber("-rho_s", 2500, "Sand Density"),
 	dp     = util.GetParamNumber("-diameter", 1e-03, "Particle Diameter"),
 	nu_s     = util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity"),
-	c_init        = util.GetParamNumber("-c_init", 0.625, "max volume fraction"),
+	c_init        = util.GetParamNumber("-c_init", 0.0, "max volume fraction"),
 
 	alpha_max        = util.GetParamNumber("-alpha_max", 0.635, "max volume fraction"),
 	alpha_min        = util.GetParamNumber("-min alpha_min", 0.57, "max volume fraction"),
 	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein"),
 	density_model  = util.GetParam("-density_model", "linear", "constant, linear"),
-	interface_value  = util.GetParamNumber("-interface_value",  0.1, "interface value"),
+	interface_value  = util.GetParamNumber("-interface_value",  0.3, "interface value"),
 	drag_mod = util.GetParamNumber("-drag_model", 2, "Opt: 0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel"),
 	--Model 0 pow(0.63+4.8/sqrt(RE),2.0);
 
 	FR = 0.05,
 	B_phi = 1,
-	deltaGamma = 1e-05,
+	deltaGamma = 1e-03,
 	Visc_limit = 1e15,
 
 	deltaPs = 1.48e-04,
@@ -468,7 +468,7 @@ function inflowVel2d(x, y, t)
 end
 
 function ConstValue(x, y, t)
-	if (y < 1) then
+	if (y < 0.88667) then
 		return 1e-03
 	else return 0.0
 	end
@@ -621,7 +621,7 @@ ss_value = math.atan(params.FricMu_2)*180/3.1415926
 if params.boolSlipDiff then
 	SlipDiff = SlipDiffusion(approxSpace,u)
 	SlipDiff:set_theta(ss_value)
-	SlipDiff:set_vel(0.1)
+	SlipDiff:set_vel(0.05)
 	SlipDiff:set_phase_parameters(InterfaceValues)
 	if params.boolAveDiff then
 		SlipDiff:set_diffusion(Diffusion)
@@ -978,4 +978,6 @@ local Tablename = "Table_out.csv"
 lineWriter = LineWriter()
 Headers = " Sim, Vel, H0, W0, Solved\n"
 lineWriter:write_line(Tablename,rank_t, Headers, inflow, H_0, W0, boolSolution)
+
+SpaceTimeComm:unsplit()
 

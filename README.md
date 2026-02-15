@@ -19,7 +19,7 @@ To install the Daniel's version of the simulator, run the following commands in 
 	9.	git clone -b master https://github.com/UG4/plugin_Limex.git Limex  
 	10.	cd ../..
 	11.	mkdir build; cd build																	## Creating the temporary build folder
-	12.	cmake ../ug4 -DDIM=2 -DCPU="1;4" -DNavierStokes=ON -DLimex=ON										## Initializing the directory and setting the build arguments
+	12.	cmake ../ug4 -DDIM=2 -DCPU="1;4" -DNavierStokes=ON -DLimex=ON							## Initializing the directory and setting the build arguments
 																								## In case of cmake incompatibility run with additional argument:
 																								## -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 	12.	make																					## Compiling and linking the ug4 code (consider "make -j")

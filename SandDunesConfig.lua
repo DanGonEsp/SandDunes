@@ -38,6 +38,8 @@ myProblem.Init = function(self, o)
 	self.AbsDefect = o.AbsDefect
 	self.RedDefect = o.RedDefect
 
+	self.LinAbsDefect = o.LinAbsDefect
+	self.LinRedDefect = o.LinRedDefect
 	self.max_linear_steps = o.max_linear_steps
 	self.damping_mg = o.damping_mg
 	self.value_beta = o.value_beta
@@ -121,118 +123,132 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	-- --
 	
 	----------------------------------------------------------
-	-- preconditioners used by FETI sub solvers
+	-- LineSearch
+	----------------------------------------------------------
+	NewtonLineSearch = StandardLineSearch()
+	NewtonLineSearch:set_maximum_steps(self.lambdamaxSteps)
+	NewtonLineSearch:set_lambda_start(self.lambdaStart)
+	NewtonLineSearch:set_reduce_factor(0.5)
+	NewtonLineSearch:set_accept_best(true)
+	NewtonLineSearch:set_check_all(false)
+	NewtonLineSearch:set_suff_descent_factor(0.3)
+	NewtonLineSearch:set_maximum_defect(2e20)
+
+	----------------------------------------------------------
+	-- NoLinear COnvCheck
+	----------------------------------------------------------
+	local NewtonSteadyConvCheck=ConvCheck(self.max_newton_steps_steady_state, self.AbsDefect, self.RedDefect, true)
+	local NewtonConvCheck=ConvCheck(self.max_newton_steps_transcient, self.AbsDefect, self.RedDefect, true)
+	local LinearConvCheck=ConvCheck(self.max_linear_steps, self.LinAbsDefect, self.LinRedDefect, true)
+	local LimexConvCheck=ConvCheck(1, self.AbsDefect, 1e-8, true)
+	      LimexConvCheck:set_supress_unsuccessful(true)
+	
+	----------------------------------------------------------
+	-- Smoothers
 	----------------------------------------------------------
 	-- base solver
+	baseSolver = LU()
+	baseSolver = AgglomeratingSolver(SuperLU());
+	
+	
+	ilu = ILU()
+	ilu:set_beta(self.value_beta)
+	ilu:set_damp(self.damping_mg)
+	--ilu:set_ordering_algorithm(NativeCuthillMcKeeOrdering())
+	ilu:set_sort(false)
+	--ilu:set_sort_eps(1.e-50)
+	ilu:set_inversion_eps(1.e-16)
+	ilu:enable_consistent_interfaces(false)
+	ilu:enable_overlap(true)
+	
+	jac = Jacobi (0.7);
+	
+	bgs = BlockGaussSeidel ();
+	
+	gs = GaussSeidel()
+	gs:enable_consistent_interfaces(false)
+	gs:enable_overlap(false)
+	
+	sgs = SymmetricGaussSeidel ()
+	sgs:enable_consistent_interfaces(true)
+	sgs:enable_overlap(false)
 
+	egs = ElementGaussSeidel();
 
-	basePre = ILUT()
-	basePre:set_threshold(1e-7)
+	cgs = ComponentGaussSeidel(0.1, {"p"}, {1,2}, {1})
+	
 
-	--basePre=ElementGaussSeidel()
-	
-	
-	baseSolver = LinearSolver()
-	baseSolver:set_preconditioner(basePre)
-	baseSolver:set_convergence_check(ConvCheck(10000, 1e-07,1e-04,true))
-	
-	--baseSolver=LU()
-	
-	
-	
-	local LinearSolverDesc =
-	{
-		type = "bicgstab",
-		precond =
-		{
-			type = "gmg",
-			rap = true,
-			rim = false,
-			cycle = "V",
-			smoother =
-			{
-				type = "ilu",
-				beta = self.value_beta,
-				damping 	= self.damping_mg,
-				sort	= false,
-				--sortEps 	= 1.e-50,
-				inversionEps 	= 1.e-16,
-				consistentInterfaces   = false,     --consistentInterfaces and overlap shouldnot be activated at the same time
-				overlap 		= true,             --consistentInterfaces and overlap shouldnot be activated at the same time
-				--ordering 		= nil
-			},
-			preSmooth = 2,
-			postSmooth = 2,
-			baseSolver = ilutSolver,
-			baseLevel = self.numPreRefs
-		},
-		convCheck =
-		{
-			type		= "standard",
-			iterations	= self.max_linear_steps,
-			absolute	= self.LinAbsDefect,
-			reduction	= self.LinRedDefect,
-			verbose		= true
-		}
-	}
-	NewtonConvCheckSteady =
-	{
-		type		= "standard",
-		iterations	= self.max_newton_steps_steady_state,
-		absolute	= self.AbsDefect,
-		reduction	= self.RedDefect,
-		verbose		= true
-	}
-	NewtonConvCheck =
-	{
-		type		= "standard",
-		iterations	= self.max_newton_steps_transcient,
-		absolute	= self.AbsDefect,
-		reduction	= self.RedDefect,
-		verbose		= true
-	}
-	NewtonSolverDescSteady =
-	{
-		type = "newton",
-		debug = false, -- for the debug output from the Newton's method
-		linSolver = LinearSolverDesc
-		,
-		lineSearch =
-		{
-			type			= "standard",
-			maxSteps		=self.lambdamaxSteps,
-			lambdaStart		= self.lambdaStart,
-			lambdaReduce	= 0.7,
-			acceptBest 		= true,
-			checkAll		= false,
-			suffDesc		= 0.3,
-			maxDefect	= 2e20
-			
-		},
-		convCheck = NewtonConvCheckSteady
-	}
+	----------------------------------------------------------
+	-- preconditioners
+	----------------------------------------------------------
 
-	NewtonSolverDesc = NewtonSolverDescSteady
-	NewtonSolverDesc.convCheck = NewtonConvCheck
+	gmg = GeometricMultiGrid(approxSpace)
+	gmg:set_discretization(domainDisc)
+	gmg:set_base_level(self.numPreRefs)
+	gmg:set_base_solver(baseSolver)
+	gmg:set_smoother(ilu)
+	gmg:set_cycle_type(1)
+	gmg:set_num_presmooth(2)
+	gmg:set_num_postsmooth(2)
+	gmg:set_rap( true)
+	gmg:set_smooth_on_surface_rim(false)
+
+	-- gmg:set_damp(MinimalResiduumDamping())
+	-- gmg:set_damp(0.8)
+	-- gmg:set_damp(MinimalEnergyDamping())
+	
+	
+	----------------------------------------------------------
+	-- Linear Solver
+	----------------------------------------------------------
+	
+	-- create Linear Solver
+	BiCGStabSolver = BiCGStab()
+	BiCGStabSolver:set_preconditioner(gmg)
+	BiCGStabSolver:set_convergence_check(LinearConvCheck)
+
+	gmgSolver = LinearSolver()
+	gmgSolver:set_preconditioner(gmg)
+	gmgSolver:set_convergence_check(LinearConvCheck)
+	
+	ilutSolver = LinearSolver()
+	ilutSolver:set_preconditioner(ilu)
+	ilutSolver:set_convergence_check(LinearConvCheck)
+	
+	
+	-- choose a solver
+	LinearSolver = BiCGStabSolver
+	--LinearSolver = gmgSolver
+	-- LinearSolver = ilutSolver
+	
+	
+	
+	
 
 	local NewtonSolverSteady = nil
-	if self.doSteadyState then NewtonSolverSteady = util.solver.CreateSolver(NewtonSolverDesc) end
-	local LinearSolver = util.solver.CreateSolver(LinearSolverDesc)
+	if self.doSteadyState then
+		NewtonSolverSteady = NewtonSolver()
+		NewtonSolverSteady:set_linear_solver(BiCGStabSolver)
+		NewtonSolverSteady:set_convergence_check(NewtonSteadyConvCheck)
+		NewtonSolverSteady:set_line_search(NewtonLineSearch)
+		
+	end
 
-	local limexConvCheck=ConvCheck(1, self.AbsDefect, 1e-8, true)
-	limexConvCheck:set_supress_unsuccessful(true)
 
 
 
-	local NLSolver = nil
 	local limex = nil
+	local NLSolver = NewtonSolver()
+	
+	
 	if self.timeMethod == "limex" then
-		NLSolver = NewtonSolver()
-		NLSolver:set_linear_solver(LinearSolver)
-		NLSolver:set_convergence_check(limexConvCheck)
+		NLSolver:set_linear_solver(BiCGStabSolver)
+		NLSolver:set_convergence_check(LimexConvCheck)
 		limex = myProblem:LimexObject( domainDisc, NLSolver)
 	else
-		NLSolver = util.solver.CreateSolver(NewtonSolverDesc)
+		NLSolver:set_linear_solver(BiCGStabSolver)
+		NLSolver:set_convergence_check(NewtonConvCheck)
+		NLSolver:set_line_search(NewtonLineSearch)
 		op = AssembledOperator(timeDisc)
 		op:init()
 		NLSolver:init(op)
@@ -240,11 +256,19 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 			print ("Newton solver prepare failed.") return op, NLSolver, NewtonSolverSteady, limex, 0
 		end
 	end
-
+	
+	
+	local dbgWriter = GridFunctionDebugWriter(approxSpace)
+	dbgWriter:set_vtk_output(false)
+	--dbgWriter:set_conn_viewer_output(conn_viewer)
+	--NLSolver:set_debug(dbgWriter)
+	
+	
 	self.NewtonSolverDescSteady = NewtonSolverDescSteady
 	self.NewtonSolverDesc = NewtonSolverDesc
+	self.approxSpace = approxSpace
 	self.boolSolverDesc = true
-
+	
 	  
 	return op, NLSolver, NewtonSolverSteady, limex, 1
 end
@@ -335,13 +359,12 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 	local boolDebugStep = self.boolDebugStep
 	local AbsDefect = self.AbsDefect
 	local RedDefect = self.RedDefect
-	local LinAbsDefect = self.LinAbsDefect
-	local LinRedDefect = self.LinRedDefect
 	local maxConvRate = self.maxConvRate
 	local minConvRate = self.minConvRate
 
 	if(self.boolSolverDesc == false) then print("SolverDesc Not initialized ") return 0, 0, 0, 0, 0, 0 end
 	local solverDesc = self.NewtonSolverDesc
+	local approxSpace = self.approxSpace
 		
     local Newton_Steps = 0
     local Newton_Steps_fail = 0
@@ -395,9 +418,10 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 							verbose		= true
 						}
 
-					solverDesc.debug = true
-					solverDesc.convCheck = convCheck
-					solver = util.solver.CreateSolver(solverDesc)
+					solver:set_convergence_check(ConvCheck(5, self.AbsDefect, self.RedDefect, true))
+					local dbgWriter = GridFunctionDebugWriter(approxSpace)
+					dbgWriter:set_vtk_output(true)
+					solver:set_debug(dbgWriter)
 					solver:init(op)
 					timeDisc:prepare_step(solTimeSeries, do_dt)
 					if solver:prepare(u) == false then
