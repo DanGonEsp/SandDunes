@@ -12,17 +12,11 @@ ug_load_script("util/conv_rates_kinetic.lua")
 
 RequiredPlugins({"Limex", "NavierStokes"})
 
-
-------------------------------------------------------------------------------------------
--- Initialize UG4
-------------------------------------------------------------------------------------------
-local dim         = util.GetParamNumber("-dim", 2, "dimensionality of the problem")
-local numProc         = util.GetParamNumber("-numProc", 1, "Number of temporal processes")
-InitUG (dim, AlgebraType("CPU", dim+2))
-
 ------------------------------------------------------------------------------------------
 -- Split communicator
 ------------------------------------------------------------------------------------------
+local numProc         = util.GetParamNumber("-numProc", 1, "Number of temporal processes")
+
 SpaceTimeComm = SpaceTimeCommunicator()
 SpaceTimeComm:split(numProc)
 
@@ -60,7 +54,7 @@ local fixedNum = string.format("%04d", rank_t)
 params =
 {
 			-- Numerical parameters of the discretization
-	dim      = dim,
+	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
 	file_name = util.GetParam("-file_name", "borrar_borrar") .. fixedNum,
 	folder_name = util.GetParam("-folder_name", "borrar_borrar"),
 	elem_type = util.GetParam("-elem_type", "tri", "tri, quad"),
@@ -74,10 +68,10 @@ params =
 	
 	timeMethod = util.GetParam("-timeMethod","euler","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", true),
-	incr_factor     = util.GetParamNumber("-incr_factor", 1.2),
-	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.5),
-	red_factor_success     = util.GetParamNumber("-red_factor_success", 0.9),
-	optimal_newton_steps = util.GetParamNumber("-optimal_newton_steps", 15),
+	incr_factor     = util.GetParamNumber("-incr_factor", 1.3),
+	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.7),
+	red_factor_success     = util.GetParamNumber("-red_factor_success", 0.97),
+	optimal_newton_steps = util.GetParamNumber("-optimal_newton_steps", 20),
 	maxConvRate = util.GetParamNumber("-maxConvRate", 0.9),
 	minConvRate = util.GetParamNumber("-minConvRate", 0.1),
 	boolDebugStep = util.GetParamBool("-boolDebugStep", false),
@@ -94,11 +88,11 @@ params =
 
 	max_linear_steps=util.GetParamNumber("-max_linear_steps", 200),
 	damping_mg = util.GetParamNumber("-damping_mg", 0.9),
-	value_beta = util.GetParamNumber("-value_beta", -0.2 ),
+	value_beta = util.GetParamNumber("-value_beta", 0.0 ),
 	LinAbsDefect = util.GetParamNumber("-LinAbsDefect", 1e-07),
 	LinRedDefect = util.GetParamNumber("-LinRedDefect", 1e-02),
 
-	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 4),
+	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 5),
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
 	
 			-- Physical phenomenon of simulation
@@ -134,13 +128,14 @@ params =
 	rho_s     = util.GetParamNumber("-rho_s", 2500, "Sand Density"),
 	dp     = util.GetParamNumber("-diameter", 1e-03, "Particle Diameter"),
 	nu_s     = util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity"),
-	c_init        = util.GetParamNumber("-c_init", 0.0, "max volume fraction"),
+	c_init        = util.GetParamNumber("-c_init", 0.6, "max volume fraction"),
 
 	alpha_max        = util.GetParamNumber("-alpha_max", 0.635, "max volume fraction"),
 	alpha_min        = util.GetParamNumber("-min alpha_min", 0.57, "max volume fraction"),
 	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein"),
 	density_model  = util.GetParam("-density_model", "linear", "constant, linear"),
-	interface_value  = util.GetParamNumber("-interface_value",  0.3, "interface value"),
+	interface_value  = util.GetParamNumber("-interface_value",  0.57, "interface value"),
+	--interface_value  = util.GetParamNumber("-interface_value",  0.3, "interface value"),
 	drag_mod = util.GetParamNumber("-drag_model", 2, "Opt: 0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel"),
 	--Model 0 pow(0.63+4.8/sqrt(RE),2.0);
 
@@ -164,7 +159,7 @@ print("fixedNum = "..fixedNum)
 file_name = params.file_name
 folder_name = params.folder_name
 c_init = params.c_init
-
+dim = params.dim
 
 ------------------------------------------------------------------------------------------
 -- Get command line parameters
@@ -247,7 +242,17 @@ end
 
 vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
 
+------------------------------------------------------------------------------------------
+-- Initialize UG4
+------------------------------------------------------------------------------------------
 
+InitUG (dim, AlgebraType("CPU", dim+2))
+GetLogAssistant():enable_file_output(true, folder .. "/LogFile_"..rank_t.. "_Lev"..params.numRefs)
+if rank_t > 0 then GetLogAssistant():enable_terminal_output(false) end
+
+------------------------------------------------------------------------------------------
+-- Initialize UG4
+------------------------------------------------------------------------------------------
 print (" Geometry: " .. gridName ..", dim = " .. params.dim)
 print (" Physical parameter:")
 print ("	inflow			= " .. params.inflow)
@@ -280,7 +285,7 @@ local myProblem=require("SandDunesConfig")
 myProblem:Init(params)
 
 ------------------------------------------------------------------------------------------
--- Initialize UG4, load, refine and distribute the grid
+-- load, refine and distribute the grid
 ------------------------------------------------------------------------------------------
 
 if dim == 3 then
@@ -469,7 +474,7 @@ end
 
 function ConstValue(x, y, t)
 	if (y < 0.88667) then
-		return 1e-03
+		return 1.2e-03
 	else return 0.0
 	end
 end
@@ -496,6 +501,7 @@ InterfaceValues:set_particle_density(params.rho_s)
 InterfaceValues:set_air_density(params.rho_a)
 InterfaceValues:set_fluid_Visc(params.nu_a*params.rho_a)
 InterfaceValues:set_alpha_max(params.alpha_max)
+InterfaceValues:set_packing_factor(params.c_init)
 InterfaceValues:set_alpha_min(params.alpha_min)
 InterfaceValues:set_FR(params.FR)
 InterfaceValues:set_B_phi(params.B_phi)
@@ -592,7 +598,7 @@ RelVel:set_particle_diameter(params.dp)
 RelVel:set_gravity(-9.81)
 RelVel:set_rel_vel(Vs)
 RelVel:set_dragCoeff(Cd)
-RelVel:activate_relative_vel(params.boolRelativeVel)
+RelVel:activate_relative_vel(false)
 RelVel:set_fluid_viscosity(params.nu_a*params.rho_a)
 RelVel:set_alpha_max(params.alpha_max)
 RelVel:set_phase_parameters(InterfaceValues)
@@ -680,7 +686,7 @@ InletDisc = NavierStokesInflowFV1M (NavierStokesDisc)
 InletDisc:add ("inflowVel2d","Left,Top")
 
 flowBnd = DirichletBoundary()
-flowBnd:add("ConstValue", "c", "Left")
+flowBnd:add(0.0, "c", "Left")
 
 
 
@@ -783,6 +789,7 @@ Interpolate(1.0e-5, u, "u")
 Interpolate("StartValueY", u, "v")
 Interpolate("StartValueP", u, "p")
 Interpolate("StartValueC", u, "c")
+--Interpolate("ConstValue", u, "c")
 
 
 ------------------------------------------------------------------------------------------

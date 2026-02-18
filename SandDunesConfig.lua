@@ -482,17 +482,17 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
             
             
             if modifyDT then
-                if(average_non_linear_rates>maxConvRate and num_newton_steps>30) then
+                if(average_non_linear_rates>maxConvRate and false) then
                     dt_in = math.max(do_dt*red_factor_success,1.00001*DTmin)
                     print ("-------------------------------------------------------------------Time step decrease at Step " .. step-1 + (time2-time)/DTmax .. ", dt =  " .. dt_in .. ". ")
                 else if (CompletedStep== false or Dt_factor < 0.98 ) then
-                    if(average_non_linear_rates<minConvRate or num_newton_steps<optimal_newton_steps) then
-                        dt_in=math.min(incr_factor*dt_in,DTmax)
-                        print ("-------------------------------------------------------------------Time step increased at Step " .. step-1 + (time2-time)/DTmax ..", dt =  " .. dt_in .. ". ")
-                    end
+						if(average_non_linear_rates<minConvRate or num_newton_steps<=optimal_newton_steps) then
+							dt_in=math.min(incr_factor*dt_in,DTmax)
+							print ("-------------------------------------------------------------------Time step increased at Step " .. step-1 + (time2-time)/DTmax ..", dt =  " .. dt_in .. ". ")
+						end
                     end
                 end
-            end
+            end	
             
             
             
@@ -573,11 +573,11 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	  dt = dtlimex,
 	  dtmax = dtmax,
 	  dtmin = dtmin,
-	  rhoSafetyOPT = 0.2,
+	  rhoSafetyOPT = 0.25,
 	  dtred = 0.5,
-	  dtIncr = 1.3,
+	  dtIncr = 1.5,
 	  matrixCache = true,
-	  conservative = true
+	  conservative = false
 	  
 	}
 
