@@ -33,7 +33,7 @@ print("SpaceSize = " ..SpaceSize)
 -- Input parameter table
 ------------------------------------------------------------------------------------------
 local csvfile = require "simplecsv"
-local InValues, num_rows, num_cols = csvfile.read('./table_in.csv') -- read file csv1.txt to matrix m
+local InValues, num_rows, num_cols = csvfile.read('./Table_in.csv') -- read file csv1.txt to matrix m
 if( TemporalSize > num_rows-1) then print ("TemporalSize larger than rows in input parametrs."); exit(); end
 
 
