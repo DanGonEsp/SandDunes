@@ -26,8 +26,10 @@ myProblem.Init = function(self, o)
 	self.optimal_newton_steps = o.optimal_newton_steps
 	self.maxConvRate = o.maxConvRate
 	self.minConvRate = o.minConvRate
+	self.boolDebug = o.boolDebug
 	self.boolDebugStep = o.boolDebugStep
 	
+		
 	self.tol = o.tol
 	self.nstages = o.nstages
 	self.limex_partial_mask = o.limex_partial_mask
@@ -202,6 +204,11 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	-- Linear Solver
 	----------------------------------------------------------
 	
+		-- create Linear Solver
+	GMresSolver = GMRES(20)
+	GMresSolver:set_preconditioner(gmg)
+	GMresSolver:set_convergence_check(LinearConvCheck)
+	
 	-- create Linear Solver
 	BiCGStabSolver = BiCGStab()
 	BiCGStabSolver:set_preconditioner(gmg)
@@ -218,8 +225,9 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	
 	-- choose a solver
 	LinearSolver = BiCGStabSolver
+	--LinearSolver = GMresSolver
 	--LinearSolver = gmgSolver
-	-- LinearSolver = ilutSolver
+	--LinearSolver = ilutSolver
 	
 	
 	
@@ -228,7 +236,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	local NewtonSolverSteady = nil
 	if self.doSteadyState then
 		NewtonSolverSteady = NewtonSolver()
-		NewtonSolverSteady:set_linear_solver(BiCGStabSolver)
+		NewtonSolverSteady:set_linear_solver(LinearSolver)
 		NewtonSolverSteady:set_convergence_check(NewtonSteadyConvCheck)
 		NewtonSolverSteady:set_line_search(NewtonLineSearch)
 		
@@ -242,11 +250,11 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	
 	
 	if self.timeMethod == "limex" then
-		NLSolver:set_linear_solver(BiCGStabSolver)
+		NLSolver:set_linear_solver(LinearSolver)
 		NLSolver:set_convergence_check(LimexConvCheck)
 		limex = myProblem:LimexObject( domainDisc, NLSolver)
 	else
-		NLSolver:set_linear_solver(BiCGStabSolver)
+		NLSolver:set_linear_solver(LinearSolver)
 		NLSolver:set_convergence_check(NewtonConvCheck)
 		NLSolver:set_line_search(NewtonLineSearch)
 		op = AssembledOperator(timeDisc)
@@ -257,11 +265,12 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		end
 	end
 	
-	
-	local dbgWriter = GridFunctionDebugWriter(approxSpace)
-	dbgWriter:set_vtk_output(false)
-	--dbgWriter:set_conn_viewer_output(conn_viewer)
-	--NLSolver:set_debug(dbgWriter)
+	if self.boolDebug then
+		local dbgWriter = GridFunctionDebugWriter(approxSpace)
+		dbgWriter:set_vtk_output(true)
+		dbgWriter:set_conn_viewer_output(false)
+		NLSolver:set_debug(dbgWriter)
+	end
 	
 	
 	self.NewtonSolverDescSteady = NewtonSolverDescSteady
@@ -374,6 +383,8 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
     local time = StartTime
     local time2 = StartTime
     local dt_in = dt
+	if(modifyDT == false) then dt_in = DTmax end
+        
 
         
 	while CompletedStep==false  do

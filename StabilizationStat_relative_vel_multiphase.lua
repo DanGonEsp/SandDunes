@@ -55,8 +55,8 @@ params =
 {
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
-	file_name = util.GetParam("-file_name", "borrar_borrar") .. fixedNum,
-	folder_name = util.GetParam("-folder_name", "borrar_borrar"),
+	file_name = util.GetParam("-file_name", "Test2") .. fixedNum,
+	folder_name = util.GetParam("-folder_name", "Test2"),
 	elem_type = util.GetParam("-elem_type", "tri", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 1, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)"),
@@ -67,13 +67,14 @@ params =
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	
 	timeMethod = util.GetParam("-timeMethod","euler","euler limex"),
-	modifyDT     = util.GetParamBool("-modifyDT", true),
+	modifyDT     = util.GetParamBool("-modifyDT", false),
 	incr_factor     = util.GetParamNumber("-incr_factor", 1.3),
 	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.7),
 	red_factor_success     = util.GetParamNumber("-red_factor_success", 0.97),
 	optimal_newton_steps = util.GetParamNumber("-optimal_newton_steps", 20),
 	maxConvRate = util.GetParamNumber("-maxConvRate", 0.9),
 	minConvRate = util.GetParamNumber("-minConvRate", 0.1),
+	boolDebug = util.GetParamBool("-boolDebug", false),
 	boolDebugStep = util.GetParamBool("-boolDebugStep", false),
 	
 	tol     = util.GetParamNumber("-limex-tol", 1e-2, "time step size"),
@@ -474,7 +475,7 @@ end
 
 function ConstValue(x, y, t)
 	if (y < 0.88667) then
-		return 1.2e-03
+		return 1.2e-02
 	else return 0.0
 	end
 end
@@ -788,8 +789,8 @@ op, NLSolver, NewtonSolverSteady, limex, boolSolution = myProblem:CreateSolver(d
 Interpolate(1.0e-5, u, "u")
 Interpolate("StartValueY", u, "v")
 Interpolate("StartValueP", u, "p")
-Interpolate("StartValueC", u, "c")
---Interpolate("ConstValue", u, "c")
+--Interpolate("StartValueC", u, "c")
+Interpolate("ConstValue", u, "c")
 
 
 ------------------------------------------------------------------------------------------
@@ -817,38 +818,39 @@ time = 0
 step = 0
 
 	-- write start solution
-print("Writing inittial values")
-out = VTKOutput()
-out:clear_selection()
-out:select_all(false)
-out:select_nodal ("u,v", "velocity")
-out:select_nodal ("u", "u")
-out:select_nodal ("v", "v")
-out:select_nodal ("p", "p")
-out:select_nodal ("c", "c")
-out:select(Density, "Rho")
-out:select(NavierStokesDisc:einstein_viscosity(), "Mu_eins")
-out:select(Viscosity, "Mu")
-out:select(Viscosity2, "Mu2")
-out:select(RelVel, "RelVel")
-out:select(NavierStokesDisc:particle_pressure(), "Ps")
-out:select(NavierStokesDisc:particle_pressure_grad(), "DPs")
-out:select(gamma, "G")
-out:select(NavierStokesDisc:velocity_grad(), "G2")
-if (params.boolSlipDiff) then
-	out:select(SlipDiff, "SDiff")
-else
-	if params.boolSlipVel then
-		out:select(SlipVel, "SVel")
+if boolSolution == 1 then
+	print("Writing inittial values")
+	out = VTKOutput()
+	out:clear_selection()
+	out:select_all(false)
+	out:select_nodal ("u,v", "velocity")
+	out:select_nodal ("u", "u")
+	out:select_nodal ("v", "v")
+	out:select_nodal ("p", "p")
+	out:select_nodal ("c", "c")
+	out:select(Density, "Rho")
+	out:select(NavierStokesDisc:einstein_viscosity(), "Mu_eins")
+	out:select(Viscosity, "Mu")
+	out:select(Viscosity2, "Mu2")
+	out:select(RelVel, "RelVel")
+	out:select(NavierStokesDisc:particle_pressure(), "Ps")
+	out:select(NavierStokesDisc:particle_pressure_grad(), "DPs")
+	out:select(gamma, "G")
+	out:select(NavierStokesDisc:velocity_grad(), "G2")
+	if (params.boolSlipDiff) then
+		out:select(SlipDiff, "SDiff")
+	else
+		if params.boolSlipVel then
+			out:select(SlipVel, "SVel")
+		end
 	end
+	out:select(Diffusion, "D")
+	out:print_subsets(vtk_file_name, u,allSubsets,step,time)
+	print ("Output to file " .. vtk_file_name .. ".vtu  in time t = 0")
+	print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+	print ("                                                            ")
+	print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
 end
-out:select(Diffusion, "D")
-out:print_subsets(vtk_file_name, u,allSubsets,step,time)
-print ("Output to file " .. vtk_file_name .. ".vtu  in time t = 0")
-print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-print ("                                                            ")
-print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-
 
 
 ------------------------------------------------------------------------------------------
@@ -865,7 +867,7 @@ solTimeSeries:push(uOld, time)
 Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
 Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
 
-if rank == 0 then
+if (rank == 0 and  boolSolution == 1) then
 	myProblem:WriteValues( folder, step, time, Value_inner1, Value_inner2, time_work_steady, 1, 0, linsolver_calls, linsolver_steps,false)
 end
 
@@ -917,71 +919,74 @@ if boolSolution == 1 then
 		time = EndTime
 		tAfter_step = os.clock()
 		
-		if step % params.outputFactor == 0 then
+		if (step % params.outputFactor == 0 and boolSolution == 1) then
 		
 			out:print_subsets(vtk_file_name, u,allSubsets,step,time)
 			print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
 			print(" ")
 		end
-	 
-		print("++++++ TIMESTEP " .. step .. "  END ++++++")
-		print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-		print ("                                                            ")
-		print ("                                                            ")
-		print ("                                                            ")
-		print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-		print ("                                                            ")
-		print ("<<<<<< Total Newton semi   Steps =  " .. Newton_Steps .. "   >>>>>>")
-		print ("<<<<<<       Newton success Steps =  " .. Newton_Steps-Newton_Steps_fail .. "   >>>>>>")
-		print ("<<<<<<       Newton fail   Steps =  " .. Newton_Steps_fail .. "   >>>>>>")
-		print ("                                                            ")
-		print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-		print ("                                                            ")
-		print ("                                                            ")
-		print ("                                                            ")
-		print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-		
-		total_Newton_Steps = total_Newton_Steps + Newton_Steps
-		total_Newton_Steps_fail = total_Newton_Steps_fail + Newton_Steps_fail
-		total_linsolver_calls_step = total_linsolver_calls_step + linsolver_calls_step
-		total_linsolver_steps_step = total_linsolver_steps_step + linsolver_steps_step
-				
-		Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
-		Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
-		
-		if rank == 0 then
-			myProblem:WriteValues( folder, step, time, Value_inner1, Value_inner2, tAfter_step - tBefore_step, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
+		if boolSolution == 1 then
+			print("++++++ TIMESTEP " .. step .. "  END ++++++")
+			print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+			print ("                                                            ")
+			print ("                                                            ")
+			print ("                                                            ")
+			print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+			print ("                                                            ")
+			print ("<<<<<< Total Newton semi   Steps =  " .. Newton_Steps .. "   >>>>>>")
+			print ("<<<<<<       Newton success Steps =  " .. Newton_Steps-Newton_Steps_fail .. "   >>>>>>")
+			print ("<<<<<<       Newton fail   Steps =  " .. Newton_Steps_fail .. "   >>>>>>")
+			print ("                                                            ")
+			print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+			print ("                                                            ")
+			print ("                                                            ")
+			print ("                                                            ")
+			print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+			
+			total_Newton_Steps = total_Newton_Steps + Newton_Steps
+			total_Newton_Steps_fail = total_Newton_Steps_fail + Newton_Steps_fail
+			total_linsolver_calls_step = total_linsolver_calls_step + linsolver_calls_step
+			total_linsolver_steps_step = total_linsolver_steps_step + linsolver_steps_step
+					
+			Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
+			Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
+			
+			if rank == 0 then
+				myProblem:WriteValues( folder, step, time, Value_inner1, Value_inner2, tAfter_step - tBefore_step, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
+			end
+		else
+			break
 		end
-		
-		if (boolSolution == 0) then break end
 		
 		
 	end
 end
 tAfter = os.clock()
 
+if boolSolution == 1 then
+	------------------------------------------------------------------------------------------
+	-- Solution Done
+	------------------------------------------------------------------------------------------
 
-------------------------------------------------------------------------------------------
--- Solution Done
-------------------------------------------------------------------------------------------
+	print("-			-")
+	print("-------------------------------------------------------------------------------")
+	print("Steady state Computation took " .. time_work_steady .. " seconds.")
+	print("Temporal Computation took " .. tAfter-tBefore .. " seconds.")
+	print("Total Computation took " .. time_work_steady+tAfter-tBefore .. " seconds.")
+	print("-------------------------------------------------------------------------------")
+	print("")
+	print("")
+	print ("Output to file " .. vtk_file_name .. ".vtu")
+	print("done.")
 
-print("-			-")
-print("-------------------------------------------------------------------------------")
-print("Steady state Computation took " .. time_work_steady .. " seconds.")
-print("Temporal Computation took " .. tAfter-tBefore .. " seconds.")
-print("Total Computation took " .. time_work_steady+tAfter-tBefore .. " seconds.")
-print("-------------------------------------------------------------------------------")
-print("")
-print("")
-print ("Output to file " .. vtk_file_name .. ".vtu")
-print("done.")
 
-if rank == 0 then
-	myProblem:WriteValues( folder, params.numTimeSteps, time, Value_inner1, Value_inner2, time_work_steady+tAfter-tBefore, total_Newton_Steps, total_Newton_Steps_fail, total_linsolver_calls_step, total_linsolver_steps_step,true)
+	if rank == 0 then
+		myProblem:WriteValues( folder, params.numTimeSteps, time, Value_inner1, Value_inner2, time_work_steady+tAfter-tBefore, total_Newton_Steps, total_Newton_Steps_fail, total_linsolver_calls_step, total_linsolver_steps_step,true)
+	end
 end
 
 
-local Tablename = "Table_out.csv"
+local Tablename = folder_name .. "/Table_out_" .. numProc ..".csv"
 lineWriter = LineWriter()
 Headers = " Sim, Vel, H0, W0, Solved\n"
 lineWriter:write_line(Tablename,rank_t, Headers, inflow, H_0, W0, boolSolution)
