@@ -821,7 +821,7 @@ step = 0
 if boolSolution == 1 then
 	print("Writing inittial values")
 	out = VTKOutput()
-	out:clear_selection()g
+	out:clear_selection()
 	out:select_all(false)
 	out:select_nodal ("u,v", "velocity")
 	out:select_nodal ("u", "u")
