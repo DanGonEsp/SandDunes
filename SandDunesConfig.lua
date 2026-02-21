@@ -28,6 +28,7 @@ myProblem.Init = function(self, o)
 	self.minConvRate = o.minConvRate
 	self.boolDebug = o.boolDebug
 	self.boolDebugStep = o.boolDebugStep
+	self.debug_dir = o.debug_dir
 	
 		
 	self.tol = o.tol
@@ -117,12 +118,6 @@ end
 -- SOLVER
 --------------------------------------------------------------------------------
 myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
-
-		-- For debugging only (to write the intermediate data): --
-	--util.debug_dir = "FLOW_DEBUG"
-	--util.debug = { vtk = true, conn_viewer = false }
-	--util.CreateGridFuncDebugWriter (approxSpace)
-	-- --
 	
 	----------------------------------------------------------
 	-- LineSearch
@@ -135,6 +130,15 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	NewtonLineSearch:set_check_all(false)
 	NewtonLineSearch:set_suff_descent_factor(0.3)
 	NewtonLineSearch:set_maximum_defect(2e20)
+	
+	NewtonTrustRegionMethod = TrustRegionMethod()
+	NewtonTrustRegionMethod:set_maximum_steps(self.lambdamaxSteps)
+	NewtonTrustRegionMethod:set_lambda_start(self.lambdaStart)
+	NewtonTrustRegionMethod:set_reduce_factor(0.5)
+	NewtonTrustRegionMethod:set_accept_best(true)
+	NewtonTrustRegionMethod:set_check_all(false)
+	NewtonTrustRegionMethod:set_suff_descent_factor(0.3)
+	NewtonTrustRegionMethod:set_maximum_defect(2e20)
 
 	----------------------------------------------------------
 	-- NoLinear COnvCheck
@@ -238,7 +242,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		NewtonSolverSteady = NewtonSolver()
 		NewtonSolverSteady:set_linear_solver(LinearSolver)
 		NewtonSolverSteady:set_convergence_check(NewtonSteadyConvCheck)
-		NewtonSolverSteady:set_line_search(NewtonLineSearch)
+		NewtonSolverSteady:set_line_search(NewtonTrustRegionMethod)
 		
 	end
 
@@ -256,7 +260,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	else
 		NLSolver:set_linear_solver(LinearSolver)
 		NLSolver:set_convergence_check(NewtonConvCheck)
-		NLSolver:set_line_search(NewtonLineSearch)
+		NLSolver:set_line_search(NewtonTrustRegionMethod)
 		op = AssembledOperator(timeDisc)
 		op:init()
 		NLSolver:init(op)
@@ -269,7 +273,9 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		local dbgWriter = GridFunctionDebugWriter(approxSpace)
 		dbgWriter:set_vtk_output(true)
 		dbgWriter:set_conn_viewer_output(false)
+		dbgWriter:set_base_dir(self.debug_dir)
 		NLSolver:set_debug(dbgWriter)
+					
 	end
 	
 	
@@ -432,6 +438,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 					solver:set_convergence_check(ConvCheck(5, self.AbsDefect, self.RedDefect, true))
 					local dbgWriter = GridFunctionDebugWriter(approxSpace)
 					dbgWriter:set_vtk_output(true)
+					dbgWriter:set_base_dir(self.debug_dir .."Steady")
 					solver:set_debug(dbgWriter)
 					solver:init(op)
 					timeDisc:prepare_step(solTimeSeries, do_dt)

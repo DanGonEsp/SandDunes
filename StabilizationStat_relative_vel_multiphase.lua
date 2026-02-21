@@ -55,7 +55,7 @@ params =
 {
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
-	file_name = util.GetParam("-file_name", "Test2") .. fixedNum,
+	file_name = util.GetParam("-file_name", "Test2") .."_".. fixedNum,
 	folder_name = util.GetParam("-folder_name", "Test2"),
 	elem_type = util.GetParam("-elem_type", "tri", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 1, "number of grid refinements"),
@@ -156,7 +156,6 @@ params =
 
 params.DTmax = (params.endTime - params.startTime) / params.numTimeSteps
 dt = util.GetParamNumber("-dt", params.DTmax, "dt")
-print("fixedNum = "..fixedNum)
 file_name = params.file_name
 folder_name = params.folder_name
 c_init = params.c_init
@@ -241,6 +240,7 @@ if (rank== 0) then
 	end
 end
 
+params.debug_dir = folder .."/Z_DEBUG"
 vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
 
 ------------------------------------------------------------------------------------------

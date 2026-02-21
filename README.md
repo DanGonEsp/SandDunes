@@ -14,32 +14,32 @@ To install the Daniel's version of the simulator, run the following commands in 
 	4.	../ughub/ughub init																		## Initializing the ug4 directory
 	5. 	git clone -b ConvergenceRate https://github.com/DanGonEsp/ugcore.git					## Clonning the Daniel's repository
 	6.	../ughub/ughub install ugcore --ignore
-	7.	../ughub/ughub install SuperLU6 --ignore	
-	7.	mkdir plugins; cd plugins										  		
-	8.	git clone -b MultiphaseFlowLinkers https://github.com/DanGonEsp/plugin_NavierStokes.git NavierStokes
-	9.	git clone -b master https://github.com/UG4/plugin_Limex.git Limex
-	10.	cd SuperLU6																				## Enter SuperLU6 folder
-	11.	git submodule init																		## Initialize submodule 
-	12.	git submodule update																	## Update
-	13.	cd ../../..																				## Geting back to UG4 folder
-	14.	mkdir build; cd build																	## Creating the temporary build folder
-	15.	cmake ../ug4 -DDIM=2 -DCPU="1;4" -DNavierStokes=ON -DLimex=ON -DSuperLU6=ON				## Initializing the directory and setting the build arguments
+	7.	../ughub/ughub install SuperLU6 --ignore
+	8.	../ughub/ughub install Limex --ignore	
+	9.	cd plugins										  		
+	10.	git clone -b MultiphaseFlowLinkers https://github.com/DanGonEsp/plugin_NavierStokes.git NavierStokes
+	11.	cd SuperLU6																				## Enter SuperLU6 folder
+	12.	git submodule init																		## Initialize submodule 
+	13.	git submodule update																	## Update
+	14.	cd ../../..																				## Geting back to UG4 folder
+	15.	mkdir build; cd build																	## Creating the temporary build folder
+	17.	cmake ../ug4 -DDIM=2 -DCPU="1;4" -DNavierStokes=ON -DLimex=ON -DSuperLU6=ON				## Initializing the directory and setting the build arguments
 																								## In case of cmake incompatibility run with additional argument:
 																								## -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-	16.	make																					## Compiling and linking the ug4 code (consider "make -j")
+	18.	make																					## Compiling and linking the ug4 code (consider "make -j")
 			
 	Installation of the ug4 library and the NavierStokes plugin completed
 	
-	17.	cd ..																					## Returning to the UG4 directory
-	18.	git clone https://gitlab.com/DanGon/sanddunes.git
+	19.	cd ..																					## Returning to the UG4 directory
+	20.	git clone https://github.com/DanGonEsp/SandDunes.git
 	
 
 # Running code
 
 To perform one simulation of the sand dune, do:
 
-	1. Go to UG4/sanddunes
-	2. ../ug4/bin/ugshell -ex StabilizationStat_relative_vel_multiphase.lua -file_name Test -numRefs 1 -numPreRefs 0 -numTimeSteps 100 -DTmax 10 -Stokes true -boolAveDiff true -boolRelativeVel true
+	1. Go to UG4/SandDunes
+	2. ../ug4/bin/ugshell -ex StabilizationStat_relative_vel_multiphase.lua -folder_name Test -file_name Test -numRefs 1 -numPreRefs 0 -end 100 -start 0 -numTimeSteps 10
 
 
 Additional parameters for the *StabilizationStat_relative_vel_multiphase.lua* script:
@@ -62,7 +62,7 @@ Additional parameters for the *StabilizationStat_relative_vel_multiphase.lua* sc
 	* -boolAveDiff			[true|false]	Activate and deactivate the Erosion diffusion effect
 	* -inflow				[0 - 10,m/s]	Inflow velocity (logarithmic profile)
 	* -Height				[0-2,meter]		Dune Height
-	* -Stokes								For solving stokes equations
+	* -Stokes				[true]			For solving stokes equations
 
 	* -visc_a				[1.48e-05]		"air kinematic viscosity"
 	* -rho_a				[1.2]			"Air Density"
