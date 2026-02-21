@@ -131,15 +131,6 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	NewtonLineSearch:set_suff_descent_factor(0.3)
 	NewtonLineSearch:set_maximum_defect(2e20)
 	
-	NewtonTrustRegionMethod = TrustRegionMethod()
-	NewtonTrustRegionMethod:set_maximum_steps(self.lambdamaxSteps)
-	NewtonTrustRegionMethod:set_lambda_start(self.lambdaStart)
-	NewtonTrustRegionMethod:set_reduce_factor(0.5)
-	NewtonTrustRegionMethod:set_accept_best(true)
-	NewtonTrustRegionMethod:set_check_all(false)
-	NewtonTrustRegionMethod:set_suff_descent_factor(0.3)
-	NewtonTrustRegionMethod:set_maximum_defect(2e20)
-
 	----------------------------------------------------------
 	-- NoLinear COnvCheck
 	----------------------------------------------------------
@@ -242,7 +233,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		NewtonSolverSteady = NewtonSolver()
 		NewtonSolverSteady:set_linear_solver(LinearSolver)
 		NewtonSolverSteady:set_convergence_check(NewtonSteadyConvCheck)
-		NewtonSolverSteady:set_line_search(NewtonTrustRegionMethod)
+		NewtonSolverSteady:set_line_search(NewtonLineSearch)
 		
 	end
 
@@ -260,7 +251,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	else
 		NLSolver:set_linear_solver(LinearSolver)
 		NLSolver:set_convergence_check(NewtonConvCheck)
-		NLSolver:set_line_search(NewtonTrustRegionMethod)
+		NLSolver:set_line_search(NewtonLineSearch)
 		op = AssembledOperator(timeDisc)
 		op:init()
 		NLSolver:init(op)
