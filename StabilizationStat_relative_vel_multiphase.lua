@@ -55,14 +55,14 @@ params =
 {
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
-	file_name = util.GetParam("-file_name", "Test2") .."_".. fixedNum,
-	folder_name = util.GetParam("-folder_name", "Test2"),
+	file_name = util.GetParam("-file_name", "Saturation") .."_".. fixedNum,
+	folder_name = util.GetParam("-folder_name", "SaturationTest"),
 	elem_type = util.GetParam("-elem_type", "tri", "tri, quad"),
-	numRefs     = util.GetParamNumber("-numRefs", 1, "number of grid refinements"),
+	numRefs     = util.GetParamNumber("-numRefs", 3, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)"),
 	startTime  = util.GetParamNumber("-start", 0.0, "start time"),
 	endTime    = util.GetParamNumber("-end", 1000.0, "end time"),
-	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 2, "time steps"),
+	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 1, "time steps"),
 	DTmin= util.GetParamNumber("-DTmin", 1e-05, "min  DT"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	
@@ -74,33 +74,33 @@ params =
 	optimal_newton_steps = util.GetParamNumber("-optimal_newton_steps", 20),
 	maxConvRate = util.GetParamNumber("-maxConvRate", 0.9),
 	minConvRate = util.GetParamNumber("-minConvRate", 0.1),
-	boolDebug = util.GetParamBool("-boolDebug", false),
-	boolDebugStep = util.GetParamBool("-boolDebugStep", false),
+	NewtonDebug = util.GetParamBool("-NewtonDebug", false),
+	StepDebug = util.GetParamBool("-StepDebug", false),
 	
-	tol     = util.GetParamNumber("-limex-tol", 1e-2, "time step size"),
+	tol     = util.GetParamNumber("-limex-tol", 1e-4, "time step size"),
 	nstages = util.GetParamNumber("-limex-nstages", 2, "limex stages (2 default)"),
 	limex_partial_mask = util.GetParamNumber("-limex-partial", 0, "limex partial (0 or 3)"),
 	limex_debug_level = util.GetParamNumber("-limex-debug-level", 5, "limex debug level (integer)"),
 	
 	max_newton_steps_steady_state=util.GetParamNumber("-numNewtonSteps", 100),
-	max_newton_steps_transcient=util.GetParamNumber("-max_newton_steps_transcient", 50),
+	max_newton_steps_transcient=util.GetParamNumber("-max_newton_steps_transcient", 200),
 	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05),
 	RedDefect = util.GetParamNumber("-RedDefect", 1e-07),
 
 	max_linear_steps=util.GetParamNumber("-max_linear_steps", 200),
 	damping_mg = util.GetParamNumber("-damping_mg", 0.9),
-	value_beta = util.GetParamNumber("-value_beta", 0.0 ),
-	LinAbsDefect = util.GetParamNumber("-LinAbsDefect", 1e-07),
-	LinRedDefect = util.GetParamNumber("-LinRedDefect", 1e-02),
+	value_beta = util.GetParamNumber("-value_beta", 0 ),
+	LinAbsDefect = util.GetParamNumber("-LinAbsDefect", 1e-08),
+	LinRedDefect = util.GetParamNumber("-LinRedDefect", 1e-04),
 
-	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 5),
+	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 3),
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
 	
 			-- Physical phenomenon of simulation
 	doSteadyState = util.GetParamBool("-doSteadyState", true),
 	boolSource = util.GetParamBool("-boolSource", false),
 	consistentRho_in_source = util.GetParamBool("-consistentRho_in_source", true),
-	boolRelativeVel = util.GetParamBool("-boolRelativeVel", true),
+	boolRelativeVel = util.GetParamBool("-boolRelativeVel", false),
 	boolGradientPsSource = util.GetParamBool("-boolGradientPsSource", false),
 	boolViscPs = util.GetParamBool("-boolViscPs", true),
 	boolAveDiff = util.GetParamBool("-boolAveDiff", true),
@@ -120,6 +120,7 @@ params =
 	bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used"),
 	diffLength  = util.GetParam("-difflength", "raw", "fivepoint, raw, corDiffusion length type"),
 	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)"),
+	div_correction = util.GetParamBool("-DivCorrection", true ,"Divergence correction for Newton's inner steps'"),
 	turbViscMethod = util.GetParam("-turbulenceModel","no","TurbVismodel type no , dyn or sma"),
 	modellconstant = util.GetParamNumber("-c",0.1),
 
@@ -128,12 +129,12 @@ params =
 	rho_a     = util.GetParamNumber("-rho_a", 1.2, "Air Density"),
 	rho_s     = util.GetParamNumber("-rho_s", 2500, "Sand Density"),
 	dp     = util.GetParamNumber("-diameter", 1e-03, "Particle Diameter"),
-	nu_s     = util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity"),
+	nu_s     = util.GetParamNumber("-visc_s", 7.104e-09, "kinematic viscosity"),
 	c_init        = util.GetParamNumber("-c_init", 0.6, "max volume fraction"),
 
 	alpha_max        = util.GetParamNumber("-alpha_max", 0.635, "max volume fraction"),
 	alpha_min        = util.GetParamNumber("-min alpha_min", 0.57, "max volume fraction"),
-	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein"),
+	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein, 4 Relax"),
 	density_model  = util.GetParam("-density_model", "linear", "constant, linear"),
 	interface_value  = util.GetParamNumber("-interface_value",  0.57, "interface value"),
 	--interface_value  = util.GetParamNumber("-interface_value",  0.3, "interface value"),
@@ -150,6 +151,7 @@ params =
 	FricMu_1=0.38,
 	FricMu_2=0.64,
 	I_0 = 0.279,
+	gravity = -9.81,
 	
 }
 
@@ -157,8 +159,10 @@ params =
 params.DTmax = (params.endTime - params.startTime) / params.numTimeSteps
 dt = util.GetParamNumber("-dt", params.DTmax, "dt")
 file_name = params.file_name
-folder_name = params.folder_name
 c_init = params.c_init
+folder_name = params.folder_name .. "_" .. params.timeMethod
+
+
 dim = params.dim
 
 ------------------------------------------------------------------------------------------
@@ -240,7 +244,8 @@ if (rank== 0) then
 	end
 end
 
-params.debug_dir = folder .."/Z_DEBUG"
+params.debug_dir = folder
+print(params.debug_dir)
 vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
 
 ------------------------------------------------------------------------------------------
@@ -425,7 +430,7 @@ function StartValueP(x,y)
 	end
 end
 function PressureBoundary(x,y)
-	return  -1.2*y*9.81
+	return  1.2*y*params.gravity
 end
 
 ---------------------------------------------------------------------- Initial VolumeFraction
@@ -501,9 +506,15 @@ InterfaceValues:set_particle_diameter(params.dp)
 InterfaceValues:set_particle_density(params.rho_s)
 InterfaceValues:set_air_density(params.rho_a)
 InterfaceValues:set_fluid_Visc(params.nu_a*params.rho_a)
+InterfaceValues:set_particle_kinVisc(params.nu_s)
 InterfaceValues:set_alpha_max(params.alpha_max)
-InterfaceValues:set_packing_factor(params.c_init)
 InterfaceValues:set_alpha_min(params.alpha_min)
+InterfaceValues:set_FrictionMu_1(params.FricMu_1)
+InterfaceValues:set_FrictionMu_2(params.FricMu_2)
+InterfaceValues:set_I_0(params.I_0)
+InterfaceValues:set_deltaI(params.deltaI)
+InterfaceValues:set_deltaPs(params.deltaPs)
+InterfaceValues:set_packing_factor(params.c_init)
 InterfaceValues:set_FR(params.FR)
 InterfaceValues:set_B_phi(params.B_phi)
 InterfaceValues:set_deltaGamma(params.deltaGamma)
@@ -516,61 +527,48 @@ InterfaceValues:set_interface_volume_fraction(params.interface_value)
 InterfaceValues:set_drag_model(params.drag_mod)
 InterfaceValues:set_bool_initialized(true)
 
+-------------------------------------------------------------- VelocityGradMag
+
+gamma = ShearStressFV1(approxSpace,u)
+
 ---------------------------------------------------------------------- Density
 
 Density = GranularDensityLinker(); 
-Density:set_fluid_density(params.rho_a)
-Density:set_particle_density(params.rho_s)
 Density:set_model(params.density_model)
-Density:set_interface_volume_fraction(params.interface_value)
+Density:set_phase_parameters(InterfaceValues)
+
 
 ---------------------------------------------------------------------- Viscosity
-Visc = GranularViscosityLinker(); 
 
-Visc:set_granular_model(params.granular_model)
-Visc:set_particle_diameter(params.dp)
-Visc:set_particle_density(params.rho_s)
-Visc:set_particle_kinematicVisc(params.nu_s)
-Visc:set_fluid_density(params.rho_a)
-Visc:set_fluid_Visc(params.nu_a*params.rho_a)
-Visc:set_alpha_max(params.alpha_max)
-Visc:set_alpha_min(params.alpha_min)
-Visc:set_mix_density(Density)
-Visc:set_interface_volume_fraction(params.interface_value)
-Visc:set_deltaPs(params.deltaPs)
-Visc:set_deltaI(params.deltaI)
-Visc:set_FricMu_1(params.FricMu_1)
-Visc:set_FricMu_2(params.FricMu_2)
-Visc:set_I_0(params.I_0)
-Visc:set_deltaGamma(params.deltaGamma)
+Inverse_RHO = InverseLinker();
+Inverse_RHO:divide(1.0,Density);
 
+KinMixViscosity = ScaleLinker();
+KinMixViscosity:set_import_1(Inverse_RHO)
+
+
+EfectiveKinViscosity = KinMixViscosity
 
 
 if params.turbViscMethod=="dyn" then
-	viscosityData = FV1DynamicTurbViscData(approxSpace,u)
+	KinTurbulentViscosity = FV1DynamicTurbViscData(approxSpace,u)
 	
 else 
-	viscosityData = FV1SmagorinskyTurbViscData(approxSpace,u,params.modellconstant)
+	KinTurbulentViscosity = FV1SmagorinskyTurbViscData(approxSpace,u,params.modellconstant)
  end
-viscosityData:set_turbulence_zero_bnd("Left")
-viscosityData:set_kinematic_viscosity(Visc)
+KinTurbulentViscosity:set_turbulence_zero_bnd("Left")
+KinTurbulentViscosity:set_kinematic_viscosity(EfectiveKinViscosity)
 
----------------------------------------------------------------------- Scale
-
-Viscosity = ScaleLinker();
-Viscosity:set_import_1(Density)
-Viscosity:set_import_2(Visc)
-
-Viscosity2 = ScaleLinker();
-Viscosity2:set_import_1(Density)
-Viscosity2:set_import_2(viscosityData)
+TurbulentViscosity = ScaleLinker();
+TurbulentViscosity:set_import_1(Density)
+TurbulentViscosity:set_import_2(KinTurbulentViscosity)
 ---------------------------------------------------------------------- Pjump
 
 Source = GranularSourceLinker()
 Source:set_particle_density(params.rho_s)
 Source:set_fluid_density(params.rho_a)
 Source:set_mix_density(Density)
-Source:set_gravity(-9.81)
+Source:set_gravity(params.gravity)
 Source:set_cons_gravity(params.consistentRho_in_source)
 
 
@@ -578,34 +576,13 @@ Source:set_cons_gravity(params.consistentRho_in_source)
 
 Vs = 6.8598478663758
 iter = 0
-Vs = InterfaceValues:RelVel_ext(params.nu_a*params.rho_a,params.rho_a,params.dp,params.rho_s,9.81,1e-05)
+Vs = InterfaceValues:RelVel_ext(params.nu_a*params.rho_a,params.rho_a,params.dp,params.rho_s,params.gravity,1e-05)
 re=InterfaceValues:RE(params.nu_a*params.rho_a,params.rho_a,params.dp,Vs)
 Cd =InterfaceValues:CD(re,params.drag_mod)
-print(Vs)
-print(re)
-print(Cd)
 
 
-DX=1.84*math.pow(1/2,params.numRefs)
-RelVel=RelativeVelocityLinker()
-
-RelVel:set_mix_density(Density)
-RelVel:set_mix_kinematic_viscosity(Visc)
-
-RelVel:set_vol_limit(params.alpha_min)
-RelVel:set_fluid_density(params.rho_a)
-RelVel:set_particle_density(params.rho_s)
-RelVel:set_particle_diameter(params.dp)
-RelVel:set_gravity(-9.81)
-RelVel:set_rel_vel(Vs)
-RelVel:set_dragCoeff(Cd)
-RelVel:activate_relative_vel(false)
-RelVel:set_fluid_viscosity(params.nu_a*params.rho_a)
-RelVel:set_alpha_max(params.alpha_max)
+RelVel = RelativeVelocity(approxSpace,u)
 RelVel:set_phase_parameters(InterfaceValues)
----------------------------------------------------------------------- VelocityGradMag
-
-gamma = ShearStressFV1(approxSpace,u)
 
 ---------------------------------------------------------------------- Diffusion
 
@@ -613,14 +590,11 @@ Diff_beta = 0.217
 d1= 250e-06
 A1= 1.673
 k0 = 1.0 + A1 * (1-params.dp/d1)
-Diff_factor = Diff_beta*k0*k0*Vs/(2*params.rho_a*9.81)
+Diff_factor = Diff_beta*k0*k0*Vs/(2*params.rho_a*(math.abs(params.gravity)))
 Diffusion = GranularDiffusionLinker();
-Diffusion:set_gamma(gamma)
-Diffusion:set_mix_viscosity(Viscosity)
+Diffusion:set_mix_viscosity(EfectiveKinViscosity)
 Diffusion:set_diff_factor(Diff_factor)
 Diffusion:set_phase_parameters(InterfaceValues)
-Diffusion:const_kinematic_visc(true)
-print ("	--------------------------Diff	factor	= " .. Diff_factor)
 
 
 ss_value = math.atan(params.FricMu_2)*180/3.1415926
@@ -653,8 +627,9 @@ NavierStokesDisc:set_upwind (params.upwind_m)
 NavierStokesDisc:set_upwind_vol(params.upwind_t)
 NavierStokesDisc:set_peclet_blend (params.bPecletBlend)
 NavierStokesDisc:set_stabilization (params.stab, params.diffLength)
+NavierStokesDisc:set_div_correction (params.div_correction)
 
-
+		
 NavierStokesDisc:set_density(Density)
 if params.boolRelativeVel then
 	NavierStokesDisc:set_relative_velocity(RelVel)
@@ -676,9 +651,9 @@ if (params.boolSource) then
 	NavierStokesDisc:set_source(Source)
 end
 if params.turbViscMethod=="no" then
-	NavierStokesDisc:set_kinematic_viscosity (Visc)
+	NavierStokesDisc:set_kinematic_viscosity (EfectiveKinViscosity)
 else
-	NavierStokesDisc:set_kinematic_viscosity(viscosityData)
+	NavierStokesDisc:set_kinematic_viscosity(KinTurbulentViscosity)
 end
 NavierStokesDisc:set_average_gamma(gamma)
 NavierStokesDisc:set_phase_parameters(InterfaceValues)
@@ -710,26 +685,13 @@ WallDisc:add ("Bottom")
 
 Density:set_volume_fraction(NavierStokesDisc:volume_fraction())
 
-Visc:set_volume_fraction(NavierStokesDisc:volume_fraction())
-Visc:set_eins_viscosity(NavierStokesDisc:einstein_viscosity())
-Visc:set_velocity_gradient(NavierStokesDisc:velocity_grad())
-
-if(true) then
-    Visc:set_particle_pressure(NavierStokesDisc:particle_pressure())
-else
-    Visc:set_particle_pressure(NavierStokesDisc:pressure())
-end
 
 Diffusion:set_velocity_gradient(NavierStokesDisc:velocity_grad())
-
-
-RelVel:set_volume_fraction(NavierStokesDisc:volume_fraction())
-RelVel:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
-RelVel:set_pressure_grad(NavierStokesDisc:pressure_grad())
-RelVel:set_einstein_visc(NavierStokesDisc:einstein_viscosity())
+	
 RelVel:set_ps_grad(NavierStokesDisc:particle_pressure_grad())
+RelVel:set_viscosity(NavierStokesDisc:mix_viscosity())
 
-
+KinMixViscosity:set_import_2(NavierStokesDisc:mix_viscosity())
 
 ---------------------------------------------------------------------------------------
 -- Global Discretization
@@ -748,11 +710,11 @@ domainDisc:add(flowBnd)
 --domainDisc:add(TransportEq)
 --domainDisc:add(OutflowBND)
 
-
+print("Domain Discretization: DONE")
 ---------------------------------------------------------------------------------------
 -- Time Discretization
 ---------------------------------------------------------------------------------------
-
+print("Time Discretization")
 -- create the assembled operator for the solver
 local timeDisc = nil
 -- create time discretization
@@ -774,42 +736,56 @@ end
 ------------------------------------------------------------------------------------------
 -- Set up the solver
 ------------------------------------------------------------------------------------------
-
+print("Setting Solver")
 boolSolution = 1
 op, NLSolver, NewtonSolverSteady, limex, boolSolution = myProblem:CreateSolver(domainDisc, approxSpace, timeDisc)
-
 
 
 ------------------------------------------------------------------------------------------
 -- Interpolate initial values
 ------------------------------------------------------------------------------------------
-
+print("Initializing Values")
 
   --Interpolate(StartValueX, u, "u")
 Interpolate(1.0e-5, u, "u")
 Interpolate("StartValueY", u, "v")
 Interpolate("StartValueP", u, "p")
---Interpolate("StartValueC", u, "c")
-Interpolate("ConstValue", u, "c")
+Interpolate("StartValueC", u, "c")
+--Interpolate("ConstValue", u, "c")
 
-
+KinTurbulentViscosity:update()
+gamma:update()
+RelVel:update()
+if params.boolSlipDiff then
+	SlipDiff:update()
+else if params.boolSlipVel then
+		SlipVel:update()
+	end
+end
 ------------------------------------------------------------------------------------------
 -- Steady State Solution
 ------------------------------------------------------------------------------------------
+print("Calculating SteadyState")
 time_work_steady=0.0
 linsolver_calls = 0
 linsolver_steps = 0
 
 if params.doSteadyState and boolSolution == 1 then
 	-- Steady state solution.
+	
+	NewtonSolverSteady:add_inner_step_update(gamma)
+		NewtonSolverSteady:add_inner_step_update(RelVel)
+	
+	if params.boolSlipDiff then
+		NewtonSolverSteady:add_inner_step_update(SlipDiff)
+	else if params.boolSlipVel then
+			NewtonSolverSteady:add_inner_step_update(SlipVel)
+		end
+	end
+	
 	time_work_steady, linsolver_calls, linsolver_steps, boolSolution = myProblem:ComputeNonLinearSteadyStateSolution(u, domainDisc, NewtonSolverSteady)
 	
-	RelVel:activate_relative_vel(params.boolRelativeVel)
-    if not(params.boolViscPs) then
-        Visc:set_particle_pressure(NavierStokesDisc:pressure())
-    end
 end
-
 ------------------------------------------------------------------------------------------
 -- Printing Initial Conditions
 ------------------------------------------------------------------------------------------
@@ -819,7 +795,7 @@ step = 0
 
 	-- write start solution
 if boolSolution == 1 then
-	print("Writing inittial values")
+	print("Writing initial values")
 	out = VTKOutput()
 	out:clear_selection()
 	out:select_all(false)
@@ -830,22 +806,24 @@ if boolSolution == 1 then
 	out:select_nodal ("c", "c")
 	out:select(Density, "Rho")
 	out:select(NavierStokesDisc:einstein_viscosity(), "Mu_eins")
-	out:select(Viscosity, "Mu")
-	out:select(Viscosity2, "Mu2")
+	out:select(EfectiveKinViscosity, "Nu")
+	out:select(TurbulentViscosity, "Mu_turb")
+	out:select(NavierStokesDisc:mix_viscosity(), "MixViscosity")
 	out:select(RelVel, "RelVel")
 	out:select(NavierStokesDisc:particle_pressure(), "Ps")
 	out:select(NavierStokesDisc:particle_pressure_grad(), "DPs")
 	out:select(gamma, "G")
 	out:select(NavierStokesDisc:velocity_grad(), "G2")
 	if (params.boolSlipDiff) then
-		out:select(SlipDiff, "SDiff")
+		out:select_element(SlipDiff, "SDiff")
 	else
 		if params.boolSlipVel then
-			out:select(SlipVel, "SVel")
+			out:select_element(SlipVel, "SVel")
 		end
 	end
-	out:select(Diffusion, "D")
-	out:print_subsets(vtk_file_name, u,allSubsets,step,time)
+	out:select_element(Diffusion, "D")
+	out:print_subsets(vtk_file_name, u,allSubsets,step,time, true)
+	--out:write_time_pvd(vtk_file_name, u)
 	print ("Output to file " .. vtk_file_name .. ".vtu  in time t = 0")
 	print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
 	print ("                                                            ")
@@ -871,26 +849,16 @@ if (rank == 0 and  boolSolution == 1) then
 	myProblem:WriteValues( folder, step, time, Value_inner1, Value_inner2, time_work_steady, 1, 0, linsolver_calls, linsolver_steps,false)
 end
 
-NLSolver:add_step_update(viscosityData)
-if params.timeMethod == "limex" then
-	NLSolver:add_step_update(gamma)
-
-	if params.boolSlipDiff then
-		NLSolver:add_step_update(SlipDiff)
-	else if params.boolSlipVel then
-			NLSolver:add_step_update(SlipVel)
-		end
+NLSolver:add_step_update(KinTurbulentViscosity)
+NLSolver:add_inner_step_update(gamma)
+NLSolver:add_inner_step_update(RelVel)
+if params.boolSlipDiff then
+	NLSolver:add_inner_step_update(SlipDiff)
+else if params.boolSlipVel then
+		NLSolver:add_inner_step_update(SlipVel)
 	end
-else
-	NLSolver:add_inner_step_update(gamma)
-	if params.boolSlipDiff then
-		NLSolver:add_inner_step_update(SlipDiff)
-	else if params.boolSlipVel then
-			NLSolver:add_inner_step_update(SlipVel)
-		end
-	end
-	
 end
+	
 
 
 
@@ -899,6 +867,8 @@ total_Newton_Steps_fail = 0
 total_linsolver_calls_step = 0
 total_linsolver_steps_step = 0
 tBefore = os.clock()
+
+--doo = true
 ------------------------------------------------------------------------------------------
 -- Time Steps Loop    (Solution)
 ------------------------------------------------------------------------------------------
@@ -914,6 +884,18 @@ if boolSolution == 1 then
 			Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, boolSolution  = myProblem:SolveNonlinearProblemLimex(u, limex, NLSolver, StartTime, EndTime)
 
 		else
+			--[[if doo then
+				
+				for step2 = 1, 1 do
+					Newton_Steps2, Newton_Steps_fail2, linsolver_calls_step2, linsolver_steps_step2 , dt2, boolSolution = myProblem:SolveNonlinearProblem( u, NLSolver, op, timeDisc, solTimeSeries, 1, 0,0,1)
+				
+				end
+				fixer = DirichletBoundary()
+				domainDisc:add(fixer)
+				fixer:invert_subset_selection()
+				fixer:add("c", "")
+				doo = false
+			end]]
 			Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step , dt, boolSolution = myProblem:SolveNonlinearProblem( u, NLSolver, op, timeDisc, solTimeSeries, dt, step,StartTime,EndTime)
 		end
 		time = EndTime

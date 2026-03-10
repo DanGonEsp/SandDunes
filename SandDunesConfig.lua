@@ -26,8 +26,8 @@ myProblem.Init = function(self, o)
 	self.optimal_newton_steps = o.optimal_newton_steps
 	self.maxConvRate = o.maxConvRate
 	self.minConvRate = o.minConvRate
-	self.boolDebug = o.boolDebug
-	self.boolDebugStep = o.boolDebugStep
+	self.NewtonDebug = o.NewtonDebug
+	self.StepDebug = o.StepDebug
 	self.debug_dir = o.debug_dir
 	
 		
@@ -122,23 +122,26 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	----------------------------------------------------------
 	-- LineSearch
 	----------------------------------------------------------
-	NewtonLineSearch = StandardLineSearch()
-	NewtonLineSearch:set_maximum_steps(self.lambdamaxSteps)
-	NewtonLineSearch:set_lambda_start(self.lambdaStart)
-	NewtonLineSearch:set_reduce_factor(0.5)
-	NewtonLineSearch:set_accept_best(true)
-	NewtonLineSearch:set_check_all(false)
-	NewtonLineSearch:set_suff_descent_factor(0.3)
-	NewtonLineSearch:set_maximum_defect(2e20)
-	
-	NewtonTrustRegionMethod = TrustRegionMethod()
-	NewtonTrustRegionMethod:set_maximum_steps(self.lambdamaxSteps)
-	NewtonTrustRegionMethod:set_lambda_start(self.lambdaStart)
-	NewtonTrustRegionMethod:set_reduce_factor(0.5)
-	NewtonTrustRegionMethod:set_accept_best(true)
-	NewtonTrustRegionMethod:set_check_all(false)
-	NewtonTrustRegionMethod:set_suff_descent_factor(0.3)
-	NewtonTrustRegionMethod:set_maximum_defect(2e20)
+	local NewtonLineSearch = nil
+	if true then
+		NewtonLineSearch = StandardLineSearch()
+		NewtonLineSearch:set_maximum_steps(self.lambdamaxSteps)
+		NewtonLineSearch:set_lambda_start(self.lambdaStart)
+		NewtonLineSearch:set_reduce_factor(0.5)
+		NewtonLineSearch:set_accept_best(true)
+		NewtonLineSearch:set_check_all(false)
+		NewtonLineSearch:set_suff_descent_factor(0.2)
+		NewtonLineSearch:set_maximum_defect(2e20)
+	else
+		NewtonLineSearch = TrustRegionMethod()
+		NewtonLineSearch:set_maximum_steps(3)
+		NewtonLineSearch:set_lambda_start(self.lambdaStart)
+		NewtonLineSearch:set_reduce_factor(0.5)
+		NewtonLineSearch:set_accept_best(true)
+		NewtonLineSearch:set_check_all(false)
+		NewtonLineSearch:set_suff_descent_factor(0.25)
+		NewtonLineSearch:set_maximum_defect(2e20)
+	end
 
 	----------------------------------------------------------
 	-- NoLinear COnvCheck
@@ -242,7 +245,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		NewtonSolverSteady = NewtonSolver()
 		NewtonSolverSteady:set_linear_solver(LinearSolver)
 		NewtonSolverSteady:set_convergence_check(NewtonSteadyConvCheck)
-		NewtonSolverSteady:set_line_search(NewtonTrustRegionMethod)
+		NewtonSolverSteady:set_line_search(NewtonLineSearch)
 		
 	end
 
@@ -260,7 +263,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	else
 		NLSolver:set_linear_solver(LinearSolver)
 		NLSolver:set_convergence_check(NewtonConvCheck)
-		NLSolver:set_line_search(NewtonTrustRegionMethod)
+		NLSolver:set_line_search(NewtonLineSearch)
 		op = AssembledOperator(timeDisc)
 		op:init()
 		NLSolver:init(op)
@@ -269,7 +272,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		end
 	end
 	
-	if self.boolDebug then
+	if self.NewtonDebug then
 		local dbgWriter = GridFunctionDebugWriter(approxSpace)
 		dbgWriter:set_vtk_output(true)
 		dbgWriter:set_conn_viewer_output(false)
@@ -371,7 +374,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 	local DTmin = self.DTmin
 	local DTmax = EndTime-StartTime
 	local modifyDT = self.modifyDT
-	local boolDebugStep = self.boolDebugStep
+	local StepDebug = self.StepDebug
 	local AbsDefect = self.AbsDefect
 	local RedDefect = self.RedDefect
 	local maxConvRate = self.maxConvRate
@@ -424,7 +427,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 			
 			if dt_in < DTmin  or modifyDT== false then
 				print ("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx            Time step below minimum. Aborting. Failed at step  " .. step-1+ (time2+do_dt-time)/DTmax .. ".");
-				if boolDebugStep then
+				if StepDebug then
 				
 					convCheck =
 						{
@@ -571,11 +574,13 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	--limexEstimator:add(H1SemiComponentSpace("u", 2 ))
 	--limexEstimator:add(H1SemiComponentSpace("v", 2 ))
 
-	--limexEstimator:add(L2ComponentSpace("u", 2))
-	--limexEstimator:add(L2ComponentSpace("v", 2))
+	limexEstimator:add(L2ComponentSpace("u", 2))
+	limexEstimator:add(L2ComponentSpace("v", 2))
 
-	--limexEstimator:add(H1SemiComponentSpace("p", 2))
+	limexEstimator:add(H1SemiComponentSpace("p", 2))
 	limexEstimator:add(L2ComponentSpace("c", 2))
+	
+	--limexEstimator:use_strict_relative_norms(1)
 
 	-- descriptor for integrator
 	local limexDesc = {
