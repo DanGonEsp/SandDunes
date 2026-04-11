@@ -120,12 +120,194 @@ function write(path, data, sep)
     file:close()
 end
 
+
+
+
+
 ---------------------------------------------------------------------
+function MergeDebugPVD(path, name)
+    -- Helper to prepend 'cd "path" &&' to each command
+    local function run(cmd)
+        local full_cmd = string.format('cd "%s" && %s', path, cmd)
+        local ok = os.execute(full_cmd)
+        if ok ~= 0 then
+            print("Command failed:", full_cmd)
+        end
+    end
+
+    -- Commands translated from your shell script
+    -- 1) Update timestep in .pvtu files using Perl
+    run([[for f in *.pvtu; do perl -i -0777 -pe 'if(/_iter(\d+)/){$i=$1; s/(<Time timestep=")\d+(")/$1$i$2/}' "$f"; done]])
+	print("------------- 10%")
+    -- 2) Rename .pvtu files
+    run([[for f in *.pvtu; do mv "$f" "$(echo "$f" | sed -E 's/(.*)_iter([0-9]{3})_(.*)\.pvtu/\1_\3_iter\2.pvtu/')"; done]])
+	print("------------- 20%")
+    -- 3) Rename .pvd files
+    run([[for f in *.pvd; do mv "$f" "$(echo "$f" | sed -E 's/(.*)_iter([0-9]{3})_(.*)\.pvd/\1_\3_iter\2.pvd/')"; done]])
+	print("------------- 30%")
+    -- 4) Rename .vtu files
+    run([[for f in *.vtu; do mv "$f" "$(echo "$f" | sed -E 's/(.*)_iter([0-9]{3})_(.*)\.vtu/\1_\3_iter\2.vtu/')"; done]])
+	print("------------- 40%")
+    -- 5) Update file paths inside .pvd files
+    run([[for f in *.pvd; do perl -i -pe 's/(<DataSet .*file=".*?)(?:_iter(\d+))(_.*?)(\.pvtu")/$1$3_iter$2$4/' "$f"; done]])
+	print("------------- 50%")
+    -- 6) Update timestep in .pvd files
+    run([[for f in *.pvd; do perl -i -pe 's/(timestep=")\d+(".*file="[^"]*_iter(\d+)[^"]*")/$1.($3+0).$2/e' "$f"; done]])
+	print("------------- 60%")
+    -- 7) Update Piece sources in .pvtu files
+    run([[for f in *.pvtu; do perl -i -pe 's/(<Piece Source=".*?)(_iter\d+)(.*)(\.vtu")/$1$3$2$4/' "$f"; done]])
+end
+
+
+--[[
+	os.execute("
+	cd path
+	for f in path/*.pvtu; do perl -i -0777 -pe 'if(/_iter(\d+)/){$i=$1; s/(<Time timestep=")\d+(")/$1$i$2/}' "$f"; done
+	for f in *.pvtu; do mv "$f" "$(echo "$f" | sed -E 's/(.*)_iter([0-9]{3})_(.*)\.pvtu/\1_\3_iter\2.pvtu/')"; done
+	for f in *.pvd; do mv "$f" "$(echo "$f" | sed -E 's/(.*)_iter([0-9]{3})_(.*)\.pvd/\1_\3_iter\2.pvd/')"; done
+	for f in *.vtu; do mv "$f" "$(echo "$f" | sed -E 's/(.*)_iter([0-9]{3})_(.*)\.vtu/\1_\3_iter\2.vtu/')"; done
+	for f in *.pvd; do perl -i -pe 's/(<DataSet .*file=".*?)(?:_iter(\d+))(_.*?)(\.pvtu")/$1$3_iter$2$4/' "$f"; done
+	for f in *.pvd; do perl -i -pe 's/(timestep=")\d+(".*file="[^"]*_iter(\d+)[^"]*")/$1.($3+0).$2/e' "$f"; done
+	for f in *.pvtu; do perl -i -pe 's/(<Piece Source=".*?)(_iter\d+)(.*)(\.vtu")/$1$3$2$4/' "$f"; done
+	")
+    
+    
+
+	for f in *.pvtu; do perl -i -0777 -pe 'if(/_iter(\d+)/){$i=$1; s/(<Time timestep=")\d+(")/$1$i$2/}' "$f"; done
+	for f in *.pvtu; do mv "$f" "$(echo "$f" | sed -E 's/(.*)_iter([0-9]{3})_(.*)\.pvtu/\1_\3_iter\2.pvtu/')"; done
+	for f in *.pvd; do mv "$f" "$(echo "$f" | sed -E 's/(.*)_iter([0-9]{3})_(.*)\.pvd/\1_\3_iter\2.pvd/')"; done
+	for f in *.vtu; do mv "$f" "$(echo "$f" | sed -E 's/(.*)_iter([0-9]{3})_(.*)\.vtu/\1_\3_iter\2.vtu/')"; done
+	for f in *.pvd; do perl -i -pe 's/(<DataSet .*file=".*?)(?:_iter(\d+))(_.*?)(\.pvtu")/$1$3_iter$2$4/' "$f"; done
+	for f in *.pvd; do perl -i -pe 's/(timestep=")\d+(".*file="[^"]*_iter(\d+)[^"]*")/$1.($3+0).$2/e' "$f"; done
+	for f in *.pvtu; do perl -i -pe 's/(<Piece Source=".*?)(_iter\d+)(.*)(\.vtu")/$1$3$2$4/' "$f"; done
+
+
+python3 - <<'EOF'
+import xml.etree.ElementTree as ET, glob, re
+
+def merge_pvd(pattern, output_name):
+    master = ET.Element("VTKFile", type="Collection", version="0.1")
+    col = ET.SubElement(master, "Collection")
+
+    def get_iter(f):
+        m = re.search(r'_iter(\d+)', f)
+        return int(m.group(1)) if m else 0
+
+    lines = []
+    for fname in glob.glob(pattern):
+        try:
+            tree = ET.parse(fname)
+            root = tree.getroot()
+            for ds in root.findall(".//DataSet"):
+                lines.append((get_iter(ds.get("file")), ET.tostring(ds, encoding="unicode")))
+        except ET.ParseError:
+            print(f"Skipping invalid XML: {fname}")
+
+    for _, ds_xml in sorted(lines, key=lambda x: x[0]):
+        col.append(ET.fromstring(ds_xml))
+
+    ET.ElementTree(master).write(output_name, encoding="utf-8", xml_declaration=True)
+    print(f"Created {output_name} with pattern {pattern}")
+
+
+
+	# Merge Defect files
+	merge_pvd("*_Defect_*.pvd", "master_Defect.pvd")
+
+	# Merge Solution files
+	merge_pvd("*_Solution_*.pvd", "master_Solution.pvd")
+
+	# Merge Correction files
+	merge_pvd("*_Correction_*.pvd", "master_Correction.pvd")
+
+EOF
+
+    
+
+    
+
+# Merge Defect files
+merge_pvd("*_Defect_*.pvd", "master_Defect_"..name..".pvd")
+
+# Merge Solution files
+merge_pvd("*_Solution_*.pvd", "master_Solution_"..name..".pvd")
+
+# Merge Correction files
+merge_pvd("*_Correction_*.pvd", "master_Correction_"..name..".pvd")
+    
+end
+]]
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+--[[
+
+
+	for f in *.pvtu; do perl -i -0777 -pe 'if(/_iter(\d+)/){$i=$1; s/(<Time timestep=")\d+(")/$1$i$2/}' "$f"; done
+	for f in *.pvtu; do mv "$f" "$(echo "$f" | sed -E 's/(.*)_iter([0-9]{3})_(.*)\.pvtu/\1_\3_iter\2.pvtu/')"; done
+	for f in *.pvd; do mv "$f" "$(echo "$f" | sed -E 's/(.*)_iter([0-9]{3})_(.*)\.pvd/\1_\3_iter\2.pvd/')"; done
+	for f in *.vtu; do mv "$f" "$(echo "$f" | sed -E 's/(.*)_iter([0-9]{3})_(.*)\.vtu/\1_\3_iter\2.vtu/')"; done
+	for f in *.pvd; do perl -i -pe 's/(<DataSet .*file=".*?)(?:_iter(\d+))(_.*?)(\.pvtu")/$1$3_iter$2$4/' "$f"; done
+	for f in *.pvd; do perl -i -pe 's/(timestep=")\d+(".*file="[^"]*_iter(\d+)[^"]*")/$1.($3+0).$2/e' "$f"; done
+	for f in *.pvtu; do perl -i -pe 's/(<Piece Source=".*?)(_iter\d+)(.*)(\.vtu")/$1$3$2$4/' "$f"; done
+
+
+python3 - <<'EOF'
+import xml.etree.ElementTree as ET, glob, re
+
+def merge_pvd(pattern, output_name):
+    master = ET.Element("VTKFile", type="Collection", version="0.1")
+    col = ET.SubElement(master, "Collection")
+
+    def get_iter(f):
+        m = re.search(r'_iter(\d+)', f)
+        return int(m.group(1)) if m else 0
+
+    lines = []
+    for fname in glob.glob(pattern):
+        try:
+            tree = ET.parse(fname)
+            root = tree.getroot()
+            for ds in root.findall(".//DataSet"):
+                lines.append((get_iter(ds.get("file")), ET.tostring(ds, encoding="unicode")))
+        except ET.ParseError:
+            print(f"Skipping invalid XML: {fname}")
+
+    for _, ds_xml in sorted(lines, key=lambda x: x[0]):
+        col.append(ET.fromstring(ds_xml))
+
+    ET.ElementTree(master).write(output_name, encoding="utf-8", xml_declaration=True)
+    print(f"Created {output_name} with pattern {pattern}")
+
+
+
+	# Merge Defect files
+	merge_pvd("*_Defect_*.pvd", "master_Defect.pvd")
+
+	# Merge Solution files
+	merge_pvd("*_Solution_*.pvd", "master_Solution.pvd")
+
+	# Merge Correction files
+	merge_pvd("*_Correction_*.pvd", "master_Correction.pvd")
+
+
+
+
+EOF
+
+
+]]
 
 
 

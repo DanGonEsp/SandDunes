@@ -27,6 +27,7 @@ myProblem.Init = function(self, o)
 	self.maxConvRate = o.maxConvRate
 	self.minConvRate = o.minConvRate
 	self.NewtonDebug = o.NewtonDebug
+	self.NewtonSteadyDebug = o.NewtonSteadyDebug
 	self.StepDebug = o.StepDebug
 	self.debug_dir = o.debug_dir
 	
@@ -37,7 +38,7 @@ myProblem.Init = function(self, o)
 	self.limex_debug_level = o.limex_debug_level
 
 	self.max_newton_steps_steady_state = o.max_newton_steps_steady_state
-	self.max_newton_steps_transcient = o.max_newton_steps_transcient
+	self.max_newton_steps_transient = o.max_newton_steps_transient
 	self.AbsDefect = o.AbsDefect
 	self.RedDefect = o.RedDefect
 
@@ -117,7 +118,7 @@ end
 --------------------------------------------------------------------------------
 -- SOLVER
 --------------------------------------------------------------------------------
-myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
+myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc, KinViscLinker)
 	
 	----------------------------------------------------------
 	-- LineSearch
@@ -147,7 +148,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	-- NoLinear COnvCheck
 	----------------------------------------------------------
 	local NewtonSteadyConvCheck=ConvCheck(self.max_newton_steps_steady_state, self.AbsDefect, self.RedDefect, true)
-	local NewtonConvCheck=ConvCheck(self.max_newton_steps_transcient, self.AbsDefect, self.RedDefect, true)
+	local NewtonConvCheck=ConvCheck(self.max_newton_steps_transient, self.AbsDefect, self.RedDefect, true)
 	local LinearConvCheck=ConvCheck(self.max_linear_steps, self.LinAbsDefect, self.LinRedDefect, true)
 	local LimexConvCheck=ConvCheck(1, self.AbsDefect, 1e-8, true)
 	      LimexConvCheck:set_supress_unsuccessful(true)
@@ -247,11 +248,23 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		NewtonSolverSteady:set_convergence_check(NewtonSteadyConvCheck)
 		NewtonSolverSteady:set_line_search(NewtonLineSearch)
 		
+		if self.NewtonSteadyDebug then
+			local dbgWriter_steady = GridFunctionDebugWriter(approxSpace)
+			dbgWriter_steady:set_vtk_output(true)
+			dbgWriter_steady:set_conn_viewer_output(false)
+			dbgWriter_steady:set_base_dir(self.debug_dir)
+			NewtonSolverSteady:set_debug(dbgWriter_steady)
+		end
+		
 	end
 
 
 
-
+	TransientNewtonUpdater = NewtonUpdaterProjection()
+	TransientNewtonUpdater:set_projection_fct(self.dim+1)
+	TransientNewtonUpdater:set_max_threshold(1.1)
+	TransientNewtonUpdater:set_min_threshold(-1e-05)
+		
 	local limex = nil
 	local NLSolver = NewtonSolver()
 	
@@ -259,11 +272,14 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	if self.timeMethod == "limex" then
 		NLSolver:set_linear_solver(LinearSolver)
 		NLSolver:set_convergence_check(LimexConvCheck)
-		limex = myProblem:LimexObject( domainDisc, NLSolver)
+		NLSolver:setNewtonUpdater(TransientNewtonUpdater)
+		limex = myProblem:LimexObject( domainDisc, NLSolver, KinViscLinker)
 	else
 		NLSolver:set_linear_solver(LinearSolver)
 		NLSolver:set_convergence_check(NewtonConvCheck)
 		NLSolver:set_line_search(NewtonLineSearch)
+		NLSolver:set_reassemble_J_freq(0)
+		NLSolver:setNewtonUpdater(TransientNewtonUpdater)
 		op = AssembledOperator(timeDisc)
 		op:init()
 		NLSolver:init(op)
@@ -502,7 +518,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
             end
             
             
-            if modifyDT then
+            --[[if modifyDT then
                 if(average_non_linear_rates>maxConvRate and false) then
                     dt_in = math.max(do_dt*red_factor_success,1.00001*DTmin)
                     print ("-------------------------------------------------------------------Time step decrease at Step " .. step-1 + (time2-time)/DTmax .. ", dt =  " .. dt_in .. ". ")
@@ -513,7 +529,20 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 						end
                     end
                 end
-            end	
+            end]]
+            
+			if modifyDT then
+                if(num_newton_steps>30) then
+                    dt_in = math.max(do_dt*red_factor_success,1.00001*DTmin)
+                    print ("-------------------------------------------------------------------Time step decrease at Step " .. step-1 + (time2-time)/DTmax .. ", dt =  " .. dt_in .. ". ")
+                else if (CompletedStep== false or Dt_factor < 0.98 ) then
+						if(average_non_linear_rates<minConvRate or num_newton_steps<=optimal_newton_steps) then
+							dt_in=math.min(incr_factor*dt_in,DTmax)
+							print ("-------------------------------------------------------------------Time step increased at Step " .. step-1 + (time2-time)/DTmax ..", dt =  " .. dt_in .. ". ")
+						end
+                    end
+                end
+            end
             
             
             
@@ -546,7 +575,7 @@ end
 --------------------------------------------------------------------------------
 -- LIMEX
 --------------------------------------------------------------------------------
-myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
+myProblem.LimexObject = function ( self, domainDisc, limexNLSolver, KinViscLinker)
 
 
 	-- local refObserver = PlotRefOutputObserver("DirichletValue", vtk) -- now obsolete
@@ -577,10 +606,10 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	limexEstimator:add(L2ComponentSpace("u", 2))
 	limexEstimator:add(L2ComponentSpace("v", 2))
 
-	limexEstimator:add(H1SemiComponentSpace("p", 2))
+	limexEstimator:add(H1SemiComponentSpace("p", 2))--, ConstUserMatrix(1/207414416) ))
 	limexEstimator:add(L2ComponentSpace("c", 2))
 	
-	--limexEstimator:use_strict_relative_norms(1)
+	limexEstimator:use_strict_relative_norms(1)
 
 	-- descriptor for integrator
 	local limexDesc = {
