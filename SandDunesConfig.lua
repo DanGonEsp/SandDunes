@@ -164,12 +164,12 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc, KinV
 	ilu = ILU()
 	ilu:set_beta(self.value_beta)
 	ilu:set_damp(self.damping_mg)
-	--ilu:set_ordering_algorithm(NativeCuthillMcKeeOrdering())
-	ilu:set_sort(false)
+	ilu:set_ordering_algorithm(TopologicalOrdering())
+	ilu:set_sort(true)
 	--ilu:set_sort_eps(1.e-50)
 	ilu:set_inversion_eps(1.e-16)
-	ilu:enable_consistent_interfaces(false)
-	ilu:enable_overlap(true)
+	ilu:enable_consistent_interfaces(true)
+	ilu:enable_overlap(false)
 	
 	jac = Jacobi (0.7);
 	
@@ -262,8 +262,8 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc, KinV
 
 	TransientNewtonUpdater = NewtonUpdaterProjection()
 	TransientNewtonUpdater:set_projection_fct(self.dim+1)
-	TransientNewtonUpdater:set_max_threshold(1.1)
-	TransientNewtonUpdater:set_min_threshold(-1e-05)
+	TransientNewtonUpdater:set_max_threshold(1.0001)
+	TransientNewtonUpdater:set_min_threshold(-1e-04)
 		
 	local limex = nil
 	local NLSolver = NewtonSolver()
