@@ -55,18 +55,18 @@ params =
 {
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
-	file_name = util.GetParam("-file_name", "DebugRelativeVel") .."_".. fixedNum,
-	folder_name = util.GetParam("-folder_name", "DebugTest"),
+	file_name = util.GetParam("-file_name", "DebugInertial") .."_".. fixedNum,
+	folder_name = util.GetParam("-folder_name", "DebugInertial"),
 	elem_type = util.GetParam("-elem_type", "tri", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 3, "number of grid refinements"),
-	numPreRefs     = util.GetParamNumber("-numPreRefs", 0, "number of prerefinements (parallel)"),
+	numPreRefs     = util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)"),
 	startTime  = util.GetParamNumber("-start", 0.0, "start time"),
-	endTime    = util.GetParamNumber("-end", 1000, "end time"),
-	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 1, "time steps"),
+	endTime    = util.GetParamNumber("-end", 50, "end time"),
+	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 1000, "time steps"),
 	DTmin= util.GetParamNumber("-DTmin", 1e-05, "min  DT"),
-	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
+	outputFactor     = util.GetParam("-output", 10, "output every ... steps"),
 	
-	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
+	timeMethod = util.GetParam("-timeMethod","euler","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", false),
 	incr_factor     = util.GetParamNumber("-incr_factor", 1.3),
 	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.5),
@@ -80,41 +80,44 @@ params =
 	limex_partial_mask = util.GetParamNumber("-limex-partial", 0, "limex partial (0 or 3)"),
 	limex_debug_level = util.GetParamNumber("-limex-debug-level", 5, "limex debug level (integer)"),
 	
-	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 30),
+	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 100),
 	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 100),
-	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-08),
-	RedDefect = util.GetParamNumber("-RedDefect", 1e-08),
+	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-010),
+	RedDefect = util.GetParamNumber("-RedDefect", 1e-05),
 	NewtonDebug = util.GetParamBool("-NewtonDebug", false),
 	NewtonSteadyDebug = util.GetParamBool("-NewtonSteadyDebug", false),
 	StepDebug = util.GetParamBool("-StepDebug", false),
+	
+	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 5),
+	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
 
-	max_linear_steps=util.GetParamNumber("-max_linear_steps", 200),
-	damping_mg = util.GetParamNumber("-damping_mg", 1.0),
-	value_beta = util.GetParamNumber("-value_beta", -0.01 ),
+	max_linear_steps=util.GetParamNumber("-max_linear_steps", 500),
+	damping_mg = util.GetParamNumber("-damping_mg", 0.9),
+	value_beta = util.GetParamNumber("-value_beta", -0.10 ),
+	--value_beta = util.GetParamNumber("-value_beta", -0.14 ),
 	LinAbsDefect = util.GetParamNumber("-LinAbsDefect", 1e-012),
 	LinRedDefect = util.GetParamNumber("-LinRedDefect", 1e-04),
 
-	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 4),
-	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
 	
 			-- Physical phenomenon of simulation
 	doSteadyState = util.GetParamBool("-doSteadyState", true),
 	boolSource = util.GetParamBool("-boolSource", false),
 	consistentRho_in_source = util.GetParamBool("-consistentRho_in_source", true),
-	boolRelativeVel = util.GetParamBool("-boolRelativeVel", true),
+	boolRelativeVel = util.GetParamBool("-boolRelativeVel", false),
 	boolGradientPsSource = util.GetParamBool("-boolGradientPsSource", false),
 	boolViscPs = util.GetParamBool("-boolViscPs", true),
 	boolAveDiff = util.GetParamBool("-boolAveDiff", true),
-	boolSlipDiff = util.GetParamBool("-boolSlipDiff", true),
+	boolSlipDiff = util.GetParamBool("-boolSlipDiff", false),
 	boolSlipVel = util.GetParamBool("-boolSlipVel", false),
 	boolpress_jump= util.GetParamBool("-boolpress_jump", false),
 	boolNormal = util.GetParamBool("-boolNormal", true),
 	boolFixVel = util.GetParamBool("-boolFixVel", false),
+	boolFixVol = util.GetParamBool("-boolFixVol", true),
 	
 	inflow   = inflow,
 	H_0= H_0,
 	ReferencePressure  = util.GetParamNumber("-ReferencePressure",  1.7493e2, "interface value"),
-	bStokes     = util.GetParamBool("-Stokes", true ,"If defined, only Stokes Eq. computed"),
+	bStokes     = util.GetParamBool("-Stokes", false ,"If defined, only Stokes Eq. computed"),
 	bNoLaplace     = util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used"),
 	bExactJac     = util.GetParamNumber("-exactJac", 0.0,"If defined, exact jacobian used"),
 	bPecletBlend = util.GetParamBool("-PecletBlend", false,"If defined, Peclet Blend used"),
@@ -122,16 +125,16 @@ params =
 	upwind_t      = util.GetParam("-upwind_t", "full", "Upwind type full or lps"),
 	upwind_r      = util.GetParam("-upwind_r", "full", "Upwind type full or lps"),
 	bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used"),
-	diffLength  = util.GetParam("-difflength", "raw", "fivepoint, raw, corDiffusion length type"),
+	diffLength  = util.GetParam("-difflength", "raw", "fivepoint, raw, cor Diffusion length type"),
 	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)"),
 	div_correction = util.GetParamBool("-DivCorrection", false ,"Divergence correction for Newton's inner steps'"),
 	boolIPVelocity = util.GetParamBool("-boolIPVelocity", false),
 	boolTransportJac = util.GetParamBool("-boolTransportJac", true),
-	turbViscMethod = util.GetParam("-turbulenceModel","no","TurbVismodel type no , dyn or sma"),
-	modellconstant = util.GetParamNumber("-c",0.1),
+	turbViscMethod = util.GetParam("-turbViscMethod","no","TurbVismodel type no , dyn or sma"),
+	modellconstant = util.GetParamNumber("-c",0.2),
 
 	--Material Properties
-	nu_a     = util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity"),
+	nu_a     = util.GetParamNumber("-visc_a", 1.48e-02, "kinematic viscosity"),
 	rho_a     = util.GetParamNumber("-rho_a", 1.2, "Air Density"),
 	rho_s     = util.GetParamNumber("-rho_s", 2500, "Sand Density"),
 	dp     = util.GetParamNumber("-diameter", 1e-03, "Particle Diameter"),
@@ -144,6 +147,7 @@ params =
 	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein, 4 Relax"),
 	density_model  = util.GetParam("-density_model", "linear", "constant, linear"),
 	drag_mod = util.GetParamNumber("-drag_model", 2, "Opt: 0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel"),
+	riemman = util.GetParamNumber("-riemman", 1, "Opt: 0 Upwind, 1 Godunov, 2 Rusanov, 3 Roe"),
 	--Model 0 pow(0.63+4.8/sqrt(RE),2.0);
 
 	FR = 0.05,
@@ -248,7 +252,7 @@ if (rank== 0) then
 	if not DirectoryExists (folder) then
 		CreateDirectory (folder)
 	else
-		if(params.NewtonDebug) then
+		if(params.NewtonDebug or params.NewtonSteadyDebug) then
 			local cmd = "rm -rf " .. folder
 			os.execute(cmd)
 			print(" Directory reseted")
@@ -548,7 +552,7 @@ InterfaceValues:set_bool_initialized(true)
 
 -------------------------------------------------------------- VelocityGradMag
 
-gamma = ShearStressFV1(approxSpace,u)
+--gamma = ShearStressFV1(approxSpace,u)
 
 ---------------------------------------------------------------------- Density
 
@@ -562,25 +566,64 @@ Density:set_phase_parameters(InterfaceValues)
 Inverse_RHO = InverseLinker();
 Inverse_RHO:divide(1.0,Density);
 
+Scale_RHO = ScaleLinker();
+Scale_RHO:set_import_1(Inverse_RHO)
+Scale_RHO:set_import_2(params.rho_a)
+
+KinMixViscosity = nil
 KinMixViscosity = ScaleLinker();
 KinMixViscosity:set_import_1(Inverse_RHO)
 
-
-EfectiveKinViscosity = KinMixViscosity
 
 
 if params.turbViscMethod=="dyn" then
 	KinTurbulentViscosity = FV1DynamicTurbViscData(approxSpace,u)
 	
-else 
+else
 	KinTurbulentViscosity = FV1SmagorinskyTurbViscData(approxSpace,u,params.modellconstant)
  end
-KinTurbulentViscosity:set_turbulence_zero_bnd("Left")
-KinTurbulentViscosity:set_kinematic_viscosity(EfectiveKinViscosity)
+KinTurbulentViscosity:set_turbulence_zero_bnd("Left,Bottom,Top")
+KinTurbulentViscosity:set_kinematic_viscosity(0.0)
+
+
+EfectiveKinViscosity = nil
+if params.turbViscMethod=="no" then
+	EfectiveKinViscosity = KinMixViscosity
+else
+	EfectiveKinViscosity = ScaleAddLinkerNumber()
+	EfectiveKinViscosity:add(1.0,KinMixViscosity)
+	EfectiveKinViscosity:add(Scale_RHO,KinTurbulentViscosity)
+
+end
+
+
+
+
+MixViscosity = ScaleLinker();
+MixViscosity:set_import_1(Density)
+MixViscosity:set_import_2(EfectiveKinViscosity)
+
+
+
+DiffusionViscosity = nil
+if params.turbViscMethod=="no" then
+	DiffusionViscosity = params.rho_a * params.nu_a
+else
+	DiffusionViscosity = params.rho_a * params.nu_a
+
+
+end
+
 
 TurbulentViscosity = ScaleLinker();
-TurbulentViscosity:set_import_1(Density)
+TurbulentViscosity:set_import_1(params.rho_a)
 TurbulentViscosity:set_import_2(KinTurbulentViscosity)
+
+
+
+
+
+
 ---------------------------------------------------------------------- Pjump
 
 Source = GranularSourceLinker()
@@ -610,7 +653,7 @@ A1= 1.673
 k0 = 1.0 + A1 * (1-params.dp/d1)
 Diff_factor = Diff_beta*k0*k0*Vs/(2*params.rho_a*(math.abs(params.gravity)))
 Diffusion = GranularDiffusionLinker();
-Diffusion:set_mix_viscosity(EfectiveKinViscosity)
+Diffusion:set_mix_viscosity(DiffusionViscosity)
 Diffusion:set_diff_factor(Diff_factor)
 Diffusion:set_phase_parameters(InterfaceValues)
 
@@ -640,6 +683,11 @@ Normal:set_theta(ss_value)
 Normal:set_gradient_limit(1e-02)
 Normal:set_phase_parameters(InterfaceValues)
 
+--PressureGradientMean = PressureGradientMean(approxSpace,u)
+--PressureGradientMean:set_theta(ss_value)
+--PressureGradientMean:set_gradient_limit(1e-02)
+--PressureGradientMean:set_phase_parameters(InterfaceValues)
+
 ------------------------------------------------------------------------------------------
 -- Compose the discretization
 ------------------------------------------------------------------------------------------
@@ -661,7 +709,7 @@ NavierStokesDisc:set_transport_jac(params.boolTransportJac)
 		
 NavierStokesDisc:set_density(Density)
 if params.boolRelativeVel then
-	NavierStokesDisc:set_relative_velocity(RelVel,1)
+	NavierStokesDisc:set_relative_velocity(RelVel,params.riemman)
 	NavierStokesDisc:set_upwind_rel(params.upwind_r)
 end
 if params.boolSlipDiff then
@@ -679,20 +727,18 @@ if(params.boolpress_jump) then
 	NavierStokesDisc:set_pressure_jump ( params.diffLength)
 end
 NavierStokesDisc:set_interface_normal(Normal)
+--NavierStokesDisc:set_rhie_chow(PressureGradientMean)
 
 if (params.boolSource) then
 	NavierStokesDisc:set_source(Source)
 end
-if params.turbViscMethod=="no" then
-	NavierStokesDisc:set_kinematic_viscosity (EfectiveKinViscosity)
-else
-	NavierStokesDisc:set_kinematic_viscosity(KinTurbulentViscosity)
-end
-NavierStokesDisc:set_average_gamma(gamma)
+NavierStokesDisc:set_kinematic_viscosity (EfectiveKinViscosity)
+
+--NavierStokesDisc:set_average_gamma(gamma)
 NavierStokesDisc:set_phase_parameters(InterfaceValues)
 
 InletDisc = NavierStokesInflowFV1M (NavierStokesDisc)
-InletDisc:add ("InflowVel2d", "MassInflowVel2d","Left,Top")
+InletDisc:add ("InflowVel2d", "InflowVel2d","Left,Top")
 
 -- boundary condition at the outlet
 OutletDisc = NavierStokesNoNormalStressOutflowFV1M (NavierStokesDisc)
@@ -706,8 +752,8 @@ WallDisc:add ("Bottom")
 
 flowBnd = DirichletBoundary()
 flowBnd:add(0.0, "c", "Left,Top")
-flowBnd:add(0.0, "v", "Right")
-flowBnd:add(0.0, "p", "Right")
+--flowBnd:add(0.0, "v", "Right")
+--flowBnd:add(0.0, "p", "Right")
 --flowBnd:add(ConstValue, "c", "Top")
 --flowBnd:add(ConstValue, "c", "Left")
 --flowBnd:add(1.0, "c", "Bottom")
@@ -771,7 +817,7 @@ end
 ------------------------------------------------------------------------------------------
 print("Setting Solver")
 boolSolution = 1
-op, NLSolver, NewtonSolverSteady, limex, boolSolution = myProblem:CreateSolver(domainDisc, approxSpace, timeDisc, EfectiveKinViscosity)
+op, NLSolver, NewtonSolverSteady, limex, boolSolution = myProblem:CreateSolver(domainDisc, approxSpace, timeDisc)
 
 
 ------------------------------------------------------------------------------------------
@@ -779,15 +825,15 @@ op, NLSolver, NewtonSolverSteady, limex, boolSolution = myProblem:CreateSolver(d
 ------------------------------------------------------------------------------------------
 print("Initializing Values")
 
-Interpolate(StartValueX, u, "u")
---Interpolate(1.0e-5, u, "u")
+--Interpolate(StartValueX, u, "u")
+Interpolate(0.0, u, "u")
 Interpolate("StartValueY", u, "v")
 Interpolate("StartValueP", u, "p")
 Interpolate("StartValueC", u, "c")
 --Interpolate("ConstValue", u, "c")
 
 KinTurbulentViscosity:update()
-gamma:update()
+--gamma:update()
 RelVel:update()
 if params.boolSlipDiff then
 	SlipDiff:update()
@@ -796,6 +842,7 @@ else if params.boolSlipVel then
 	end
 end
 Normal:update()
+--PressureGradientMean:update()
 ------------------------------------------------------------------------------------------
 -- Steady State Solution
 ------------------------------------------------------------------------------------------
@@ -807,9 +854,11 @@ linsolver_steps = 0
 if params.doSteadyState and boolSolution == 1 then
 	-- Steady state solution.
 	
-	NewtonSolverSteady:add_step_update(gamma)
+	--NewtonSolverSteady:add_step_update(gamma)
 	NewtonSolverSteady:add_step_update(RelVel)
 	NewtonSolverSteady:add_step_update(Normal)
+	NewtonSolverSteady:add_inner_step_update(KinTurbulentViscosity)
+	--NewtonSolverSteady:add_inner_step_update(PressureGradientMean)
 	if params.boolSlipDiff then
 		NewtonSolverSteady:add_step_update(SlipDiff)
 	else if params.boolSlipVel then
@@ -820,13 +869,19 @@ if params.doSteadyState and boolSolution == 1 then
 	time_work_steady, linsolver_calls, linsolver_steps, boolSolution = myProblem:ComputeNonLinearSteadyStateSolution(u, domainDisc, NewtonSolverSteady)
 	
 end
-if(boolFixVel) then
+if(params.boolFixVel) then
 	fixer = DirichletBoundary()
 	domainDisc:add(fixer)
 	fixer:invert_subset_selection()
 	fixer:add("u", "")
 	fixer:add("v", "")
 	fixer:add("p", "")
+end
+if(params.boolFixVol) then
+	fixer = DirichletBoundary()
+	domainDisc:add(fixer)
+	fixer:invert_subset_selection()
+	fixer:add("c", "")
 end
 ------------------------------------------------------------------------------------------
 -- Printing Initial Conditions
@@ -836,7 +891,7 @@ time = 0
 step = 0
 
 	-- write start solution
-if true then--boolSolution == 1 then
+if boolSolution == 1 then
 	print("Writing initial values")
 	out = VTKOutput()
 	out:clear_selection()
@@ -848,13 +903,14 @@ if true then--boolSolution == 1 then
 	out:select_nodal ("c", "c")
 	out:select(Density, "Rho")
 	out:select(NavierStokesDisc:einstein_viscosity(), "Mu_eins")
-	out:select(EfectiveKinViscosity, "Nu")
+	out:select(NavierStokesDisc:mix_viscosity(), "Mu_I")
+	out:select(MixViscosity, "MixViscosity")
 	out:select(TurbulentViscosity, "Mu_turb")
-	out:select(NavierStokesDisc:mix_viscosity(), "MixViscosity")
+	
 	out:select(RelVel, "RelVel")
 	out:select(NavierStokesDisc:particle_pressure(), "Ps")
 	out:select(NavierStokesDisc:particle_pressure_grad(), "DPs")
-	out:select(gamma, "G")
+	--out:select(gamma, "G")
 	out:select(NavierStokesDisc:velocity_grad(), "G2")
 	if (params.boolSlipDiff) then
 		out:select_element(SlipDiff, "SDiff")
@@ -865,6 +921,7 @@ if true then--boolSolution == 1 then
 	end
 	out:select_element(Diffusion, "D")
 	out:select_element(Normal, "n")
+	--out:select_element(PressureGradientMean, "DP")
 	out:print_subsets(vtk_file_name, u,allSubsets,step,time, true)
 	--out:write_time_pvd(vtk_file_name, u)
 	print ("Output to file " .. vtk_file_name .. ".vtu  in time t = 0")
@@ -892,8 +949,8 @@ if (rank == 0 and  boolSolution == 1) then
 	myProblem:WriteValues( folder, step, time, Value_inner1, Value_inner2, time_work_steady, 1, 0, linsolver_calls, linsolver_steps,false)
 end
 
-NLSolver:add_step_update(KinTurbulentViscosity)
-NLSolver:add_inner_step_update(gamma)
+NLSolver:add_inner_step_update(KinTurbulentViscosity)
+--NLSolver:add_inner_step_update(gamma)
 NLSolver:add_inner_step_update(RelVel)
 NLSolver:add_inner_step_update(Normal)
 if params.boolSlipDiff then
@@ -1028,5 +1085,5 @@ Headers = " Sim, Vel, H0, W0, Solved\n"
 lineWriter:write_line(Tablename,rank_t, Headers, params.inflow, H_0, W0, boolSolution)
 
 SynchronizeProcesses()
-SpaceTimeComm:unsplit()
+--SpaceTimeComm:unsplit()
 

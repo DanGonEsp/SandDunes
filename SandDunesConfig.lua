@@ -118,7 +118,7 @@ end
 --------------------------------------------------------------------------------
 -- SOLVER
 --------------------------------------------------------------------------------
-myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc, KinViscLinker)
+myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	
 	----------------------------------------------------------
 	-- LineSearch
@@ -262,8 +262,8 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc, KinV
 
 	TransientNewtonUpdater = NewtonUpdaterProjection()
 	TransientNewtonUpdater:set_projection_fct(self.dim+1)
-	TransientNewtonUpdater:set_max_threshold(1.0001)
-	TransientNewtonUpdater:set_min_threshold(-1e-04)
+	TransientNewtonUpdater:set_max_threshold(2.0)
+	TransientNewtonUpdater:set_min_threshold(-2.0)
 		
 	local limex = nil
 	local NLSolver = NewtonSolver()
@@ -273,7 +273,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc, KinV
 		NLSolver:set_linear_solver(LinearSolver)
 		NLSolver:set_convergence_check(LimexConvCheck)
 		NLSolver:setNewtonUpdater(TransientNewtonUpdater)
-		limex = myProblem:LimexObject( domainDisc, NLSolver, KinViscLinker)
+		limex = myProblem:LimexObject( domainDisc, NLSolver)
 	else
 		NLSolver:set_linear_solver(LinearSolver)
 		NLSolver:set_convergence_check(NewtonConvCheck)
@@ -352,7 +352,6 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
 	tBefore_s= os.clock()
 	if not solver:apply(u) then
 		print("===> THE PREPARATION PHASE FAILED! <===")
-		return 0, 0, 0, 0
 	end
 	tAfter_s = os.clock()
     num_newton_steps = solver:num_newton_steps()
@@ -575,7 +574,7 @@ end
 --------------------------------------------------------------------------------
 -- LIMEX
 --------------------------------------------------------------------------------
-myProblem.LimexObject = function ( self, domainDisc, limexNLSolver, KinViscLinker)
+myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 
 
 	-- local refObserver = PlotRefOutputObserver("DirichletValue", vtk) -- now obsolete
