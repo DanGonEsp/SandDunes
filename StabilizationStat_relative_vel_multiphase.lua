@@ -55,18 +55,18 @@ params =
 {
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
-	file_name = util.GetParam("-file_name", "DebugInertial") .."_".. fixedNum,
+	file_name = util.GetParam("-file_name", "DebugInertialLax") .."_".. fixedNum,
 	folder_name = util.GetParam("-folder_name", "DebugInertial"),
-	elem_type = util.GetParam("-elem_type", "tri", "tri, quad"),
+	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 3, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)"),
 	startTime  = util.GetParamNumber("-start", 0.0, "start time"),
-	endTime    = util.GetParamNumber("-end", 50, "end time"),
+	endTime    = util.GetParamNumber("-end", 1000, "end time"),
 	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 1000, "time steps"),
 	DTmin= util.GetParamNumber("-DTmin", 1e-05, "min  DT"),
-	outputFactor     = util.GetParam("-output", 10, "output every ... steps"),
+	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	
-	timeMethod = util.GetParam("-timeMethod","euler","euler limex"),
+	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", false),
 	incr_factor     = util.GetParamNumber("-incr_factor", 1.3),
 	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.5),
@@ -81,7 +81,7 @@ params =
 	limex_debug_level = util.GetParamNumber("-limex-debug-level", 5, "limex debug level (integer)"),
 	
 	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 100),
-	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 100),
+	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 200),
 	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-010),
 	RedDefect = util.GetParamNumber("-RedDefect", 1e-05),
 	NewtonDebug = util.GetParamBool("-NewtonDebug", false),
@@ -103,16 +103,16 @@ params =
 	doSteadyState = util.GetParamBool("-doSteadyState", true),
 	boolSource = util.GetParamBool("-boolSource", false),
 	consistentRho_in_source = util.GetParamBool("-consistentRho_in_source", true),
-	boolRelativeVel = util.GetParamBool("-boolRelativeVel", false),
+	boolRelativeVel = util.GetParamBool("-boolRelativeVel", true),
 	boolGradientPsSource = util.GetParamBool("-boolGradientPsSource", false),
 	boolViscPs = util.GetParamBool("-boolViscPs", true),
 	boolAveDiff = util.GetParamBool("-boolAveDiff", true),
 	boolSlipDiff = util.GetParamBool("-boolSlipDiff", false),
-	boolSlipVel = util.GetParamBool("-boolSlipVel", false),
+	boolSlipVel = util.GetParamBool("-boolSlipVel", true),
 	boolpress_jump= util.GetParamBool("-boolpress_jump", false),
 	boolNormal = util.GetParamBool("-boolNormal", true),
 	boolFixVel = util.GetParamBool("-boolFixVel", false),
-	boolFixVol = util.GetParamBool("-boolFixVol", true),
+	boolFixVol = util.GetParamBool("-boolFixVol", false),
 	
 	inflow   = inflow,
 	H_0= H_0,
@@ -147,7 +147,7 @@ params =
 	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein, 4 Relax"),
 	density_model  = util.GetParam("-density_model", "linear", "constant, linear"),
 	drag_mod = util.GetParamNumber("-drag_model", 2, "Opt: 0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel"),
-	riemman = util.GetParamNumber("-riemman", 1, "Opt: 0 Upwind, 1 Godunov, 2 Rusanov, 3 Roe"),
+	riemman = util.GetParamNumber("-riemman", 2, "Opt: 0 Upwind, 1 Godunov, 2 Rusanov, 3 Roe"),
 	--Model 0 pow(0.63+4.8/sqrt(RE),2.0);
 
 	FR = 0.05,
@@ -582,7 +582,7 @@ if params.turbViscMethod=="dyn" then
 else
 	KinTurbulentViscosity = FV1SmagorinskyTurbViscData(approxSpace,u,params.modellconstant)
  end
-KinTurbulentViscosity:set_turbulence_zero_bnd("Left,Bottom,Top")
+KinTurbulentViscosity:set_turbulence_zero_bnd("Left,Bottom,Top,Right")
 KinTurbulentViscosity:set_kinematic_viscosity(0.0)
 
 
