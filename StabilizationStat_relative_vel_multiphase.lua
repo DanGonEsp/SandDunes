@@ -55,7 +55,7 @@ params =
 {
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
-	file_name = util.GetParam("-file_name", "DebugInertialLax") .."_".. fixedNum,
+	file_name = util.GetParam("-file_name", "DebugInertialLax2") .."_".. fixedNum,
 	folder_name = util.GetParam("-folder_name", "DebugInertial"),
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 3, "number of grid refinements"),
@@ -63,10 +63,10 @@ params =
 	startTime  = util.GetParamNumber("-start", 0.0, "start time"),
 	endTime    = util.GetParamNumber("-end", 1000, "end time"),
 	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 1000, "time steps"),
-	DTmin= util.GetParamNumber("-DTmin", 1e-05, "min  DT"),
+	DTmin= util.GetParamNumber("-DTmin", 1e-07, "min  DT"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	
-	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
+	timeMethod = util.GetParam("-timeMethod","euler","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", false),
 	incr_factor     = util.GetParamNumber("-incr_factor", 1.3),
 	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.5),
@@ -80,18 +80,19 @@ params =
 	limex_partial_mask = util.GetParamNumber("-limex-partial", 0, "limex partial (0 or 3)"),
 	limex_debug_level = util.GetParamNumber("-limex-debug-level", 5, "limex debug level (integer)"),
 	
-	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 100),
-	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 200),
+	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 70),
+	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 2500),
 	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-010),
 	RedDefect = util.GetParamNumber("-RedDefect", 1e-05),
 	NewtonDebug = util.GetParamBool("-NewtonDebug", false),
 	NewtonSteadyDebug = util.GetParamBool("-NewtonSteadyDebug", false),
+	NewtonUpdater = util.GetParamBool("-NewtonUpdater", true),
 	StepDebug = util.GetParamBool("-StepDebug", false),
 	
-	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 5),
+	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 4),
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
 
-	max_linear_steps=util.GetParamNumber("-max_linear_steps", 500),
+	max_linear_steps=util.GetParamNumber("-max_linear_steps", 400),
 	damping_mg = util.GetParamNumber("-damping_mg", 0.9),
 	value_beta = util.GetParamNumber("-value_beta", -0.10 ),
 	--value_beta = util.GetParamNumber("-value_beta", -0.14 ),
@@ -110,9 +111,10 @@ params =
 	boolSlipDiff = util.GetParamBool("-boolSlipDiff", false),
 	boolSlipVel = util.GetParamBool("-boolSlipVel", true),
 	boolpress_jump= util.GetParamBool("-boolpress_jump", false),
-	boolNormal = util.GetParamBool("-boolNormal", true),
+	boolNormal = util.GetParamBool("-boolNormal", false),
 	boolFixVel = util.GetParamBool("-boolFixVel", false),
 	boolFixVol = util.GetParamBool("-boolFixVol", false),
+	boolMassTerm = util.GetParamBool("-boolMassTerm", true),
 	
 	inflow   = inflow,
 	H_0= H_0,
@@ -131,7 +133,8 @@ params =
 	boolIPVelocity = util.GetParamBool("-boolIPVelocity", false),
 	boolTransportJac = util.GetParamBool("-boolTransportJac", true),
 	turbViscMethod = util.GetParam("-turbViscMethod","no","TurbVismodel type no , dyn or sma"),
-	modellconstant = util.GetParamNumber("-c",0.2),
+	modellconstant = util.GetParamNumber("-c",0.5),
+	update_turb = util.GetParamNumber("-update_turb", 5, "Update Turbulent Viscosity every .. ... iterations"),
 
 	--Material Properties
 	nu_a     = util.GetParamNumber("-visc_a", 1.48e-02, "kinematic viscosity"),
@@ -705,6 +708,11 @@ NavierStokesDisc:set_stabilization (params.stab, params.diffLength)
 NavierStokesDisc:set_div_correction (params.div_correction)
 NavierStokesDisc:set_transport_ip_velocity(params.boolIPVelocity)
 NavierStokesDisc:set_transport_jac(params.boolTransportJac)
+NavierStokesDisc:set_mass_term(params.boolMassTerm)
+if params.timeMethod == "limex" then
+	--NavierStokesDisc:set_limex_correction(true)
+end
+
 
 		
 NavierStokesDisc:set_density(Density)

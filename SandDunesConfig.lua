@@ -28,6 +28,7 @@ myProblem.Init = function(self, o)
 	self.minConvRate = o.minConvRate
 	self.NewtonDebug = o.NewtonDebug
 	self.NewtonSteadyDebug = o.NewtonSteadyDebug
+	self.NewtonUpdater = o.NewtonUpdater
 	self.StepDebug = o.StepDebug
 	self.debug_dir = o.debug_dir
 	
@@ -257,13 +258,6 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		end
 		
 	end
-
-
-
-	TransientNewtonUpdater = NewtonUpdaterProjection()
-	TransientNewtonUpdater:set_projection_fct(self.dim+1)
-	TransientNewtonUpdater:set_max_threshold(2.0)
-	TransientNewtonUpdater:set_min_threshold(-2.0)
 		
 	local limex = nil
 	local NLSolver = NewtonSolver()
@@ -272,14 +266,13 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	if self.timeMethod == "limex" then
 		NLSolver:set_linear_solver(LinearSolver)
 		NLSolver:set_convergence_check(LimexConvCheck)
-		NLSolver:setNewtonUpdater(TransientNewtonUpdater)
 		limex = myProblem:LimexObject( domainDisc, NLSolver)
 	else
 		NLSolver:set_linear_solver(LinearSolver)
 		NLSolver:set_convergence_check(NewtonConvCheck)
 		NLSolver:set_line_search(NewtonLineSearch)
 		NLSolver:set_reassemble_J_freq(0)
-		NLSolver:setNewtonUpdater(TransientNewtonUpdater)
+		NLSolver:auto_update(true)
 		op = AssembledOperator(timeDisc)
 		op:init()
 		NLSolver:init(op)
@@ -295,6 +288,15 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		dbgWriter:set_base_dir(self.debug_dir)
 		NLSolver:set_debug(dbgWriter)
 					
+	end
+	
+	TransientNewtonUpdater = nil
+	if (self.NewtonUpdater and self.timeMethod == "euler")then
+		TransientNewtonUpdater = NewtonUpdaterProjection()
+		TransientNewtonUpdater:set_projection_fct(self.dim+1)
+		TransientNewtonUpdater:set_max_threshold(1.1)
+		TransientNewtonUpdater:set_min_threshold(-1e-05)
+		NLSolver:setNewtonUpdater(TransientNewtonUpdater)
 	end
 	
 	
@@ -476,7 +478,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 			end
 		else
             
-            if  (time2 + do_dt + (1e-07) * DTmin -time)/DTmax > 1.0 then
+            if  ((time2 + do_dt + (1e-07) * DTmin -time)/DTmax > 1.0 or modifyDT == false) then
             
                 time= timeDisc:future_time()                                        -- update new time
                                                                                 
@@ -590,7 +592,7 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 
 	local dtmax = self.DTmax
 	local dtmin = self.DTmin
-	local dtlimex = 1.0
+	local dtlimex = 10*self.DTmin
 	local gridSize = 1.0
 	--  Euclidean (algebraic) norm
 	--local estimator = Norm2Estimator()
@@ -599,16 +601,18 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 
 	--print (estimator)
 	local limexEstimator = CompositeGridFunctionEstimator()
-	--limexEstimator:add(H1SemiComponentSpace("u", 2 ))
-	--limexEstimator:add(H1SemiComponentSpace("v", 2 ))
+	limexEstimator:add(H1SemiComponentSpace("u", 2 ))
+	limexEstimator:add(H1SemiComponentSpace("v", 2 ))
 
-	limexEstimator:add(L2ComponentSpace("u", 2))
-	limexEstimator:add(L2ComponentSpace("v", 2))
-
-	limexEstimator:add(H1SemiComponentSpace("p", 2))--, ConstUserMatrix(1/207414416) ))
-	limexEstimator:add(L2ComponentSpace("c", 2))
+	--limexEstimator:add(L2ComponentSpace("u", 2))
+	--limexEstimator:add(L2ComponentSpace("v", 2))
 	
-	limexEstimator:use_strict_relative_norms(1)
+
+	--limexEstimator:add(H1SemiComponentSpace("p", 2, ConstUserMatrix(0.001) ))
+	limexEstimator:add(L2ComponentSpace("p", 2))
+	limexEstimator:add(L2ComponentSpace("c", 2, 100.0))
+	
+	--limexEstimator:use_strict_relative_norms(1)
 
 	-- descriptor for integrator
 	local limexDesc = {
@@ -627,8 +631,8 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	  rhoSafetyOPT = 0.25,
 	  dtred = 0.5,
 	  dtIncr = 1.5,
-	  matrixCache = true,
-	  conservative = false
+	  matrixCache = false,
+	  conservative = true
 	  
 	}
 
@@ -636,6 +640,7 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	-- setup for time integrator
 	local limex = util.limex.CreateIntegrator(limexDesc)
 
+	limex:set_time_step(limexDesc.dt)
 	limex:set_dt_min(limexDesc.dtmin)
 	limex:set_dt_max(limexDesc.dtmax)
 	limex:set_reduction_factor(limexDesc.dtred)
