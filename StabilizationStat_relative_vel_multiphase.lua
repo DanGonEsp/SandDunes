@@ -60,10 +60,9 @@ params =
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 3, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)"),
-	startTime  = util.GetParamNumber("-start", 0.0, "start time"),
-	endTime    = util.GetParamNumber("-end", 1000, "end time"),
-	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 1000, "time steps"),
+	DT= util.GetParamNumber("-DT", 1, "DT[seconds]"),
 	DTmin= util.GetParamNumber("-DTmin", 1e-07, "min  DT"),
+	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 1000, "time steps"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	
 	timeMethod = util.GetParam("-timeMethod","euler","euler limex"),
@@ -167,9 +166,10 @@ params =
 	
 }
 
+params.startTime  = 0.0
+params.endTime    = params.DT * params.numTimeSteps
+params.DTmax = params.DT
 
-params.DTmax = (params.endTime - params.startTime) / params.numTimeSteps
-dt = util.GetParamNumber("-dt", params.DTmax, "dt")
 file_name = params.file_name
 c_init = params.c_init
 folder_name = params.folder_name .. "_" .. params.timeMethod
@@ -547,7 +547,7 @@ InterfaceValues:set_limit(params.Visc_limit)
 InterfaceValues:set_bool_particle_pressure_force(params.boolGradientPsSource)
 InterfaceValues:set_bool_consistent_gravity(false)
 InterfaceValues:set_reference_pressure(params.ReferencePressure)
-InterfaceValues:set_time_step_factor(dt)
+InterfaceValues:set_time_step_factor(params.DT)
 InterfaceValues:set_interface_volume_fraction(interface_value)
 InterfaceValues:set_drag_model(params.drag_mod)
 InterfaceValues:set_relative_vel_error(1)
@@ -987,7 +987,7 @@ if boolSolution == 1 then
 		print("++++++ TIMESTEP " .. step .. " BEGIN ++++++")
 		tBefore_step = os.clock()
 		StartTime = time
-		EndTime = time + params.DTmax
+		EndTime = time + params.DT
 		if params.timeMethod == "limex" then
 		
 			Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, boolSolution  = myProblem:SolveNonlinearProblemLimex(u, limex, NLSolver, StartTime, EndTime)
@@ -996,7 +996,7 @@ if boolSolution == 1 then
 			--[[if doo then
 				
 				for step2 = 1, 1 do
-					Newton_Steps2, Newton_Steps_fail2, linsolver_calls_step2, linsolver_steps_step2 , dt2, boolSolution = myProblem:SolveNonlinearProblem( u, NLSolver, op, timeDisc, solTimeSeries, 1, 0,0,1)
+					Newton_Steps2, Newton_Steps_fail2, linsolver_calls_step2, linsolver_steps_step2 , boolSolution = myProblem:SolveNonlinearProblem( u, NLSolver, op, timeDisc, solTimeSeries, 1, 0,0,1)
 				
 				end
 				fixer = DirichletBoundary()
@@ -1005,7 +1005,7 @@ if boolSolution == 1 then
 				fixer:add("c", "")
 				doo = false
 			end]]
-			Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step , dt, boolSolution = myProblem:SolveNonlinearProblem( u, NLSolver, op, timeDisc, solTimeSeries, dt, step,StartTime,EndTime)
+			Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step , boolSolution = myProblem:SolveNonlinearProblem( u, NLSolver, op, timeDisc, solTimeSeries, DT, step,StartTime,EndTime)
 		end
 		time = EndTime
 		tAfter_step = os.clock()

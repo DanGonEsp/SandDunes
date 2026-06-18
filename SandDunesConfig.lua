@@ -14,6 +14,7 @@ myProblem.Init = function(self, o)
 	self.startTime = o.startTime
 	self.endTime = o.endTime
 	self.numTimeSteps = o.numTimeSteps
+	self.DT = o.DT
 	self.DTmax = o.DTmax
 	self.DTmin = o.DTmin
 	self.outputFactor = o.outputFactor
@@ -389,7 +390,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 	local incr_factor = self.incr_factor
 	local optimal_newton_steps = self.optimal_newton_steps
 	local DTmin = self.DTmin
-	local DTmax = EndTime-StartTime
+	local DTmax = self.DTmax
 	local modifyDT = self.modifyDT
 	local StepDebug = self.StepDebug
 	local AbsDefect = self.AbsDefect
@@ -592,11 +593,11 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 
 	local dtmax = self.DTmax
 	local dtmin = self.DTmin
-	local dtlimex = 10*self.DTmin
-	local gridSize = 1.0
+	local dtlimex = self.DTmin
+
 	--  Euclidean (algebraic) norm
 	--local estimator = Norm2Estimator()
-	--tol = 0.37/(gridSize)*tol
+
 
 
 	--print (estimator)
