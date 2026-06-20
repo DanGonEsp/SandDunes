@@ -571,7 +571,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 			
 	end
 
-  return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, dt_in, 1
+  return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, 1
 end
 
 --------------------------------------------------------------------------------

@@ -88,7 +88,7 @@ params =
 	NewtonUpdater = util.GetParamBool("-NewtonUpdater", true),
 	StepDebug = util.GetParamBool("-StepDebug", false),
 	
-	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 4),
+	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 5),
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
 
 	max_linear_steps=util.GetParamNumber("-max_linear_steps", 400),
@@ -293,8 +293,12 @@ print ("	Diffusion       	= " .. tostring (params.boolAveDiff))
 print ("	SlipDiff         	= " .. tostring (params.boolSlipDiff))
 print ("	SlipVel         	= " .. tostring (params.boolSlipVel))
 print (" Numerical parameter:")
+print ("	elem_type		= " .. params.elem_type)
 print ("	numRefs			= " .. params.numRefs)
 print ("	numPreRefs		= " .. params.numPreRefs)
+print ("	timeMethod		= " .. params.timeMethod)
+print ("	DT   			= " .. params.DT)
+print ("	numTimeSteps		= " .. params.numTimeSteps)
 print ("	noLaplace		= " .. tostring (params.bNoLaplace))
 print ("	exactJac		= " .. tostring (params.bExactJac))
 print ("	PecletBlend		= " .. tostring (params.bPecletBlend))
@@ -303,6 +307,8 @@ print ("	upwind_t		= " .. params.upwind_t)
 print ("	pac			= " .. tostring (params.bPac))
 print ("	stab			= " .. params.stab)
 print ("	difflength		= " .. params.diffLength)
+print ("	Turbulence		= " .. params.turbViscMethod)
+
 
 --------------------------------------------------------------------------------
 -- Problem setup.
@@ -1010,13 +1016,15 @@ if boolSolution == 1 then
 		time = EndTime
 		tAfter_step = os.clock()
 		
-		if (step % params.outputFactor == 0 and boolSolution == 1) then
 		
-			out:print_subsets(vtk_file_name, u,allSubsets,step,time)
-			print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
-			print(" ")
-		end
 		if boolSolution == 1 then
+		
+			if (step % params.outputFactor == 0 ) then
+				out:print_subsets(vtk_file_name, u,allSubsets,step,time)
+				print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
+				print(" ")
+			end
+			
 			print("++++++ TIMESTEP " .. step .. "  END ++++++")
 			print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
 			print ("                                                            ")
@@ -1045,9 +1053,12 @@ if boolSolution == 1 then
 			if rank == 0 then
 				myProblem:WriteValues( folder, step, time, Value_inner1, Value_inner2, tAfter_step - tBefore_step, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
 			end
+			
 		else
+			print("++++++ TIMESTEP " .. step .. "  FAILED ++++++")
 			out:print_subsets(vtk_file_name, u,allSubsets,step,time)
-			print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
+			print ("Failed Output file" .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
+			print("++++++ TIMESTEP " .. step .. "  FAILED ++++++")
 			print(" ")
 			break
 		end
