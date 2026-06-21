@@ -55,7 +55,7 @@ params =
 {
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
-	file_name = util.GetParam("-file_name", "DebugInertialLax2") .."_".. fixedNum,
+	file_name = util.GetParam("-file_name", "DebugInertialLax") .."_".. fixedNum,
 	folder_name = util.GetParam("-folder_name", "DebugInertial"),
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 3, "number of grid refinements"),
@@ -65,7 +65,7 @@ params =
 	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 1000, "time steps"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	
-	timeMethod = util.GetParam("-timeMethod","euler","euler limex"),
+	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", false),
 	incr_factor     = util.GetParamNumber("-incr_factor", 1.3),
 	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.5),
@@ -716,7 +716,7 @@ NavierStokesDisc:set_transport_ip_velocity(params.boolIPVelocity)
 NavierStokesDisc:set_transport_jac(params.boolTransportJac)
 NavierStokesDisc:set_mass_term(params.boolMassTerm)
 if params.timeMethod == "limex" then
-	--NavierStokesDisc:set_limex_correction(true)
+	NavierStokesDisc:set_limex_correction(true)
 end
 
 
@@ -740,7 +740,7 @@ end
 if(params.boolpress_jump) then
 	NavierStokesDisc:set_pressure_jump ( params.diffLength)
 end
-NavierStokesDisc:set_interface_normal(Normal)
+--NavierStokesDisc:set_interface_normal(Normal)
 --NavierStokesDisc:set_rhie_chow(PressureGradientMean)
 
 if (params.boolSource) then
@@ -871,7 +871,11 @@ if params.doSteadyState and boolSolution == 1 then
 	--NewtonSolverSteady:add_step_update(gamma)
 	NewtonSolverSteady:add_step_update(RelVel)
 	NewtonSolverSteady:add_step_update(Normal)
-	NewtonSolverSteady:add_inner_step_update(KinTurbulentViscosity)
+	if params.turbViscMethod=="no" then
+		NewtonSolverSteady:add_step_update(KinTurbulentViscosity)
+	else
+		NewtonSolverSteady:add_inner_step_update(KinTurbulentViscosity)
+	end
 	--NewtonSolverSteady:add_inner_step_update(PressureGradientMean)
 	if params.boolSlipDiff then
 		NewtonSolverSteady:add_step_update(SlipDiff)
@@ -963,14 +967,30 @@ if (rank == 0 and  boolSolution == 1) then
 	myProblem:WriteValues( folder, step, time, Value_inner1, Value_inner2, time_work_steady, 1, 0, linsolver_calls, linsolver_steps,false)
 end
 
-NLSolver:add_inner_step_update(KinTurbulentViscosity)
+
+if params.turbViscMethod=="no" then
+	NLSolver:add_step_update(KinTurbulentViscosity)
+else
+	NLSolver:add_inner_step_update(KinTurbulentViscosity)
+end
+
+
 --NLSolver:add_inner_step_update(gamma)
-NLSolver:add_inner_step_update(RelVel)
-NLSolver:add_inner_step_update(Normal)
+NLSolver:add_step_update(RelVel)
+NLSolver:add_step_update(Normal)
 if params.boolSlipDiff then
-	NLSolver:add_inner_step_update(SlipDiff)
+	if params.timeMethod == "limex" then
+		NLSolver:add_step_update(SlipDiff)
+	else
+		NLSolver:add_inner_step_update(SlipDiff)
+	end
 else if params.boolSlipVel then
-		NLSolver:add_inner_step_update(SlipVel)
+		if params.timeMethod == "limex" then
+			NLSolver:add_step_update(SlipVel)
+		else
+			NLSolver:add_inner_step_update(SlipVel)
+		end
+		
 	end
 end
 	
