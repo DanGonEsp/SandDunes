@@ -62,7 +62,7 @@ params =
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)"),
 	DT= util.GetParamNumber("-DT", 0.5, "DT[seconds]"),
 	DTmin= util.GetParamNumber("-DTmin", 1e-07, "min  DT"),
-	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 100, "time steps"),
+	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 1000, "time steps"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	
 	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
