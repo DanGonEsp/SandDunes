@@ -60,9 +60,9 @@ params =
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 3, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)"),
-	DT= util.GetParamNumber("-DT", 1, "DT[seconds]"),
+	DT= util.GetParamNumber("-DT", 0.5, "DT[seconds]"),
 	DTmin= util.GetParamNumber("-DTmin", 1e-07, "min  DT"),
-	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 1000, "time steps"),
+	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 100, "time steps"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	
 	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
@@ -715,7 +715,7 @@ NavierStokesDisc:set_div_correction (params.div_correction)
 NavierStokesDisc:set_transport_ip_velocity(params.boolIPVelocity)
 NavierStokesDisc:set_transport_jac(params.boolTransportJac)
 NavierStokesDisc:set_mass_term(params.boolMassTerm)
-if params.timeMethod == "limex" then
+if params.timeMethod == "limex" and params.boolMassTerm then
 	NavierStokesDisc:set_limex_correction(true)
 end
 

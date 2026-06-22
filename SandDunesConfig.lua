@@ -267,6 +267,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	if self.timeMethod == "limex" then
 		NLSolver:set_linear_solver(LinearSolver)
 		NLSolver:set_convergence_check(LimexConvCheck)
+		NLSolver:auto_update(false)
 		limex = myProblem:LimexObject( domainDisc, NLSolver)
 	else
 		NLSolver:set_linear_solver(LinearSolver)
@@ -609,11 +610,12 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	--limexEstimator:add(L2ComponentSpace("v", 2))
 	
 
-	--limexEstimator:add(H1SemiComponentSpace("p", 2, ConstUserMatrix(0.001) ))
-	limexEstimator:add(L2ComponentSpace("p", 2))
-	limexEstimator:add(L2ComponentSpace("c", 2, 100.0))
+	limexEstimator:add(H1SemiComponentSpace("p", 2, ConstUserMatrix(0.0001) ))
+	--limexEstimator:add(L2ComponentSpace("p", 2))
+	limexEstimator:add(L2ComponentSpace("c", 2))
 	
 	--limexEstimator:use_strict_relative_norms(1)
+	print(limexEstimator:config_string())
 
 	-- descriptor for integrator
 	local limexDesc = {
@@ -668,13 +670,16 @@ end
 -- SolutionNonLinearProblem LIMEX
 --------------------------------------------------------------------------------
 myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, StartTime, EndTime)
-
+	
+	limex:set_start_step(1)
 	limex:apply(u, EndTime, u, StartTime)
+	n_step = limex:get_step()-1
 	
     local Newton_Steps = NLSolver:total_linsolver_calls()
 	local Newton_Steps_fail = 0
 	linsolver_calls_step = NLSolver:total_linsolver_calls()
 	linsolver_steps_step =  NLSolver:total_linsolver_steps()
+	limex:set_time_step(self.DTmax/n_step)
 	NLSolver:clear_average_convergence();
 
   return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, 1
