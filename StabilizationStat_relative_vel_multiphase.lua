@@ -55,13 +55,13 @@ params =
 {
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
-	file_name = util.GetParam("-file_name", "DebugInertialLax") .."_".. fixedNum,
-	folder_name = util.GetParam("-folder_name", "DebugInertial"),
+	file_name = util.GetParam("-file_name", "LimexDebug") .."_".. fixedNum,
+	folder_name = util.GetParam("-folder_name", "LimexDebug"),
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 3, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)"),
 	DT= util.GetParamNumber("-DT", 0.5, "DT[seconds]"),
-	DTmin= util.GetParamNumber("-DTmin", 1e-07, "min  DT"),
+	DTmin= util.GetParamNumber("-DTmin", 1e-04, "min  DT"),
 	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 1000, "time steps"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	
@@ -1016,7 +1016,7 @@ if boolSolution == 1 then
 		EndTime = time + params.DT
 		if params.timeMethod == "limex" then
 		
-			Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, boolSolution  = myProblem:SolveNonlinearProblemLimex(u, limex, NLSolver, StartTime, EndTime)
+			Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, boolSolution  = myProblem:SolveNonlinearProblemLimex(u, limex, NLSolver, step, StartTime, EndTime)
 
 		else
 			--[[if doo then

@@ -610,7 +610,7 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	--limexEstimator:add(L2ComponentSpace("v", 2))
 	
 
-	limexEstimator:add(H1SemiComponentSpace("p", 2, ConstUserMatrix(0.0001) ))
+	limexEstimator:add(H1SemiComponentSpace("p", 2))--, ConstUserMatrix(0.0001) ))
 	--limexEstimator:add(L2ComponentSpace("p", 2))
 	limexEstimator:add(L2ComponentSpace("c", 2))
 	
@@ -669,8 +669,13 @@ end
 --------------------------------------------------------------------------------
 -- SolutionNonLinearProblem LIMEX
 --------------------------------------------------------------------------------
-myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, StartTime, EndTime)
+myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, time_step, StartTime, EndTime)
 	
+	if(time_step == 1) then
+		limex:set_dt_min(1e-012)
+	end
+	
+		
 	limex:set_start_step(1)
 	limex:apply(u, EndTime, u, StartTime)
 	n_step = limex:get_step()-1
@@ -680,6 +685,11 @@ myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, Start
 	linsolver_calls_step = NLSolver:total_linsolver_calls()
 	linsolver_steps_step =  NLSolver:total_linsolver_steps()
 	limex:set_time_step(self.DTmax/n_step)
+	
+	if(time_step == 1) then
+		limex:set_dt_min(self.DTmin)
+	end
+	
 	NLSolver:clear_average_convergence();
 
   return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, 1
