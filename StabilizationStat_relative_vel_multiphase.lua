@@ -97,8 +97,8 @@ params =
 	--value_beta = util.GetParamNumber("-value_beta", -0.14 ),
 	LinAbsDefectImp = util.GetParamNumber("-LinAbsDefectImp", 1e-012),
 	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", 1e-04),
-	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", 1e-016),
-	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", 1e-10),
+	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", 1e-018),
+	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", 1e-12),
 
 	
 			-- Physical phenomenon of simulation
