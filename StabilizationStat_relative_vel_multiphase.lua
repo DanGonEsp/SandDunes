@@ -95,8 +95,10 @@ params =
 	damping_mg = util.GetParamNumber("-damping_mg", 0.9),
 	value_beta = util.GetParamNumber("-value_beta", -0.10 ),
 	--value_beta = util.GetParamNumber("-value_beta", -0.14 ),
-	LinAbsDefect = util.GetParamNumber("-LinAbsDefect", 1e-012),
-	LinRedDefect = util.GetParamNumber("-LinRedDefect", 1e-04),
+	LinAbsDefectImp = util.GetParamNumber("-LinAbsDefectImp", 1e-012),
+	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", 1e-04),
+	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", 1e-016),
+	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", 1e-10),
 
 	
 			-- Physical phenomenon of simulation

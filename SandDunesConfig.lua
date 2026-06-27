@@ -44,8 +44,10 @@ myProblem.Init = function(self, o)
 	self.AbsDefect = o.AbsDefect
 	self.RedDefect = o.RedDefect
 
-	self.LinAbsDefect = o.LinAbsDefect
-	self.LinRedDefect = o.LinRedDefect
+	self.LinAbsDefectImp = o.LinAbsDefectImp
+	self.LinRedDefectImp = o.LinRedDefectImp
+	self.LinAbsDefectLim = o.LinAbsDefectLim
+	self.LinRedDefectLim = o.LinRedDefectLim
 	self.max_linear_steps = o.max_linear_steps
 	self.damping_mg = o.damping_mg
 	self.value_beta = o.value_beta
@@ -151,7 +153,8 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	----------------------------------------------------------
 	local NewtonSteadyConvCheck=ConvCheck(self.max_newton_steps_steady_state, self.AbsDefect, self.RedDefect, true)
 	local NewtonConvCheck=ConvCheck(self.max_newton_steps_transient, self.AbsDefect, self.RedDefect, true)
-	local LinearConvCheck=ConvCheck(self.max_linear_steps, self.LinAbsDefect, self.LinRedDefect, true)
+	local LinearConvCheckImp=ConvCheck(self.max_linear_steps, self.LinAbsDefectImp, self.LinRedDefectImp, true)
+	local LinearConvCheckLim=ConvCheck(self.max_linear_steps, self.LinAbsDefectLim, self.LinRedDefectLim, true)
 	local LimexConvCheck=ConvCheck(1, self.AbsDefect, 1e-8, true)
 	      LimexConvCheck:set_supress_unsuccessful(true)
 	
@@ -215,26 +218,31 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	----------------------------------------------------------
 	
 		-- create Linear Solver
-	GMresSolver = GMRES(20)
-	GMresSolver:set_preconditioner(gmg)
-	GMresSolver:set_convergence_check(LinearConvCheck)
+	--GMresSolver = GMRES(20)
+	--GMresSolver:set_preconditioner(gmg)
+	--GMresSolver:set_convergence_check(LinearConvCheck)
 	
 	-- create Linear Solver
-	BiCGStabSolver = BiCGStab()
-	BiCGStabSolver:set_preconditioner(gmg)
-	BiCGStabSolver:set_convergence_check(LinearConvCheck)
-
-	gmgSolver = LinearSolver()
-	gmgSolver:set_preconditioner(gmg)
-	gmgSolver:set_convergence_check(LinearConvCheck)
+	BiCGStabSolverImp = BiCGStab()
+	BiCGStabSolverImp:set_preconditioner(gmg)
+	BiCGStabSolverImp:set_convergence_check(LinearConvCheckImp)
 	
-	ilutSolver = LinearSolver()
-	ilutSolver:set_preconditioner(ilu)
-	ilutSolver:set_convergence_check(LinearConvCheck)
+	BiCGStabSolverLim = BiCGStab()
+	BiCGStabSolverLim:set_preconditioner(gmg)
+	BiCGStabSolverLim:set_convergence_check(LinearConvCheckLim)
+
+	--gmgSolver = LinearSolver()
+	--gmgSolver:set_preconditioner(gmg)
+	--gmgSolver:set_convergence_check(LinearConvCheck)
+	
+	--ilutSolver = LinearSolver()
+	--ilutSolver:set_preconditioner(ilu)
+	--ilutSolver:set_convergence_check(LinearConvCheck)
 	
 	
 	-- choose a solver
-	LinearSolver = BiCGStabSolver
+	LinearSolverLim = BiCGStabSolverLim
+	LinearSolverImp = BiCGStabSolverImp
 	--LinearSolver = GMresSolver
 	--LinearSolver = gmgSolver
 	--LinearSolver = ilutSolver
@@ -246,7 +254,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	local NewtonSolverSteady = nil
 	if self.doSteadyState then
 		NewtonSolverSteady = NewtonSolver()
-		NewtonSolverSteady:set_linear_solver(LinearSolver)
+		NewtonSolverSteady:set_linear_solver(LinearSolverImp)
 		NewtonSolverSteady:set_convergence_check(NewtonSteadyConvCheck)
 		NewtonSolverSteady:set_line_search(NewtonLineSearch)
 		
@@ -265,12 +273,12 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	
 	
 	if self.timeMethod == "limex" then
-		NLSolver:set_linear_solver(LinearSolver)
+		NLSolver:set_linear_solver(LinearSolverLim)
 		NLSolver:set_convergence_check(LimexConvCheck)
 		NLSolver:auto_update(false)
 		limex = myProblem:LimexObject( domainDisc, NLSolver)
 	else
-		NLSolver:set_linear_solver(LinearSolver)
+		NLSolver:set_linear_solver(LinearSolverImp)
 		NLSolver:set_convergence_check(NewtonConvCheck)
 		NLSolver:set_line_search(NewtonLineSearch)
 		NLSolver:set_reassemble_J_freq(0)
