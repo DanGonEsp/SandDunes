@@ -223,3 +223,15 @@ renderView1.Set(
 
 
 print("Saved image sequence to:", output_folder)
+
+
+# Borrar
+#renderView1 = GetActiveViewOrCreate('RenderView')
+
+#renderView1.Set(
+    #InteractionMode='2D',
+    #CameraPosition=[18.45437148293592, 5.667747943838653, 264.65000000000003],
+    #CameraFocalPoint=[18.45437148293592, 5.667747943838653, 0.0],
+    #CameraParallelScale=5.965329763017001,
+#)
+#Render()

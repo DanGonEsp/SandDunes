@@ -62,7 +62,7 @@ params =
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)"),
 	DT= util.GetParamNumber("-DT", 0.5, "DT[seconds]"),
 	DTmin= util.GetParamNumber("-DTmin", 1e-04, "min  DT"),
-	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 1000, "time steps"),
+	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 100, "time steps"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	
 	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
@@ -131,7 +131,7 @@ params =
 	diffLength  = util.GetParam("-difflength", "raw", "fivepoint, raw, cor Diffusion length type"),
 	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)"),
 	div_correction = util.GetParamBool("-DivCorrection", false ,"Divergence correction for Newton's inner steps'"),
-	boolIPVelocity = util.GetParamBool("-boolIPVelocity", false),
+	boolIPVelocity = util.GetParamBool("-boolIPVelocity", true),
 	boolTransportJac = util.GetParamBool("-boolTransportJac", true),
 	turbViscMethod = util.GetParam("-turbViscMethod","no","TurbVismodel type no , dyn or sma"),
 	modellconstant = util.GetParamNumber("-c",0.5),
@@ -567,10 +567,16 @@ InterfaceValues:set_bool_initialized(true)
 --gamma = ShearStressFV1(approxSpace,u)
 
 ---------------------------------------------------------------------- Density
+Density = nil
+if params.bStokes then
+	Density = ConstUserNumber(params.rho_a)
+else
+	Density = GranularDensityLinker();
+	Density:set_model(params.density_model)
+	Density:set_phase_parameters(InterfaceValues)
+end
 
-Density = GranularDensityLinker(); 
-Density:set_model(params.density_model)
-Density:set_phase_parameters(InterfaceValues)
+
 
 
 ---------------------------------------------------------------------- Viscosity
@@ -718,7 +724,7 @@ NavierStokesDisc:set_div_correction (params.div_correction)
 NavierStokesDisc:set_transport_ip_velocity(params.boolIPVelocity)
 NavierStokesDisc:set_transport_jac(params.boolTransportJac)
 NavierStokesDisc:set_mass_term(params.boolMassTerm)
-if params.timeMethod == "limex" and params.boolMassTerm then
+if params.timeMethod == "limex" and params.boolMassTerm and not(params.bStokes) then
 	NavierStokesDisc:set_limex_correction(true)
 end
 
@@ -779,8 +785,9 @@ flowBnd:add(0.0, "c", "Left,Top")
 ---------------------------------------------------------------------------------------
 -- Parameters Inputs
 ---------------------------------------------------------------------------------------
-
-Density:set_volume_fraction(NavierStokesDisc:volume_fraction())
+if not(params.bStokes) then
+	Density:set_volume_fraction(NavierStokesDisc:volume_fraction())
+end
 
 
 Diffusion:set_velocity_gradient(NavierStokesDisc:velocity_grad())

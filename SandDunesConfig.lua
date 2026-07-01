@@ -611,18 +611,18 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 
 	--print (estimator)
 	local limexEstimator = CompositeGridFunctionEstimator()
-	limexEstimator:add(H1SemiComponentSpace("u", 2 ))
-	limexEstimator:add(H1SemiComponentSpace("v", 2 ))
+	--limexEstimator:add(H1SemiComponentSpace("u", 2 ))
+	--limexEstimator:add(H1SemiComponentSpace("v", 2 ))
 
-	--limexEstimator:add(L2ComponentSpace("u", 2))
-	--limexEstimator:add(L2ComponentSpace("v", 2))
+	limexEstimator:add(L2ComponentSpace("u", 2))
+	limexEstimator:add(L2ComponentSpace("v", 2))
 	
 
-	limexEstimator:add(H1SemiComponentSpace("p", 2))--, ConstUserMatrix(0.0001) ))
-	--limexEstimator:add(L2ComponentSpace("p", 2))
-	limexEstimator:add(L2ComponentSpace("c", 2))
+	--limexEstimator:add(H1SemiComponentSpace("p", 2))--, ConstUserMatrix(0.0001) ))
+	limexEstimator:add(L2ComponentSpace("p", 2))
+	limexEstimator:add(L2ComponentSpace("c", 2, 100))
 	
-	--limexEstimator:use_strict_relative_norms(1)
+	limexEstimator:use_strict_relative_norms(1)
 	print(limexEstimator:config_string())
 
 	-- descriptor for integrator
@@ -692,7 +692,7 @@ myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, time_
 	local Newton_Steps_fail = 0
 	linsolver_calls_step = NLSolver:total_linsolver_calls()
 	linsolver_steps_step =  NLSolver:total_linsolver_steps()
-	limex:set_time_step(self.DTmax/n_step)
+	limex:set_time_step(self.DTmax/(math.max(n_step-1,1)))
 	
 	if(time_step == 1) then
 		limex:set_dt_min(self.DTmin)
