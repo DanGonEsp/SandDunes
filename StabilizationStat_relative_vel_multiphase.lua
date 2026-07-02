@@ -72,9 +72,12 @@ params =
 	nstages = util.GetParamNumber("-limex-nstages", 2, "limex stages (2 default)"),
 	limex_partial_mask = util.GetParamNumber("-limex-partial", 0, "limex partial (0 or 3)"),
 	limex_debug_level = util.GetParamNumber("-limex-debug-level", 5, "limex debug level (integer)"),
-	VelErrorNorm = util.GetParam("-limexNorm","L2","Norm for Pressure error type H1 , L2"),
+	VelErrorNorm = util.GetParam("-VelErrorNorm","L2","Norm for Pressure error type H1 , L2"),
 	PressErrorNorm = util.GetParam("-limexNorm","H1","Norm for Pressure error type H1 , L2"),
-	VolErrorNorm = util.GetParam("-limexNorm","L2","Norm for Pressure error type H1 , L2"),
+	VolErrorNorm = util.GetParam("-VolErrorNorm","L2","Norm for Pressure error type H1 , L2"),
+	alphaVel  = util.GetParamNumber("-alphaVel", 1.0, "Error estimator scale factor for Velocity"),
+	alphaPress = util.GetParamNumber("-alphaPress", 1e-3, "Error estimator scale factor for Pressure"),
+	alphaVol = util.GetParamNumber("-alphaVol", 100, "Error estimator scale factor for Volume fraction"),
 	
 	incr_factor     = util.GetParamNumber("-incr_factor", 2.0),
 	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.5),
@@ -334,6 +337,16 @@ print ("	pac			= " .. tostring (params.bPac))
 print ("	stab			= " .. params.stab)
 print ("	difflength		= " .. params.diffLength)
 print ("	Turbulence		= " .. params.turbViscMethod)
+
+if params.timeMethod == "limex" then
+	print (" Limex Numerical parameter:")
+	print ("	Vel norm		= " .. params.VelErrorNorm)
+	print ("	Press norm		= " .. params.PressErrorNorm)
+	print ("	Vol  norm		= " .. params.VolErrorNorm)
+	print ("	Vel norm scale		= " .. params.alphaVel)
+	print ("	Press norm scale	= " .. params.alphaPress)
+	print ("	Vol norm scale		= " .. params.alphaVol)
+end
 
 
 --------------------------------------------------------------------------------

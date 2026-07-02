@@ -41,6 +41,9 @@ myProblem.Init = function(self, o)
 	self.VelErrorNorm = o.VelErrorNorm
 	self.PressErrorNorm = o.PressErrorNorm
 	self.VolErrorNorm = o.VolErrorNorm
+	self.alphaVel  = o.alphaVel
+	self.alphaPress = o.alphaPress
+	self.alphaVol = o.alphaVol
 
 	self.max_newton_steps_steady_state = o.max_newton_steps_steady_state
 	self.max_newton_steps_transient = o.max_newton_steps_transient
@@ -616,27 +619,27 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	local limexEstimator = CompositeGridFunctionEstimator()
 	
 	if self.VelErrorNorm == "L2" then
-		limexEstimator:add(L2ComponentSpace("u", 2))
-		limexEstimator:add(L2ComponentSpace("v", 2))
+		limexEstimator:add(L2ComponentSpace("u", 2, self.alphaVel))
+		limexEstimator:add(L2ComponentSpace("v", 2, self.alphaVel))
 	elseif self.VelErrorNorm == "H1" then
-		limexEstimator:add(H1SemiComponentSpace("u", 2 ))
-		limexEstimator:add(H1SemiComponentSpace("v", 2 ))
+		limexEstimator:add(H1SemiComponentSpace("u", 2 , ConstUserMatrix(self.alphaVel)))
+		limexEstimator:add(H1SemiComponentSpace("v", 2 , ConstUserMatrix(self.alphaVel)))
 	else
 		print ("LimexErrorEstimator for velocity not defined"); exit();
 	end
 	
 	if self.PressErrorNorm == "L2" then
-		limexEstimator:add(L2ComponentSpace("p", 2))
+		limexEstimator:add(L2ComponentSpace("p", 2, self.alphaPress))
 	elseif self.PressErrorNorm == "H1" then
-		limexEstimator:add(H1SemiComponentSpace("p", 2, ConstUserMatrix(1e-09) ))
+		limexEstimator:add(H1SemiComponentSpace("p", 2, ConstUserMatrix(self.alphaPress) ))
 	else
 		print ("LimexErrorEstimator for Pressure not defined"); exit();
 	end
 	
 	if self.VolErrorNorm == "L2" then
-		limexEstimator:add(L2ComponentSpace("c", 2, 100))
+		limexEstimator:add(L2ComponentSpace("c", 2, self.alphaVol))
 	elseif self.VolErrorNorm == "H1" then
-		limexEstimator:add(H1SemiComponentSpace("c", 2))
+		limexEstimator:add(H1SemiComponentSpace("c", 2, self.alphaVol))
 	else
 		print ("LimexErrorEstimator for VolumeFraction not defined"); exit();
 	end
