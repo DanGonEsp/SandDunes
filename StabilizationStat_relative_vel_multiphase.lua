@@ -60,7 +60,7 @@ params =
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 3, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)"),
-	DT= util.GetParamNumber("-DT", 0.5, "DT[seconds]"),
+	DT= util.GetParamNumber("-DT", 100.0, "DT[seconds]"),
 	DTmin= util.GetParamNumber("-DTmin", 1e-04, "min  DT"),
 	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 100, "time steps"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
@@ -329,7 +329,7 @@ print ("	exactJac		= " .. tostring (params.bExactJac))
 print ("	PecletBlend		= " .. tostring (params.bPecletBlend))
 print ("	upwind_m		= " .. params.upwind_m)
 print ("	upwind_t		= " .. params.upwind_t)
-print ("	Num Flux Scheme	= " .. riemman_name)
+print ("	Num Flux Scheme		= " .. riemman_name)
 print ("	pac			= " .. tostring (params.bPac))
 print ("	stab			= " .. params.stab)
 print ("	difflength		= " .. params.diffLength)
@@ -587,7 +587,7 @@ InterfaceValues:set_bool_initialized(true)
 
 -------------------------------------------------------------- VelocityGradMag
 
---gamma = ShearStressFV1(approxSpace,u)
+gamma = ShearStressFV1(approxSpace,u)
 
 ---------------------------------------------------------------------- Density
 Density = nil
@@ -780,7 +780,7 @@ if (params.boolSource) then
 end
 NavierStokesDisc:set_kinematic_viscosity (EfectiveKinViscosity)
 
---NavierStokesDisc:set_average_gamma(gamma)
+NavierStokesDisc:set_average_gamma(gamma)
 NavierStokesDisc:set_phase_parameters(InterfaceValues)
 
 InletDisc = NavierStokesInflowFV1M (NavierStokesDisc)
@@ -880,7 +880,7 @@ Interpolate("StartValueC", u, "c")
 --Interpolate("ConstValue", u, "c")
 
 KinTurbulentViscosity:update()
---gamma:update()
+gamma:update()
 RelVel:update()
 if params.boolSlipDiff then
 	SlipDiff:update()
@@ -901,7 +901,7 @@ linsolver_steps = 0
 if params.doSteadyState and boolSolution == 1 then
 	-- Steady state solution.
 	
-	--NewtonSolverSteady:add_step_update(gamma)
+	NewtonSolverSteady:add_inner_step_update(gamma)
 	NewtonSolverSteady:add_step_update(RelVel)
 	NewtonSolverSteady:add_step_update(Normal)
 	if params.turbViscMethod=="no" then
@@ -961,8 +961,8 @@ if boolSolution == 1 then
 	out:select(RelVel, "RelVel")
 	out:select(NavierStokesDisc:particle_pressure(), "Ps")
 	out:select(NavierStokesDisc:particle_pressure_grad(), "DPs")
-	--out:select(gamma, "G")
-	out:select(NavierStokesDisc:velocity_grad(), "G2")
+	out:select(NavierStokesDisc:velocity_grad(), "Gamma")
+	out:select(gamma, "MeanGamma")
 	if (params.boolSlipDiff) then
 		out:select_element(SlipDiff, "SDiff")
 	else
@@ -1008,22 +1008,22 @@ else
 end
 
 
---NLSolver:add_inner_step_update(gamma)
 NLSolver:add_step_update(RelVel)
 NLSolver:add_step_update(Normal)
-if params.boolSlipDiff then
-	if params.timeMethod == "limex" then
+
+if params.timeMethod == "limex" then
+	NLSolver:add_step_update(gamma)
+	if params.boolSlipDiff then
 		NLSolver:add_step_update(SlipDiff)
-	else
-		NLSolver:add_inner_step_update(SlipDiff)
+	elseif params.boolSlipVel then
+		NLSolver:add_step_update(SlipVel)
 	end
-else if params.boolSlipVel then
-		if params.timeMethod == "limex" then
-			NLSolver:add_step_update(SlipVel)
-		else
-			NLSolver:add_inner_step_update(SlipVel)
-		end
-		
+else
+	NLSolver:add_inner_step_update(gamma)
+	if params.boolSlipDiff then
+		NLSolver:add_inner_step_update(SlipDiff)
+	elseif params.boolSlipVel then
+		NLSolver:add_inner_step_update(SlipVel)
 	end
 end
 	

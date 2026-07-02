@@ -628,7 +628,7 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	if self.PressErrorNorm == "L2" then
 		limexEstimator:add(L2ComponentSpace("p", 2))
 	elseif self.PressErrorNorm == "H1" then
-		limexEstimator:add(H1SemiComponentSpace("p", 2, ConstUserMatrix(1e-05) ))
+		limexEstimator:add(H1SemiComponentSpace("p", 2, ConstUserMatrix(1e-09) ))
 	else
 		print ("LimexErrorEstimator for Pressure not defined"); exit();
 	end
