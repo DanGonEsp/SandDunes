@@ -38,6 +38,9 @@ myProblem.Init = function(self, o)
 	self.nstages = o.nstages
 	self.limex_partial_mask = o.limex_partial_mask
 	self.limex_debug_level = o.limex_debug_level
+	self.VelErrorNorm = o.VelErrorNorm
+	self.PressErrorNorm = o.PressErrorNorm
+	self.VolErrorNorm = o.VolErrorNorm
 
 	self.max_newton_steps_steady_state = o.max_newton_steps_steady_state
 	self.max_newton_steps_transient = o.max_newton_steps_transient
@@ -611,16 +614,34 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 
 	--print (estimator)
 	local limexEstimator = CompositeGridFunctionEstimator()
-	--limexEstimator:add(H1SemiComponentSpace("u", 2 ))
-	--limexEstimator:add(H1SemiComponentSpace("v", 2 ))
-
-	limexEstimator:add(L2ComponentSpace("u", 2))
-	limexEstimator:add(L2ComponentSpace("v", 2))
+	
+	if self.VelErrorNorm == "L2" then
+		limexEstimator:add(L2ComponentSpace("u", 2))
+		limexEstimator:add(L2ComponentSpace("v", 2))
+	elseif self.VelErrorNorm == "H1" then
+		limexEstimator:add(H1SemiComponentSpace("u", 2 ))
+		limexEstimator:add(H1SemiComponentSpace("v", 2 ))
+	else
+		print ("LimexErrorEstimator for velocity not defined"); exit();
+	end
+	
+	if self.PressErrorNorm == "L2" then
+		limexEstimator:add(L2ComponentSpace("p", 2))
+	elseif self.PressErrorNorm == "H1" then
+		limexEstimator:add(H1SemiComponentSpace("p", 2, ConstUserMatrix(1e-05) ))
+	else
+		print ("LimexErrorEstimator for Pressure not defined"); exit();
+	end
+	
+	if self.VolErrorNorm == "L2" then
+		limexEstimator:add(L2ComponentSpace("c", 2, 100))
+	elseif self.VolErrorNorm == "H1" then
+		limexEstimator:add(H1SemiComponentSpace("c", 2))
+	else
+		print ("LimexErrorEstimator for VolumeFraction not defined"); exit();
+	end
 	
 
-	--limexEstimator:add(H1SemiComponentSpace("p", 2))--, ConstUserMatrix(0.0001) ))
-	limexEstimator:add(L2ComponentSpace("p", 2))
-	limexEstimator:add(L2ComponentSpace("c", 2, 100))
 	
 	limexEstimator:use_strict_relative_norms(1)
 	print(limexEstimator:config_string())
@@ -640,8 +661,8 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	  dtmax = dtmax,
 	  dtmin = dtmin,
 	  rhoSafetyOPT = 0.25,
-	  dtred = 0.5,
-	  dtIncr = 1.5,
+	  dtred = self.red_factor_fail,
+	  dtIncr = self.incr_factor,
 	  matrixCache = false,
 	  conservative = true
 	  
@@ -688,8 +709,8 @@ myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, time_
 	limex:apply(u, EndTime, u, StartTime)
 	n_step = limex:get_step()-1
 	
-    local Newton_Steps = NLSolver:total_linsolver_calls()
-	local Newton_Steps_fail = 0
+    local Newton_Steps = NLSolver:total_linsolver_calls()/(self.nstages+1)
+	local Newton_Steps_fail = 0/(self.nstages+1)
 	linsolver_calls_step = NLSolver:total_linsolver_calls()
 	linsolver_steps_step =  NLSolver:total_linsolver_steps()
 	limex:set_time_step(self.DTmax/(math.max(n_step-1,1)))

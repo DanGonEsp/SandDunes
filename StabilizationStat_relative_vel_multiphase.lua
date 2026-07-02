@@ -67,17 +67,21 @@ params =
 	
 	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", false),
-	incr_factor     = util.GetParamNumber("-incr_factor", 1.3),
-	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.5),
-	red_factor_success     = util.GetParamNumber("-red_factor_success", 0.8),
-	optimal_newton_steps = util.GetParamNumber("-optimal_newton_steps", 10),
-	maxConvRate = util.GetParamNumber("-maxConvRate", 0.9),
-	minConvRate = util.GetParamNumber("-minConvRate", 0.5),
 	
 	tol     = util.GetParamNumber("-limex-tol", 1e-1, "time step size"),
 	nstages = util.GetParamNumber("-limex-nstages", 2, "limex stages (2 default)"),
 	limex_partial_mask = util.GetParamNumber("-limex-partial", 0, "limex partial (0 or 3)"),
 	limex_debug_level = util.GetParamNumber("-limex-debug-level", 5, "limex debug level (integer)"),
+	VelErrorNorm = util.GetParam("-limexNorm","L2","Norm for Pressure error type H1 , L2"),
+	PressErrorNorm = util.GetParam("-limexNorm","H1","Norm for Pressure error type H1 , L2"),
+	VolErrorNorm = util.GetParam("-limexNorm","L2","Norm for Pressure error type H1 , L2"),
+	
+	incr_factor     = util.GetParamNumber("-incr_factor", 2.0),
+	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.5),
+	red_factor_success     = util.GetParamNumber("-red_factor_success", 0.8),
+	optimal_newton_steps = util.GetParamNumber("-optimal_newton_steps", 10),
+	maxConvRate = util.GetParamNumber("-maxConvRate", 0.9),
+	minConvRate = util.GetParamNumber("-minConvRate", 0.5),
 	
 	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 70),
 	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 2500),
@@ -173,9 +177,25 @@ params.startTime  = 0.0
 params.endTime    = params.DT * params.numTimeSteps
 params.DTmax = params.DT
 
+riemman_name = nil
+if params.riemman == 0 then
+    riemman_name = "Upwind"
+elseif params.riemman == 1 then
+    riemman_name = "Godunov"
+elseif params.riemman == 2 then
+    riemman_name = "Rusanov"
+elseif params.riemman == 3 then
+    riemman_name = "Roe"
+else
+    print ("Numerical Flux Scheme for NonLinear Scalar conservation Law not defined"); exit();
+end
+
 file_name = params.file_name
 c_init = params.c_init
 folder_name = params.folder_name .. "_" .. params.timeMethod
+if params.timeMethod == "limex" then
+	folder_name = folder_name .. "_" ..params.VelErrorNorm .. params.PressErrorNorm .. params.VolErrorNorm
+end
 
 interface_value  = params.alpha_min/params.packing_factor
 
@@ -212,6 +232,8 @@ print(vtk_file_name)
 if params.bStokes then
     vtk_file_name = vtk_file_name .. "-Stokes"
 end
+
+vtk_file_name = vtk_file_name .. "-" ..riemman_name
 
 if params.boolRelativeVel then
     vtk_file_name =vtk_file_name .. "-RelVel"
@@ -307,6 +329,7 @@ print ("	exactJac		= " .. tostring (params.bExactJac))
 print ("	PecletBlend		= " .. tostring (params.bPecletBlend))
 print ("	upwind_m		= " .. params.upwind_m)
 print ("	upwind_t		= " .. params.upwind_t)
+print ("	Num Flux Scheme	= " .. riemman_name)
 print ("	pac			= " .. tostring (params.bPac))
 print ("	stab			= " .. params.stab)
 print ("	difflength		= " .. params.diffLength)
@@ -1133,6 +1156,6 @@ lineWriter = LineWriter()
 Headers = " Sim, Vel, H0, W0, Solved\n"
 lineWriter:write_line(Tablename,rank_t, Headers, params.inflow, H_0, W0, boolSolution)
 
-SynchronizeProcesses()
+--SynchronizeProcesses()
 --SpaceTimeComm:unsplit()
 
