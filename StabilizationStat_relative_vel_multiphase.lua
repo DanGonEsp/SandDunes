@@ -76,7 +76,7 @@ params =
 	PressErrorNorm = util.GetParam("-limexNorm","H1","Norm for Pressure error type H1 , L2"),
 	VolErrorNorm = util.GetParam("-VolErrorNorm","L2","Norm for Pressure error type H1 , L2"),
 	alphaVel  = util.GetParamNumber("-alphaVel", 1.0, "Error estimator scale factor for Velocity"),
-	alphaPress = util.GetParamNumber("-alphaPress", 1e-3, "Error estimator scale factor for Pressure"),
+	alphaPress = util.GetParamNumber("-alphaPress", 1e-10, "Error estimator scale factor for Pressure"),
 	alphaVol = util.GetParamNumber("-alphaVol", 100, "Error estimator scale factor for Volume fraction"),
 	
 	incr_factor     = util.GetParamNumber("-incr_factor", 2.0),
@@ -195,14 +195,20 @@ end
 
 file_name = params.file_name
 c_init = params.c_init
-folder_name = params.folder_name .. "_" .. params.timeMethod
-if params.timeMethod == "limex" then
-	folder_name = folder_name .. "_" ..params.VelErrorNorm .. params.PressErrorNorm .. params.VolErrorNorm
-end
-
 interface_value  = params.alpha_min/params.packing_factor
 
 dim = params.dim
+
+
+folder_name = params.folder_name
+if params.bStokes then
+    folder_name = folder_name .. "-Stokes"
+end
+folder_name = folder_name .. "_" .. params.timeMethod
+
+if params.timeMethod == "limex" then
+	folder_name = folder_name .. "_" ..params.VelErrorNorm .. params.PressErrorNorm .. params.VolErrorNorm
+end
 
 ------------------------------------------------------------------------------------------
 -- Get command line parameters
