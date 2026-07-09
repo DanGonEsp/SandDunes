@@ -313,6 +313,7 @@ if rank_t > 0 then GetLogAssistant():enable_terminal_output(false) end
 ------------------------------------------------------------------------------------------
 -- Initialize UG4
 ------------------------------------------------------------------------------------------
+print (" Sand Dune Dynamics     " .. os.date("%A, %B %d, %Y at %I:%M %p"))
 print (" Geometry: " .. gridName ..", dim = " .. params.dim)
 print (" Physical parameter:")
 print ("	inflow			= " .. params.inflow)
@@ -766,13 +767,13 @@ NavierStokesDisc:set_div_correction (params.div_correction)
 NavierStokesDisc:set_transport_ip_velocity(params.boolIPVelocity)
 NavierStokesDisc:set_transport_jac(params.boolTransportJac)
 NavierStokesDisc:set_mass_term(params.boolMassTerm)
+
+NavierStokesDisc:set_density(Density,true)
 if params.timeMethod == "limex" and params.boolMassTerm and not(params.bStokes) then
 	NavierStokesDisc:set_limex_correction(true)
 end
 
-
-		
-NavierStokesDisc:set_density(Density)
+	
 if params.boolRelativeVel then
 	NavierStokesDisc:set_relative_velocity(RelVel,params.riemman)
 	NavierStokesDisc:set_upwind_rel(params.upwind_r)
