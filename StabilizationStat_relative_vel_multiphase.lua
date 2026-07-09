@@ -16,6 +16,7 @@ RequiredPlugins({"Limex", "NavierStokes"})
 -- Split communicator
 ------------------------------------------------------------------------------------------
 local numProc         = util.GetParamNumber("-numProc", 1, "Number of temporal processes")
+local simCase	= util.GetParamNumber("-simCase", 3, "Simulation Case in Table in")-1
 
 SpaceTimeComm = SpaceTimeCommunicator()
 SpaceTimeComm:split(numProc)
@@ -35,17 +36,21 @@ print("SpaceSize = " ..SpaceSize)
 local csvfile = require "simplecsv"
 local InValues, num_rows, num_cols = csvfile.read('./Table_in.csv') -- read file csv1.txt to matrix m
 if( TemporalSize > num_rows-1) then print ("TemporalSize larger than rows in input parametrs."); exit(); end
+if( simCase+1 > num_rows-1) then print ("Simulation case larger than rows in input parametrs."); exit(); end
 
+if numProc > 1 then
+	simCase = rank_t
+end
 
-inflow = InValues[rank_t+2][1]
-H_0 = InValues[rank_t+2][2]
-W0 = InValues[rank_t+2][3]
+inflow = InValues[simCase+2][1]
+H_0 = InValues[simCase+2][2]
+W0 = InValues[simCase+2][3]
 
 print("Inflow = " ..inflow.."m/s")
 print("Heigh = " ..H_0.. "m.")
 print("Width = " ..W0.. "m.")
 
-local fixedNum = string.format("%04d", rank_t)
+local fixedNum = string.format("%04d", simCase)
 
 
 ------------------------------------------------------------------------------------------
@@ -55,8 +60,8 @@ params =
 {
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
-	file_name = util.GetParam("-file_name", "LimexDebug") .."_".. fixedNum,
-	folder_name = util.GetParam("-folder_name", "LimexDebug"),
+	file_name = util.GetParam("-file_name", "Solution") .."_".. fixedNum,
+	folder_name = util.GetParam("-folder_name", "Solution"),
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 3, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)"),
@@ -307,7 +312,7 @@ vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
 ------------------------------------------------------------------------------------------
 
 InitUG (dim, AlgebraType("CPU", dim+2))
-GetLogAssistant():enable_file_output(true, folder .. "/LogFile_"..rank_t.. "_Lev"..params.numRefs)
+GetLogAssistant():enable_file_output(true, folder .. "/LogFile_"..simCase.. "_Lev"..params.numRefs)
 if rank_t > 0 then GetLogAssistant():enable_terminal_output(false) end
 
 ------------------------------------------------------------------------------------------
@@ -316,6 +321,7 @@ if rank_t > 0 then GetLogAssistant():enable_terminal_output(false) end
 print (" Sand Dune Dynamics     " .. os.date("%A, %B %d, %Y at %I:%M %p"))
 print (" Geometry: " .. gridName ..", dim = " .. params.dim)
 print (" Physical parameter:")
+print ("	Table case		= " .. simCase + 1)
 print ("	inflow			= " .. params.inflow)
 print ("	Stokes			= " .. tostring (params.bStokes))
 print ("	Steady state    	= " .. tostring (params.doSteadyState))
@@ -1174,7 +1180,7 @@ end
 local Tablename = folder_name .. "/Table_out_" .. numProc ..".csv"
 lineWriter = LineWriter()
 Headers = " Sim, Vel, H0, W0, Solved\n"
-lineWriter:write_line(Tablename,rank_t, Headers, params.inflow, H_0, W0, boolSolution)
+lineWriter:write_line(Tablename,simCase, Headers, params.inflow, H_0, W0, boolSolution)
 
 --SynchronizeProcesses()
 --SpaceTimeComm:unsplit()
