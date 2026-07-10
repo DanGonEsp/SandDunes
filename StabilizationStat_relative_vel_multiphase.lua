@@ -16,7 +16,7 @@ RequiredPlugins({"Limex", "NavierStokes"})
 -- Split communicator
 ------------------------------------------------------------------------------------------
 local numProc         = util.GetParamNumber("-numProc", 1, "Number of temporal processes")
-local simCase	= util.GetParamNumber("-simCase", 3, "Simulation Case in Table in")-1
+local simCase	= util.GetParamNumber("-simCase", 1, "Simulation Case in Table in")-1
 
 SpaceTimeComm = SpaceTimeCommunicator()
 SpaceTimeComm:split(numProc)
