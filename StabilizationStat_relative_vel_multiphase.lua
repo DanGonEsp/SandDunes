@@ -93,6 +93,8 @@ params =
 	
 	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 70),
 	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 2500),
+	SteadyAbsDefect = util.GetParamNumber("-AbsDefect", 1e-010),
+	SteadyRedDefect = util.GetParamNumber("-RedDefect", 1e-08),
 	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-010),
 	RedDefect = util.GetParamNumber("-RedDefect", 1e-05),
 	NewtonDebug = util.GetParamBool("-NewtonDebug", false),
@@ -103,7 +105,7 @@ params =
 	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 5),
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
 
-	max_linear_steps=util.GetParamNumber("-max_linear_steps", 400),
+	max_linear_steps=util.GetParamNumber("-max_linear_steps", 1000),
 	damping_mg = util.GetParamNumber("-damping_mg", 0.9),
 	value_beta = util.GetParamNumber("-value_beta", -0.10 ),
 	--value_beta = util.GetParamNumber("-value_beta", -0.14 ),

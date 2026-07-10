@@ -47,6 +47,10 @@ myProblem.Init = function(self, o)
 
 	self.max_newton_steps_steady_state = o.max_newton_steps_steady_state
 	self.max_newton_steps_transient = o.max_newton_steps_transient
+	
+	self.SteadyAbsDefect = o.SteadyAbsDefect
+	self.SteadyRedDefect = o.SteadyRedDefect
+	
 	self.AbsDefect = o.AbsDefect
 	self.RedDefect = o.RedDefect
 
@@ -157,7 +161,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	----------------------------------------------------------
 	-- NoLinear COnvCheck
 	----------------------------------------------------------
-	local NewtonSteadyConvCheck=ConvCheck(self.max_newton_steps_steady_state, self.AbsDefect, self.RedDefect, true)
+	local NewtonSteadyConvCheck=ConvCheck(self.max_newton_steps_steady_state, self.SteadyAbsDefect, self.SteadyRedDefect, true)
 	local NewtonConvCheck=ConvCheck(self.max_newton_steps_transient, self.AbsDefect, self.RedDefect, true)
 	local LinearConvCheckImp=ConvCheck(self.max_linear_steps, self.LinAbsDefectImp, self.LinRedDefectImp, true)
 	local LinearConvCheckLim=ConvCheck(self.max_linear_steps, self.LinAbsDefectLim, self.LinRedDefectLim, true)
