@@ -2,7 +2,7 @@
 -- Navier-Stokes equation, 3d
 -- Discretization: Vertex-centered, stabilized
 ------------------------------------------------------------------------------------------
-
+print("Simulation Begin")
 -- Load utility scripts (e.g. from from ugcore/scripts)
 ug_load_script ("ug_util.lua")
 ug_load_script ("util/load_balancing_util.lua")
@@ -81,7 +81,7 @@ params =
 	PressErrorNorm = util.GetParam("-limexNorm","H1","Norm for Pressure error type H1 , L2"),
 	VolErrorNorm = util.GetParam("-VolErrorNorm","L2","Norm for Pressure error type H1 , L2"),
 	alphaVel  = util.GetParamNumber("-alphaVel", 1.0, "Error estimator scale factor for Velocity"),
-	alphaPress = util.GetParamNumber("-alphaPress", 1e-10, "Error estimator scale factor for Pressure"),
+	alphaPress = util.GetParamNumber("-alphaPress", 0.5e-10, "Error estimator scale factor for Pressure"),
 	alphaVol = util.GetParamNumber("-alphaVol", 100, "Error estimator scale factor for Volume fraction"),
 	
 	incr_factor     = util.GetParamNumber("-incr_factor", 2.0),
@@ -91,7 +91,7 @@ params =
 	maxConvRate = util.GetParamNumber("-maxConvRate", 0.9),
 	minConvRate = util.GetParamNumber("-minConvRate", 0.5),
 	
-	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 70),
+	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 100),
 	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 2500),
 	SteadyAbsDefect = util.GetParamNumber("-AbsDefect", 1e-010),
 	SteadyRedDefect = util.GetParamNumber("-RedDefect", 1e-08),
@@ -130,6 +130,7 @@ params =
 	boolFixVel = util.GetParamBool("-boolFixVel", false),
 	boolFixVol = util.GetParamBool("-boolFixVol", false),
 	boolMassTerm = util.GetParamBool("-boolMassTerm", true),
+	boolDensityMean = util.GetParamBool("-boolDensityMean", false),
 	
 	inflow   = inflow,
 	H_0= H_0,
@@ -335,6 +336,7 @@ print ("	Ps in visc      	= " .. tostring (params.boolViscPs))
 print ("	Diffusion       	= " .. tostring (params.boolAveDiff))
 print ("	SlipDiff         	= " .. tostring (params.boolSlipDiff))
 print ("	SlipVel         	= " .. tostring (params.boolSlipVel))
+print ("	MassMean         	= " .. tostring (params.boolDensityMean))
 print (" Numerical parameter:")
 print ("	elem_type		= " .. params.elem_type)
 print ("	numRefs			= " .. params.numRefs)
@@ -775,6 +777,8 @@ NavierStokesDisc:set_div_correction (params.div_correction)
 NavierStokesDisc:set_transport_ip_velocity(params.boolIPVelocity)
 NavierStokesDisc:set_transport_jac(params.boolTransportJac)
 NavierStokesDisc:set_mass_term(params.boolMassTerm)
+NavierStokesDisc:set_mass_mean(params.boolDensityMean)
+
 
 NavierStokesDisc:set_density(Density,true)
 if params.timeMethod == "limex" and params.boolMassTerm and not(params.bStokes) then

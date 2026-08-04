@@ -315,7 +315,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		TransientNewtonUpdater = NewtonUpdaterProjection()
 		TransientNewtonUpdater:set_projection_fct(self.dim+1)
 		TransientNewtonUpdater:set_max_threshold(1.1)
-		TransientNewtonUpdater:set_min_threshold(-1e-05)
+		TransientNewtonUpdater:set_min_threshold(-1.1)
 		NLSolver:setNewtonUpdater(TransientNewtonUpdater)
 	end
 	
