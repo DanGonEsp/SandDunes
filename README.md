@@ -15,8 +15,8 @@ To install the Daniel's version of the simulator, run the following commands in 
 	5. 	git clone -b ConvergenceRate https://github.com/DanGonEsp/ugcore.git					## Clonning the Daniel's repository
 	6.	../ughub/ughub install ugcore --ignore
 	7.	../ughub/ughub install SuperLU6 --ignore
-	8.	../ughub/ughub install Limex --ignore	
-	9.	cd plugins										  		
+	8.	cd plugins
+	9.	git clone -b SandDunes https://github.com/DanGonEsp/plugin_Limex.git Limex										  		
 	10.	git clone -b MultiphaseFlowLinkers https://github.com/DanGonEsp/plugin_NavierStokes.git NavierStokes
 	11.	cd SuperLU6																				## Enter SuperLU6 folder
 	12.	git submodule init																		## Initialize submodule 
