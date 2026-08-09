@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<grid name="defGrid">
+	<vertices coords="3">0 0 0 1 0 0 0 0.5 0 0.5 0 0 1 0.5 0 0.5 0.5 0 0 0.25 0 0.25 0 0 0.75 0 0 1 0.25 0 0.25 0.5 0 0.5 0.25 0 0.75 0.5 0 0.25 0.25 0 0.75 0.25 0</vertices>
+	<edges>2 6 6 0 0 7 7 3 3 8 8 1 1 9 9 4 2 10 10 5 3 11 11 5 4 12 12 5 7 13 13 6 11 13 10 13 9 14 14 8 12 14 11 14</edges>
+	<quadrilaterals>0 7 13 6 3 11 13 7 5 10 13 11 2 6 13 10 1 9 14 8 4 12 14 9 5 11 14 12 3 8 14 11</quadrilaterals>
+	<subset_handler name="defSH">
+		<subset name="Inner" color="0.588235 0.588235 1 1" state="393216">
+			<vertices>11 13 14</vertices>
+			<edges>10 11 14 15 16 17 18 19 20 21</edges>
+			<faces>0 1 2 3 4 5 6 7</faces>
+		</subset>
+		<subset name="Left" color="1 0 0 1" state="393216">
+			<vertices>2 6</vertices>
+			<edges>0 1</edges>
+		</subset>
+		<subset name="Right" color="0 1 0 1" state="393216">
+			<vertices>9 4</vertices>
+			<edges>6 7</edges>
+		</subset>
+		<subset name="Top" color="0 0 1 1" state="393216">
+			<vertices>10 5 12</vertices>
+			<edges>8 9 12 13</edges>
+		</subset>
+		<subset name="Bottom" color="1 0 1 1" state="393216">
+			<vertices>0 7 3 8 1</vertices>
+			<edges>2 3 4 5</edges>
+		</subset>
+	</subset_handler>
+	<subset_handler name="markSH">
+		<subset name="crease" color="1 1 1 1" state="0"/>
+		<subset name="fixed" color="1 1 1 1" state="0"/>
+	</subset_handler>
+	<selector name="defSel"/>
+	<projection_handler name="defPH" subset_handler="0">
+		<default type="default">0 0</default>
+	</projection_handler>
+</grid>
+

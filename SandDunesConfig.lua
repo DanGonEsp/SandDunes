@@ -8,9 +8,13 @@ myProblem.Init = function(self, o)
 		-- Numerical parameters of the discretization
 	self.dim = o.dim
 	self.file_name = o.file_name
+	self.folder_name = o.folder_name
 	self.elem_type = o.elem_type
 	self.numRefs = o.numRefs
 	self.numPreRefs = o.numPreRefs
+	
+	self.simCase = o.simCase
+	
 	self.startTime = o.startTime
 	self.endTime = o.endTime
 	self.numTimeSteps = o.numTimeSteps
@@ -75,7 +79,17 @@ myProblem.Init = function(self, o)
 	self.boolAveDiff = o.boolAveDiff
 	self.boolSlipDiff = o.boolSlipDiff
 	
+	
+	self.boolSlipVel = o.boolSlipVel
+	self.boolpress_jump = o.boolpress_jump
+	self.boolNormal = o.boolNormal
+	self.boolFixVel = o.boolFixVel
+	self.boolFixVol = o.boolFixVol
+	self.boolMassTerm = o.boolMassTerm
+	self.boolDensityMean = o.boolDensityMean
+	
 	self.inflow = o.inflow
+	self.SlipVelValue = o.SlipVelValue
 	self.H_0 = o.H_0
 	self.ReferencePressure = o.ReferencePressure
 	self.bStokes = o.bStokes or false
@@ -88,8 +102,12 @@ myProblem.Init = function(self, o)
 	self.bPac = o.bPac
 	self.diffLength = o.diffLength
 	self.stab = o.stab
+	self.div_correction = o.div_correction
+	self.boolIPVelocity = o.boolIPVelocity
+	self.boolTransportJac = o.boolTransportJac
 	self.turbViscMethod = o.turbViscMethod
 	self.modellconstant = o.modellconstant
+	self.update_turb = o.update_turb
 
 	
 	--Material Properties
@@ -102,10 +120,12 @@ myProblem.Init = function(self, o)
 
 	self.alpha_max = o.alpha_max
 	self.alpha_min = o.alpha_min
+	self.packing_factor = o.packing_factor
 	self.granular_model = o.granular_model
 	self.density_model = o.density_model
 	self.interface_value = o.interface_value
 	self.drag_mod = o.drag_mod
+	self.riemman = o.riemman
 
 
 	self.FR = o.FR
@@ -118,25 +138,530 @@ myProblem.Init = function(self, o)
 	self.FricMu_1 = o.FricMu_1
 	self.FricMu_2 = o.FricMu_2
 	self.I_0 = o.I_0
+	self.gravity = o.gravity
 	
 	
 	self.boolSolverDesc = false
 	self.NewtonSolverDescSteady = {}
 	self.NewtonSolverDesc = {}
+	
+	
+	self.gridName = o.gridName
   
   
 end
+--------------------------------------------------------------------------------
+-- File Names
+--------------------------------------------------------------------------------
+myProblem.FileNames = function (self,rank)
 
 
+	riemman_name = nil
+	if self.riemman == 0 then
+		riemman_name = "Upwind"
+	elseif self.riemman == 1 then
+		riemman_name = "Godunov"
+	elseif self.riemman == 2 then
+		riemman_name = "Rusanov"
+	elseif self.riemman == 3 then
+		riemman_name = "Roe"
+	else
+		print ("Numerical Flux Scheme for NonLinear Scalar conservation Law not defined"); exit();
+	end
+
+	local file_name = self.file_name
+
+	folder_name = self.folder_name .. self.dim.. "D"
+	if self.bStokes then
+		folder_name = folder_name .. "-Stokes"
+	end
+	folder_name = folder_name .. "_" .. self.timeMethod
+
+	if self.timeMethod == "limex" then
+		folder_name = folder_name .. "_" ..self.VelErrorNorm .. self.PressErrorNorm .. self.VolErrorNorm
+	end
+
+
+
+	---------------------
+	-- Folder and files
+	---------------------
+
+	if (rank==0) then
+		if not DirectoryExists (folder_name) then
+			CreateDirectory (folder_name)
+		end
+		print(folder_name)
+	end
+	vtk_file_name = file_name .. "-" .. self.elem_type
+	vtk_file_name = vtk_file_name .. "-lev" .. self.numRefs
+	print(vtk_file_name)
+	if self.bStokes then
+		vtk_file_name = vtk_file_name .. "-Stokes"
+	end
+
+	vtk_file_name = vtk_file_name .. "-" ..riemman_name
+
+	if self.boolRelativeVel then
+		vtk_file_name =vtk_file_name .. "-RelVel"
+	else
+		vtk_file_name =vtk_file_name .. "-NoRelVel"
+	end
+
+
+	if  self.boolGradientPsSource  or self.boolSource  then
+
+		if self.boolSource then
+			if self.consistentRho_in_source then vtk_file_name =vtk_file_name .. "-Consistent" end
+			vtk_file_name = vtk_file_name .. "-MG_Force"
+		end
+		
+		if self.boolGradientPsSource then
+			vtk_file_name = vtk_file_name .. "-DPs"
+		else
+			vtk_file_name = vtk_file_name .. "-DPh"
+		end
+		
+	else
+		vtk_file_name = vtk_file_name .. "-NoForce"
+	end
+
+	if self.boolAveDiff then
+		vtk_file_name = vtk_file_name .. "-AveDiff"
+	else
+		vtk_file_name = vtk_file_name .. "-NoAveDiff"
+	end
+
+	if (self.boolSlipDiff and self.boolSlipVel) then print ("SlipVel and SlipDiff activated at the same time."); exit(); end
+	if self.boolSlipDiff then
+		vtk_file_name = vtk_file_name .. "-SlipDiff"
+	else if self.boolSlipVel then
+			vtk_file_name = vtk_file_name .. "-SlipVel"
+		else
+			vtk_file_name = vtk_file_name .. "-NoSlip"
+		end
+	end
+
+	folder = folder_name .. "/" .. vtk_file_name
+	
+	if (rank== 0) then
+		
+		if not DirectoryExists (folder) then
+			print("Hola hola2"..folder)
+			CreateDirectory (folder)
+		else
+			if(self.NewtonDebug or self.NewtonSteadyDebug) then
+				local cmd = "rm -rf " .. folder
+				os.execute(cmd)
+				print(" Directory reseted")
+				CreateDirectory (folder)
+			end
+		end
+	end
+
+	
+
+	vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
+	
+	
+	self.debug_dir = folder
+	self.riemman_name = riemman_name
+
+
+	print("File Adress: ".. vtk_file_name)
+	
+	return vtk_file_name,folder,folder_name
+end
+
+--------------------------------------------------------------------------------
+-- Printing Simulation Settings
+--------------------------------------------------------------------------------
+myProblem.PrintingSettings = function (self)
+
+	print (" Sand Dune Dynamics     " .. os.date("%A, %B %d, %Y at %I:%M %p"))
+	print (" Geometry: " .. self.gridName ..", dim = " .. self.dim)
+	print (" Physical parameter:")
+	print ("	Table case		= " .. self.simCase + 1)
+	print ("	inflow			= " .. self.inflow)
+	print ("	SlipVel			= " .. self.SlipVelValue)
+	print ("	Stokes			= " .. tostring (self.bStokes))
+	print ("	Steady state    	= " .. tostring (self.doSteadyState))
+	print ("	BodyForce       	= " .. tostring (self.boolSource))
+	print ("	Consisten Gravity	= " .. tostring (self.consistentRho_in_source))
+	print ("	Relative Vel    	= " .. tostring (self.boolRelativeVel))
+	print ("	Ps gradient     	= " .. tostring (self.boolGradientPsSource))
+	print ("	Ps in visc      	= " .. tostring (self.boolViscPs))
+	print ("	Diffusion       	= " .. tostring (self.boolAveDiff))
+	print ("	SlipDiff         	= " .. tostring (self.boolSlipDiff))
+	print ("	SlipVel         	= " .. tostring (self.boolSlipVel))
+	print ("	MassMean         	= " .. tostring (self.boolDensityMean))
+	print (" Numerical parameter:")
+	print ("	elem_type		= " .. self.elem_type)
+	print ("	numRefs			= " .. self.numRefs)
+	print ("	numPreRefs		= " .. self.numPreRefs)
+	print ("	timeMethod		= " .. self.timeMethod)
+	print ("	DT   			= " .. self.DT)
+	print ("	numTimeSteps		= " .. self.numTimeSteps)
+	print ("	noLaplace		= " .. tostring (self.bNoLaplace))
+	print ("	exactJac		= " .. tostring (self.bExactJac))
+	print ("	PecletBlend		= " .. tostring (self.bPecletBlend))
+	print ("	upwind_m		= " .. self.upwind_m)
+	print ("	upwind_t		= " .. self.upwind_t)
+	print ("	Num Flux Scheme		= " .. self.riemman_name)
+	print ("	pac			= " .. tostring (self.bPac))
+	print ("	stab			= " .. self.stab)
+	print ("	difflength		= " .. self.diffLength)
+	print ("	Turbulence		= " .. self.turbViscMethod)
+
+	if self.timeMethod == "limex" then
+		print (" Limex Numerical parameter:")
+		print ("	Vel norm		= " .. self.VelErrorNorm)
+		print ("	Press norm		= " .. self.PressErrorNorm)
+		print ("	Vol  norm		= " .. self.VolErrorNorm)
+		print ("	Vel norm scale		= " .. self.alphaVel)
+		print ("	Press norm scale	= " .. self.alphaPress)
+		print ("	Vol norm scale		= " .. self.alphaVol)
+	end
+
+end
+
+
+--------------------------------------------------------------------------------
+-- Approximation Space
+--------------------------------------------------------------------------------
+myProblem.ApproximationSpace = function (self,allSubsets)
+
+	local fct_cmp_tbl = nil
+	local vel_cmp_tbl = nil
+			
+	if self.dim == 3 then
+		fct_cmp_tbl = {"u", "v", "w", "p", "c"}
+		vel_cmp_tbl = {"u", "v", "w"}
+	else
+		fct_cmp_tbl = {"u", "v", "p", "c"}
+		vel_cmp_tbl = {"u", "v"}
+	end
+
+	-- Create the domain, load the grid and refine it
+	local dom = util.CreateDomain (self.gridName, self.numPreRefs)
+	balancer.RefineAndRebalanceDomain (dom, self.numRefs - self.numPreRefs)
+	--util.refinement.CreateRegularHierarchy(dom, self.numRefs, true)
+
+	print ("Domain-info:")
+	print (dom:domain_info():to_string())
+
+	-- Create the vertex-centered approximation space
+	local approxSpace = ApproximationSpace (dom)
+
+	approxSpace:add_fct("u", "Lagrange",1,allSubsets)
+	approxSpace:add_fct("v", "Lagrange",1,allSubsets)
+	if self.dim == 3 then
+		approxSpace:add_fct("w", "Lagrange",1,allSubsets)
+	end
+	approxSpace:add_fct("p", "Lagrange",1,allSubsets)
+	approxSpace:add_fct("c", "Lagrange",1,allSubsets)
+
+	approxSpace:init_levels()
+	approxSpace:init_top_surface()
+	approxSpace:print_statistic()
+
+	OrderLex (approxSpace, "y")
+	--OrderCuthillMcKee(approxSpace,true)
+
+	util.solver.defaults.approxSpace = approxSpace
+
+
+	-- grid function for the solution
+	local u = GridFunction (approxSpace)
+	u:set(0)
+	
+	self.fct_cmp_tbl = fct_cmp_tbl
+	self.vel_cmp_tbl = vel_cmp_tbl
+	self.u = u
+	self.approxSpace = approxSpace
+	
+	return approxSpace,u
+end
+
+--------------------------------------------------------------------------------
+-- Interface Parameters List
+--------------------------------------------------------------------------------
+myProblem.InterfaceParameters = function (self)
+	
+	local InterfaceValues = Interface()
+
+	InterfaceValues:set_particle_diameter(self.dp)
+	InterfaceValues:set_particle_density(self.rho_s)
+	InterfaceValues:set_air_density(self.rho_a)
+	InterfaceValues:set_fluid_Visc(self.nu_a*self.rho_a)
+	InterfaceValues:set_particle_kinVisc(self.nu_s)
+	InterfaceValues:set_alpha_max(self.alpha_max)
+	InterfaceValues:set_alpha_min(self.alpha_min)
+	InterfaceValues:set_packing_factor(self.packing_factor)
+	InterfaceValues:set_FrictionMu_1(self.FricMu_1)
+	InterfaceValues:set_FrictionMu_2(self.FricMu_2)
+	InterfaceValues:set_I_0(self.I_0)
+	InterfaceValues:set_deltaI(self.deltaI)
+	InterfaceValues:set_deltaPs(self.deltaPs)
+	InterfaceValues:set_FR(self.FR)
+	InterfaceValues:set_B_phi(self.B_phi)
+	InterfaceValues:set_deltaGamma(self.deltaGamma)
+	InterfaceValues:set_limit(self.Visc_limit)
+	InterfaceValues:set_bool_particle_pressure_force(self.boolGradientPsSource)
+	InterfaceValues:set_bool_consistent_gravity(false)
+	InterfaceValues:set_reference_pressure(self.ReferencePressure)
+	InterfaceValues:set_time_step_factor(self.DT)
+	InterfaceValues:set_interface_volume_fraction(self.interface_value)
+	InterfaceValues:set_drag_model(self.drag_mod)
+	InterfaceValues:set_relative_vel_error(1)
+	InterfaceValues:set_bool_initialized(true)
+	
+	self.InterfaceValues = InterfaceValues
+	
+	return InterfaceValues
+end
+
+--------------------------------------------------------------------------------
+-- Variables
+--------------------------------------------------------------------------------
+myProblem.Clousures = function (self,approxSpace,u)
+		
+	local InterfaceValues = self.InterfaceValues
+	-------------------------------------------------------------- VelocityGradMag
+
+	local gamma = ShearStressFV1(approxSpace,u)
+	self.gamma = gamma
+
+	---------------------------------------------------------------------- Density
+	local Density = nil
+	if self.bStokes then
+		Density = ConstUserNumber(self.rho_a)
+	else
+		Density = GranularDensityLinker();
+		Density:set_model(self.density_model)
+		Density:set_phase_parameters(self.InterfaceValues)
+	end
+
+
+	self.Density = Density
+
+	---------------------------------------------------------------------- Viscosity
+
+	local Inverse_RHO = InverseLinker();
+	Inverse_RHO:divide(1.0,Density);
+
+	Scale_RHO = ScaleLinker();
+	Scale_RHO:set_import_1(Inverse_RHO)
+	Scale_RHO:set_import_2(self.rho_a)
+
+	local KinMixViscosity = nil
+	KinMixViscosity = ScaleLinker();
+	KinMixViscosity:set_import_1(Inverse_RHO)
+	
+
+	if self.turbViscMethod=="dyn" then
+		KinTurbulentViscosity = FV1DynamicTurbViscData(approxSpace,u)
+		
+	else
+		KinTurbulentViscosity = FV1SmagorinskyTurbViscData(approxSpace,u,self.modellconstant)
+	 end
+	KinTurbulentViscosity:set_turbulence_zero_bnd("Left,Bottom,Top,Right")
+	KinTurbulentViscosity:set_kinematic_viscosity(0.0)
+
+
+	local EfectiveKinViscosity = nil
+	if self.turbViscMethod=="no" then
+		EfectiveKinViscosity = KinMixViscosity
+	else
+		EfectiveKinViscosity = ScaleAddLinkerNumber()
+		EfectiveKinViscosity:add(1.0,KinMixViscosity)
+		EfectiveKinViscosity:add(Scale_RHO,KinTurbulentViscosity)
+
+	end
+
+
+
+
+	local MixViscosity = ScaleLinker();
+	MixViscosity:set_import_1(Density)
+	MixViscosity:set_import_2(EfectiveKinViscosity)
+
+
+
+	local DiffusionViscosity = nil
+	if self.turbViscMethod=="no" then
+		DiffusionViscosity = self.rho_a * self.nu_a
+	else
+		DiffusionViscosity = self.rho_a * self.nu_a
+	end
+
+
+	local TurbulentViscosity = ScaleLinker();
+	TurbulentViscosity:set_import_1(self.rho_a)
+	TurbulentViscosity:set_import_2(KinTurbulentViscosity)
+
+	
+	self.TurbulentViscosity = TurbulentViscosity
+	self.KinTurbulentViscosity = KinTurbulentViscosity
+	self.MixViscosity = MixViscosity
+	self.KinMixViscosity = KinMixViscosity
+	self.EfectiveKinViscosity = EfectiveKinViscosity
+
+	---------------------------------------------------------------------- Sediment Velocity
+
+	local iter = 0
+	local Vs = InterfaceValues:RelVel_ext(0.0,self.rho_a,self.dp,self.rho_s,self.gravity)
+	local re = InterfaceValues:RE(self.nu_a*self.rho_a,self.rho_a,self.dp,Vs)
+	local Cd = InterfaceValues:CD(re,self.drag_mod)
+
+
+	local RelVel = RelativeVelocity(approxSpace,u)
+	RelVel:set_phase_parameters(InterfaceValues)
+	
+	self.RelVel = RelVel
+
+	---------------------------------------------------------------------- Diffusion (Erotion)
+
+	local Diff_beta = 0.217
+	local d1= 250e-06
+	local A1= 1.673
+	local k0 = 1.0 + A1 * (1-self.dp/d1)
+	local Diff_factor = Diff_beta*k0*k0*Vs/(2*self.rho_a*(math.abs(self.gravity)))
+	local Diffusion = GranularDiffusionLinker();
+	Diffusion:set_mix_viscosity(DiffusionViscosity)
+	Diffusion:set_diff_factor(Diff_factor)
+	Diffusion:set_phase_parameters(InterfaceValues)
+
+	self.Diffusion = Diffusion
+	
+	---------------------------------------------------------------------- Vel-Diffusion (Avalanching)
+	
+	local ss_value = math.atan(self.FricMu_2)*180/3.1415926
+
+	local SlipDiff = nil
+	local SlipVel = nil
+	if self.boolSlipDiff then
+		SlipDiff = SlipDiffusion(approxSpace,u)
+		SlipDiff:set_theta(ss_value)
+		SlipDiff:set_diff(0.05)
+		SlipDiff:set_gradient_limit(1e-02)
+		SlipDiff:set_phase_parameters(InterfaceValues)
+		if self.boolAveDiff then
+			SlipDiff:set_diffusion(Diffusion)
+		end
+	else if self.boolSlipVel then
+			SlipVel = SlipVelocity(approxSpace,u)
+			SlipVel:set_theta(ss_value)
+			SlipVel:set_vel(self.SlipVelValue)
+			SlipVel:set_gradient_limit(1e-02)
+			SlipVel:set_phase_parameters(InterfaceValues)
+		end
+	end
+	
+	self.SlipDiff = SlipDiff
+	self.SlipVel = SlipVel
+	
+	---------------------------------------------------------------------- Normal
+	local Normal = DuneNormal(approxSpace,u)
+	Normal:set_theta(ss_value)
+	Normal:set_gradient_limit(1e-02)
+	Normal:set_phase_parameters(InterfaceValues)
+	
+	self.Normal = Normal
+
+
+end
+
+--------------------------------------------------------------------------------
+-- Discretization
+--------------------------------------------------------------------------------
+myProblem.Discretization = function (self,Inner_total)
+	
+	local NavierStokesDisc = NavierStokesFV1M (self.fct_cmp_tbl, Inner_total)
+	NavierStokesDisc:set_exact_jacobian (self.bExactJac)
+	NavierStokesDisc:set_stokes (self.bStokes)
+	NavierStokesDisc:set_laplace (self.bNoLaplace)
+	NavierStokesDisc:set_upwind (self.upwind_m)
+	NavierStokesDisc:set_upwind_vol(self.upwind_t)
+	NavierStokesDisc:set_peclet_blend (self.bPecletBlend)
+	NavierStokesDisc:set_stabilization (self.stab, self.diffLength)
+	NavierStokesDisc:set_div_correction (self.div_correction)
+	NavierStokesDisc:set_transport_ip_velocity(self.boolIPVelocity)
+	NavierStokesDisc:set_transport_jac(self.boolTransportJac)
+	NavierStokesDisc:set_mass_term(self.boolMassTerm)
+	NavierStokesDisc:set_mass_mean(self.boolDensityMean)
+
+
+	NavierStokesDisc:set_density(self.Density,true)
+	if self.timeMethod == "limex" and self.boolMassTerm and not(self.bStokes) then
+		NavierStokesDisc:set_limex_correction(true)
+	end
+
+		
+	if self.boolRelativeVel then
+		NavierStokesDisc:set_relative_velocity(self.RelVel,self.riemman)
+		NavierStokesDisc:set_upwind_rel(self.upwind_r)
+	end
+	if self.boolSlipDiff then
+		NavierStokesDisc:set_diffusion(self.SlipDiff)
+	else
+		if self.boolAveDiff then
+			NavierStokesDisc:set_diffusion(self.Diffusion)
+		end
+		if self.boolSlipVel then
+			NavierStokesDisc:set_slip_velocity(self.SlipVel)
+		end
+		
+	end
+	if(self.boolpress_jump) then
+		NavierStokesDisc:set_pressure_jump ( self.diffLength)
+	end
+
+	NavierStokesDisc:set_kinematic_viscosity (self.EfectiveKinViscosity)
+
+	NavierStokesDisc:set_average_gamma(self.gamma)
+	NavierStokesDisc:set_phase_parameters(self.InterfaceValues)
+	
+	self.NavierStokesDisc = NavierStokesDisc
+	return NavierStokesDisc
+end
+
+--------------------------------------------------------------------------------
+-- Time Discretization
+--------------------------------------------------------------------------------
+myProblem.TimeDiscretization = function (self,domainDisc)
+	
+	print("Time Discretization")
+	-- create the assembled operator for the solver
+	local timeDisc = nil
+	-- create time discretization
+	if self.timeMethod=="cn" then
+		timeDisc = ThetaTimeStep(domainDisc)
+		timeDisc:set_theta(0.5) -- Crank-Nicolson method
+	end
+	if self.timeMethod=="euler" then
+		timeDisc = ThetaTimeStep(domainDisc)
+		timeDisc:set_theta(1) -- implicit Euler
+	end
+	if self.timeMethod=="fracstep" then
+		timeDisc = ThetaTimeStep(domainDisc,"FracStep")
+	end
+	if self.timeMethod=="alex" then
+		timeDisc = ThetaTimeStep(domainDisc, "Alexander")
+	end
+	
+	self.timeDisc = timeDisc
+	return timeDisc
+end
 
 --------------------------------------------------------------------------------
 -- SOLVER
 --------------------------------------------------------------------------------
-myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
+myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	
-	----------------------------------------------------------
+	--------------
 	-- LineSearch
-	----------------------------------------------------------
+	--------------
 	local NewtonLineSearch = nil
 	if true then
 		NewtonLineSearch = StandardLineSearch()
@@ -157,9 +682,9 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		NewtonLineSearch:set_suff_descent_factor(0.25)
 		NewtonLineSearch:set_maximum_defect(2e20)
 	end
-	----------------------------------------------------------
+	----------------------
 	-- NoLinear COnvCheck
-	----------------------------------------------------------
+	----------------------
 	local NewtonSteadyConvCheck=ConvCheck(self.max_newton_steps_steady_state, self.SteadyAbsDefect, self.SteadyRedDefect, true)
 	local NewtonConvCheck=ConvCheck(self.max_newton_steps_transient, self.AbsDefect, self.RedDefect, true)
 	local LinearConvCheckImp=ConvCheck(self.max_linear_steps, self.LinAbsDefectImp, self.LinRedDefectImp, true)
@@ -167,9 +692,9 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	local LimexConvCheck=ConvCheck(1, self.AbsDefect, 1e-8, true)
 	      LimexConvCheck:set_supress_unsuccessful(true)
 	
-	----------------------------------------------------------
+	--------------
 	-- Smoothers
-	----------------------------------------------------------
+	--------------
 	-- base solver
 	baseSolver = LU()
 	baseSolver = AgglomeratingSolver(SuperLU());
@@ -202,9 +727,9 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	cgs = ComponentGaussSeidel(0.1, {"p"}, {1,2}, {1})
 	
 
-	----------------------------------------------------------
+	------------------
 	-- preconditioners
-	----------------------------------------------------------
+	-------------------
 
 	gmg = GeometricMultiGrid(approxSpace)
 	gmg:set_discretization(domainDisc)
@@ -222,9 +747,9 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	-- gmg:set_damp(MinimalEnergyDamping())
 	
 	
-	----------------------------------------------------------
+	-----------------
 	-- Linear Solver
-	----------------------------------------------------------
+	-----------------
 	
 		-- create Linear Solver
 	--GMresSolver = GMRES(20)
@@ -292,7 +817,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 		NLSolver:set_line_search(NewtonLineSearch)
 		NLSolver:set_reassemble_J_freq(0)
 		NLSolver:auto_update(true)
-		op = AssembledOperator(timeDisc)
+		op = AssembledOperator(self.timeDisc)
 		op:init()
 		NLSolver:init(op)
 		if NLSolver:prepare(u) == false then
@@ -321,14 +846,56 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace, timeDisc)
 	
 	self.NewtonSolverDescSteady = NewtonSolverDescSteady
 	self.NewtonSolverDesc = NewtonSolverDesc
-	self.approxSpace = approxSpace
 	self.boolSolverDesc = true
 	
 	  
 	return op, NLSolver, NewtonSolverSteady, limex, 1
 end
 
+--------------------------------------------------------------------------------
+-- OutputParameters
+--------------------------------------------------------------------------------
+myProblem.OutputParameters = function (self)
 
+	local out = VTKOutput()
+	out:clear_selection()
+	out:select_all(false)
+	if self.dim == 2 then
+		out:select_nodal ("u,v", "velocity")
+	else
+		out:select_nodal ("u,v,w", "velocity")
+	end
+	out:select_nodal ("u", "u")
+	out:select_nodal ("v", "v")
+	if self.dim == 3 then
+		out:select_nodal ("w", "w")
+	end
+	out:select_nodal ("p", "p")
+	out:select_nodal ("c", "c")
+	out:select(self.Density, "Rho")
+	out:select(self.NavierStokesDisc:einstein_viscosity(), "Mu_eins")
+	out:select(self.NavierStokesDisc:mix_viscosity(), "Mu_I")
+	out:select(self.MixViscosity, "MixViscosity")
+	out:select(self.TurbulentViscosity, "Mu_turb")
+	
+	out:select(self.RelVel, "RelVel")
+	out:select(self.NavierStokesDisc:particle_pressure(), "Ps")
+	out:select(self.NavierStokesDisc:particle_pressure_grad(), "DPs")
+	out:select(self.NavierStokesDisc:velocity_grad(), "Gamma")
+	out:select(self.gamma, "MeanGamma")
+	if (self.boolSlipDiff) then
+		out:select_element(self.SlipDiff, "SDiff")
+	else
+		if self.boolSlipVel then
+			out:select_element(self.SlipVel, "SVel")
+		end
+	end
+	out:select_element(self.Diffusion, "D")
+	out:select_element(self.Normal, "n")
+
+	
+	return out
+end
 
 --------------------------------------------------------------------------------
 -- Writing Output parameters
@@ -400,7 +967,7 @@ end
 --------------------------------------------------------------------------------
 -- Solution of NonLinear Problem  (Euler temporal discretization)
 --------------------------------------------------------------------------------
-myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTimeSeries, dt, step, StartTime, EndTime)
+myProblem.SolveNonlinearProblem = function (self, u, solver, op, solTimeSeries, dt, step, StartTime, EndTime)
 
 	                    
 	local red_factor_fail = self.red_factor_fail
@@ -439,7 +1006,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 		do_dt = math.min(dt_in,math.max((time+DTmax-time2), 0.0))
 		print("Size of timestep dt: " .. do_dt)
 		-- setup time Disc for old solutions and timestep
-		timeDisc:prepare_step(solTimeSeries, do_dt)
+		self.timeDisc:prepare_step(solTimeSeries, do_dt)
 	
 		-- prepare newton solver
 		if solver:prepare(u) == false then
@@ -480,7 +1047,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
 					dbgWriter:set_base_dir(self.debug_dir .."Steady")
 					solver:set_debug(dbgWriter)
 					solver:init(op)
-					timeDisc:prepare_step(solTimeSeries, do_dt)
+					self.timeDisc:prepare_step(solTimeSeries, do_dt)
 					if solver:prepare(u) == false then
 						print ("Newton solver failed at DEBUG step "..step..".");
 					end
@@ -499,7 +1066,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
             
             if  ((time2 + do_dt + (1e-07) * DTmin -time)/DTmax > 1.0 or modifyDT == false) then
             
-                time= timeDisc:future_time()                                        -- update new time
+                time= self.timeDisc:future_time()                                        -- update new time
                                                                                 
                 oldestSol = solTimeSeries:oldest()                                  -- get oldest solution
                                                                                     
@@ -512,7 +1079,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, timeDisc, solTi
                 
             else
                 
-                time2 = timeDisc:future_time()                                      -- update new time
+                time2 = self.timeDisc:future_time()                                      -- update new time
                                                                                     
                 oldestSol = solTimeSeries:oldest()                                  -- get oldest solution
                                                                                     

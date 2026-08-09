@@ -17,13 +17,13 @@ To install the Daniel's version of the simulator, run the following commands in 
 	7.	../ughub/ughub install SuperLU6 --ignore
 	8.	cd plugins
 	9.	git clone -b SandDunes https://github.com/DanGonEsp/plugin_Limex.git Limex										  		
-	10.	git clone -b MultiphaseFlowLinkers https://github.com/DanGonEsp/plugin_NavierStokes.git NavierStokes
+	10.	git clone -b MultiphaseFlowLinkers2p https://github.com/DanGonEsp/plugin_NavierStokes.git NavierStokes
 	11.	cd SuperLU6																				## Enter SuperLU6 folder
 	12.	git submodule init																		## Initialize submodule 
 	13.	git submodule update																	## Update
 	14.	cd ../../..																				## Geting back to UG4 folder
 	15.	mkdir build; cd build																	## Creating the temporary build folder
-	17.	cmake ../ug4 -DDIM=2 -DCPU="1;4" -DNavierStokes=ON -DLimex=ON -DSuperLU6=ON				## Initializing the directory and setting the build arguments
+	17.	cmake ../ug4 -DDIM=2 -DCPU="4" -DNavierStokes=ON -DLimex=ON -DSuperLU6=ON				## Initializing the directory and setting the build arguments
 																								## In case of cmake incompatibility run with additional argument:
 																								## -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 	18.	make																					## Compiling and linking the ug4 code (consider "make -j")

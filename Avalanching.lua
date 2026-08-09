@@ -34,7 +34,7 @@ print("SpaceSize = " ..SpaceSize)
 -- Input parameter table
 ------------------------------------------------------------------------------------------
 local csvfile = require "simplecsv"
-local InValues, num_rows, num_cols = csvfile.read('./Table_in.csv') -- read file csv1.txt to matrix m
+local InValues, num_rows, num_cols = csvfile.read('./AvalanchTable_in.csv') -- read file csv1.txt to matrix m
 if( TemporalSize > num_rows-1) then print ("TemporalSize larger than rows in input parametrs."); exit(); end
 if( simCase+1 > num_rows-1) then print ("Simulation case larger than rows in input parametrs."); exit(); end
 
@@ -42,13 +42,15 @@ if numProc > 1 then
 	simCase = rank_t
 end
 
-inflow = InValues[simCase+2][1]
-H_0 = InValues[simCase+2][2]
-W0 = InValues[simCase+2][3]
+inflow       = InValues[simCase+2][1]
+H_0          = InValues[simCase+2][2]
+W0           = InValues[simCase+2][3]
+SlipVelValue = InValues[simCase+2][4]
 
 print("Inflow = " ..inflow.."m/s")
 print("Heigh = " ..H_0.. "m.")
 print("Width = " ..W0.. "m.")
+print("SlipVel = " ..SlipVelValue.. "m.")
 
 local fixedNum = string.format("%04d", simCase)
 
@@ -60,17 +62,20 @@ params =
 {
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
-	file_name = util.GetParam("-file_name", "Solution") .."_".. fixedNum,
-	folder_name = util.GetParam("-folder_name", "Solution"),
+	file_name = util.GetParam("-file_name", "SolutionX") .."_".. fixedNum,
+	folder_name = util.GetParam("-folder_name", "SolutionY"),
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 3, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)"),
-	DT= util.GetParamNumber("-DT", 100.0, "DT[seconds]"),
+	
+	simCase = simCase,
+	
+	DT= util.GetParamNumber("-DT", 1.0, "DT[seconds]"),
 	DTmin= util.GetParamNumber("-DTmin", 1e-04, "min  DT"),
-	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 100, "time steps"),
+	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 10, "time steps"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	
-	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
+	timeMethod = util.GetParam("-timeMethod","euler","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", false),
 	
 	tol     = util.GetParamNumber("-limex-tol", 1e-1, "time step size"),
@@ -133,6 +138,7 @@ params =
 	boolDensityMean = util.GetParamBool("-boolDensityMean", false),
 	
 	inflow   = inflow,
+	SlipVelValue = SlipVelValue,
 	H_0= H_0,
 	ReferencePressure  = util.GetParamNumber("-ReferencePressure",  1.7493e2, "interface value"),
 	bStokes     = util.GetParamBool("-Stokes", false ,"If defined, only Stokes Eq. computed"),
@@ -188,182 +194,35 @@ params.startTime  = 0.0
 params.endTime    = params.DT * params.numTimeSteps
 params.DTmax = params.DT
 
-riemman_name = nil
-if params.riemman == 0 then
-    riemman_name = "Upwind"
-elseif params.riemman == 1 then
-    riemman_name = "Godunov"
-elseif params.riemman == 2 then
-    riemman_name = "Rusanov"
-elseif params.riemman == 3 then
-    riemman_name = "Roe"
-else
-    print ("Numerical Flux Scheme for NonLinear Scalar conservation Law not defined"); exit();
-end
-
-file_name = params.file_name
 c_init = params.c_init
-interface_value  = params.alpha_min/params.packing_factor
-
-dim = params.dim
-
-
-folder_name = params.folder_name
-if params.bStokes then
-    folder_name = folder_name .. "-Stokes"
-end
-folder_name = folder_name .. "_" .. params.timeMethod
-
-if params.timeMethod == "limex" then
-	folder_name = folder_name .. "_" ..params.VelErrorNorm .. params.PressErrorNorm .. params.VolErrorNorm
-end
+params.interface_value  = params.alpha_min/params.packing_factor
 
 ------------------------------------------------------------------------------------------
--- Get command line parameters
+-- GridName
 ------------------------------------------------------------------------------------------
 
 -- Geometry parameters
 
-if params.elem_type == "tri" then
-	gridName	= util.GetParam ("-geom", "Dune2D_tri_double.ugx")
-else
-	gridName	= util.GetParam ("-geom", "Dune2D_quads_double.ugx")
+if not(params.elem_type == "tri" or params.elem_type == "quad") then
+	print ("---------------------------------------------------------------------------------------------  ERROR");
+	print ("---------------------------------------------------------------------------------------------  ERROR");
+	print ("Geometry not found for elemen type = " ..  params.elem_type); exit();
 end
+
+params.gridName	= util.GetParam ("-geom","Dune"..params.dim.."D_"..params.elem_type.."_double.ugx")
+
+
+------------------------------------------------------------------------------------------
+-- Domain Subsets
+------------------------------------------------------------------------------------------
+
 -- Subsets used in the problem
-allSubsets = "Inner, Inner2,Left, Right,Top, Bottom"
+allSubsets = "Inner, Inner2, Left, Right,Top, Bottom"
+if params.dim == 3 then
+	allSubsets = allSubsets .. ", Back, Front"
+end
 Inner_total={"Inner","Inner2"}
 
-------------------------------------------------------------------------------------------
--- Folder and files
-------------------------------------------------------------------------------------------
-SynchronizeProcesses()
-if (rank==0) then
-	if not DirectoryExists (folder_name) then
-		CreateDirectory (folder_name)
-	end
-	print(folder_name)
-end
-vtk_file_name = file_name .. "-" .. params.elem_type
-vtk_file_name = vtk_file_name .. "-lev" .. params.numRefs
-print(vtk_file_name)
-if params.bStokes then
-    vtk_file_name = vtk_file_name .. "-Stokes"
-end
-
-vtk_file_name = vtk_file_name .. "-" ..riemman_name
-
-if params.boolRelativeVel then
-    vtk_file_name =vtk_file_name .. "-RelVel"
-else
-    vtk_file_name =vtk_file_name .. "-NoRelVel"
-end
-
-
-if  params.boolGradientPsSource  or params.boolSource  then
-
-    if params.boolSource then
-        if params.consistentRho_in_source then vtk_file_name =vtk_file_name .. "-Consistent" end
-        vtk_file_name = vtk_file_name .. "-MG_Force"
-    end
-    
-    if params.boolGradientPsSource then
-        vtk_file_name = vtk_file_name .. "-DPs"
-    else
-        vtk_file_name = vtk_file_name .. "-DPh"
-    end
-    
-else
-    vtk_file_name = vtk_file_name .. "-NoForce"
-end
-
-if params.boolAveDiff then
-    vtk_file_name = vtk_file_name .. "-AveDiff"
-else
-    vtk_file_name = vtk_file_name .. "-NoAveDiff"
-end
-
-if (params.boolSlipDiff and params.boolSlipVel) then print ("SlipVel and SlipDiff activated at the same time."); exit(); end
-if params.boolSlipDiff then
-    vtk_file_name = vtk_file_name .. "-SlipDiff"
-else if params.boolSlipVel then
-		vtk_file_name = vtk_file_name .. "-SlipVel"
-	else
-		vtk_file_name = vtk_file_name .. "-NoSlip"
-	end
-end
-
-folder = folder_name .. "/" .. vtk_file_name
-if (rank== 0) then
-	if not DirectoryExists (folder) then
-		CreateDirectory (folder)
-	else
-		if(params.NewtonDebug or params.NewtonSteadyDebug) then
-			local cmd = "rm -rf " .. folder
-			os.execute(cmd)
-			print(" Directory reseted")
-			CreateDirectory (folder)
-		end
-	end
-end
-SynchronizeProcesses()
-params.debug_dir = folder
-print(params.debug_dir)
-vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
-
-------------------------------------------------------------------------------------------
--- Initialize UG4
-------------------------------------------------------------------------------------------
-
-InitUG (dim, AlgebraType("CPU", dim+2))
-GetLogAssistant():enable_file_output(true, folder .. "/LogFile_"..simCase.. "_Lev"..params.numRefs)
-if rank_t > 0 then GetLogAssistant():enable_terminal_output(false) end
-
-------------------------------------------------------------------------------------------
--- Initialize UG4
-------------------------------------------------------------------------------------------
-print (" Sand Dune Dynamics     " .. os.date("%A, %B %d, %Y at %I:%M %p"))
-print (" Geometry: " .. gridName ..", dim = " .. params.dim)
-print (" Physical parameter:")
-print ("	Table case		= " .. simCase + 1)
-print ("	inflow			= " .. params.inflow)
-print ("	Stokes			= " .. tostring (params.bStokes))
-print ("	Steady state    	= " .. tostring (params.doSteadyState))
-print ("	BodyForce       	= " .. tostring (params.boolSource))
-print ("	Consisten Gravity	= " .. tostring (params.consistentRho_in_source))
-print ("	Relative Vel    	= " .. tostring (params.boolRelativeVel))
-print ("	Ps gradient     	= " .. tostring (params.boolGradientPsSource))
-print ("	Ps in visc      	= " .. tostring (params.boolViscPs))
-print ("	Diffusion       	= " .. tostring (params.boolAveDiff))
-print ("	SlipDiff         	= " .. tostring (params.boolSlipDiff))
-print ("	SlipVel         	= " .. tostring (params.boolSlipVel))
-print ("	MassMean         	= " .. tostring (params.boolDensityMean))
-print (" Numerical parameter:")
-print ("	elem_type		= " .. params.elem_type)
-print ("	numRefs			= " .. params.numRefs)
-print ("	numPreRefs		= " .. params.numPreRefs)
-print ("	timeMethod		= " .. params.timeMethod)
-print ("	DT   			= " .. params.DT)
-print ("	numTimeSteps		= " .. params.numTimeSteps)
-print ("	noLaplace		= " .. tostring (params.bNoLaplace))
-print ("	exactJac		= " .. tostring (params.bExactJac))
-print ("	PecletBlend		= " .. tostring (params.bPecletBlend))
-print ("	upwind_m		= " .. params.upwind_m)
-print ("	upwind_t		= " .. params.upwind_t)
-print ("	Num Flux Scheme		= " .. riemman_name)
-print ("	pac			= " .. tostring (params.bPac))
-print ("	stab			= " .. params.stab)
-print ("	difflength		= " .. params.diffLength)
-print ("	Turbulence		= " .. params.turbViscMethod)
-
-if params.timeMethod == "limex" then
-	print (" Limex Numerical parameter:")
-	print ("	Vel norm		= " .. params.VelErrorNorm)
-	print ("	Press norm		= " .. params.PressErrorNorm)
-	print ("	Vol  norm		= " .. params.VolErrorNorm)
-	print ("	Vel norm scale		= " .. params.alphaVel)
-	print ("	Press norm scale	= " .. params.alphaPress)
-	print ("	Vol norm scale		= " .. params.alphaVol)
-end
 
 
 --------------------------------------------------------------------------------
@@ -373,117 +232,42 @@ local myProblem=require("SandDunesConfig")
 myProblem:Init(params)
 
 ------------------------------------------------------------------------------------------
--- load, refine and distribute the grid
+-- FILE NAMES
 ------------------------------------------------------------------------------------------
 
-if dim == 3 then
-	fct_cmp_tbl = {"u", "v", "w", "p", "c"}
-	vel_cmp_tbl = {"u", "v", "w"}
-else
-	fct_cmp_tbl = {"u", "v", "p", "c"}
-	vel_cmp_tbl = {"u", "v"}
-end	
-
--- Create the domain, load the grid and refine it
-dom = util.CreateDomain (gridName, params.numPreRefs)
-balancer.RefineAndRebalanceDomain (dom, params.numRefs - params.numPreRefs)
---util.refinement.CreateRegularHierarchy(dom, params.numRefs, true)
-
-print ("Domain-info:")
-print (dom:domain_info():to_string())
-
--- Create the vertex-centered approximation space
-approxSpace = ApproximationSpace (dom)
-
-approxSpace:add_fct("u", "Lagrange",1,allSubsets)
-approxSpace:add_fct("v", "Lagrange",1,allSubsets)
-if dim == 3 then
-	approxSpace:add_fct("w", "Lagrange",1,allSubsets)
-end
-approxSpace:add_fct("p", "Lagrange",1,allSubsets)
-approxSpace:add_fct("c", "Lagrange",1,allSubsets)
-
-approxSpace:init_levels()
-approxSpace:init_top_surface()
-approxSpace:print_statistic()
-
-OrderLex (approxSpace, "y")
---OrderCuthillMcKee(approxSpace,true)
-
-util.solver.defaults.approxSpace = approxSpace
+SynchronizeProcesses()
+vtk_file_name,folder,folder_name = myProblem:FileNames(rank)
+SynchronizeProcesses()
 
 
--- grid function for the solution
-u = GridFunction (approxSpace)
-u:set(0)
+------------------------------------------------------------------------------------------
+-- Initialize UG4
+------------------------------------------------------------------------------------------
+
+InitUG (params.dim, AlgebraType("CPU", params.dim+2))
+GetLogAssistant():enable_file_output(true, folder .. "/LogFile_"..simCase.. "_Lev"..params.numRefs)
+if rank_t > 0 then GetLogAssistant():enable_terminal_output(false) end
+
+
+------------------------------------------------------------------------------------------
+-- Printing Values
+------------------------------------------------------------------------------------------
+
+
+myProblem:PrintingSettings()
+
+
+------------------------------------------------------------------------------------------
+-- load, refine and distribute the grid  (Approximation Space)
+------------------------------------------------------------------------------------------
+
+	approxSpace,u = myProblem:ApproximationSpace(allSubsets)
+
 ------------------------------------------------------------------------------------------
 -- Lua Functions
 ------------------------------------------------------------------------------------------
-h_0=0.0
-sigma=3
-mu_c=20
 
-mu_c1=mu_c-W0/2
-mu_c2=mu_c+W0/2
-sigma1=sigma
-sigma2=params.lee_factor*sigma
-ss=1.0
-k1=0.05
-k2=0.05
----------------------------------------------------------------------- Initial DuneShape
-function Dune(x)
-	if (x< mu_c1) then
-		return H_0*   math.exp(     -0.5*math.pow((x-mu_c1)/sigma1,2) ) -h_0+(ss-math.exp(-k1*(x-mu_c1)))
-	else
-		if (x< mu_c2) then
-			return H_0-h_0
-		else
-			return H_0*   math.exp(     -0.5*math.pow((x-mu_c2)/sigma2,2) ) -h_0  -(ss-math.exp(-k2*(x-mu_c2)))
-			
-		end
-	end
-end
-function Dune1(x)
-	if (x< mu_c1) then
-		return -(Dune(x)+h_0)*(x-mu_c1)/math.pow(sigma1,2)+(k1*math.exp(-k1*(x-mu_c1)))
-	else
-		if (x< mu_c2) then
-			return 0
-		else
-			return -(Dune(x)+h_0)*(x-mu_c2)/math.pow(sigma2,2)+(-k2*math.exp(-k2*(x-mu_c2)))
-		end
-	end
-end
-function Dune2(x)
-	if (x< mu_c1) then
-		return (Dune(x)+h_0)*(math.pow((x-mu_c1)/math.pow(sigma1,2),2)-1/math.pow(sigma1,2))-(k1*k1*math.exp(-k1*(x-mu_c1)))
-	else
-		if (x< mu_c2) then
-			return 0
-		else
-			return  (Dune(x)+h_0)*(math.pow((x-mu_c2)/math.pow(sigma2,2),2)-1/math.pow(sigma2,2))+(k2*k2*math.exp(-k2*(x-mu_c2)))
-		end
-	end
-end
 
-function dist(x0,y0)
-	e=1
-	x1=20
-	x2=20
-	y1=Dune(x0)
-	n=1
-	while (e>1e-04 and n<100) do
-		x1=x2
-		y1=Dune(x1)
-		x2=x1-(x0-x1  + (y0-y1)*Dune1(x1))/(Dune2(x1)*(y0-Dune(x1))-(math.pow(Dune1(x1),2)+1) )
-
-		e=math.abs(x2-x1)
-		n=n+1
-	end
-	return math.sqrt(math.pow(x2-x0,2)+math.pow(Dune(x2)-y0,2))
-end
-
-dx=math.pow(1/2,(params.numRefs+2))
 ---------------------------------------------------------------------- Initial Velocity
 --[[function StartValueX(x,y)
 	hh=14.1856
@@ -491,25 +275,36 @@ dx=math.pow(1/2,(params.numRefs+2))
 	cc=math.pow(y/hh,5)
 	return params.inflow*(math.min(1.0, math.pow(y/hh,1/nn))*(1-cc) +(cc)* (2*hh - y) * (y ) / (hh * hh))
 end]]
-function StartValueX(x,y)
+function LOGPROF(psi)
 	hh=14.1856
-	return params.inflow* (2*hh - y) * (y ) / (hh * hh)
+	return params.inflow* (2*hh - psi) * (psi ) / (hh * hh)
 end
-function StartValueY(x,y)
-	return 0.0*params.inflow
+
+function StartValueX3d(x,y,z)
+	return LOGPROF(z)
 end
-function StartValueZ(x,y)
-	return 0
+function StartValueY3d(x,y,z)
+	return 0.0
 end
+function StartValueZ3d(x,y,z)
+	return 0.0
+end
+
+function StartValueX2d(x,y)
+	return LOGPROF(y)
+end
+function StartValueY2d(x,y)
+	return 0.0
+end
+
 
 ---------------------------------------------------------------------- Initial Pressure
 Pstd=0.0
-function StartValueP(x,y)
-	if y>Dune(x) then
-		return Pstd *(x+30)
-	else
-		return  Pstd *(x+30)
-	end
+function StartValueP2d(x,y)
+	return  0.0
+end
+function StartValueP3d(x,y,z)
+	return  0.0
 end
 function PressureBoundary(x,y)
 	return  1.2*y*params.gravity
@@ -517,58 +312,65 @@ end
 
 ---------------------------------------------------------------------- Initial VolumeFraction
 
+sigma=3
+mu_c=20
+
+---------------------------------------------------------------------- Initial DuneShape
+-- Super-Gaussian parameters
+--H_0 = 20       -- Dune heigh
+x0 = 20          -- Center in x
+y0 = 0           -- Center in y
+sigmaX = 3.0     -- Width in x
+sigmaY = 3.0     -- Width in y
+n = 4            -- Super-Gaussian order (2 = Gaussian)
+h_0 = 0.01         -- offset
+
+-- Super-Gaussian function
+function superGaussian3d(x, y)
+    local dx = math.abs((x - x0) / sigmaX)
+    local dy = math.abs((y - y0) / sigmaY)
+
+    return H_0 * math.exp(-(dx^n + dy^n))- h_0
+end
+function superGaussian2d(x)
+    local dx = math.abs((x - x0) / sigmaX)
+    return H_0 * math.exp(-(dx^n)) - h_0
+end
 
 
-
-function VolumeFraction(x,y)
-	dd=dist(x,y)
-	ds=0*dx
-	kk1=1600
-	kk2=1600
-	
-	if y>Dune(x,y) then
-		if dd<ds then
-			dd=-dd
-			k=k
-			return c_init / (1.0 + math.exp(-kk1*dd))
-		else
-			return 0.0
-		end
+function VolumeFraction2d(x,y)
+	if y>superGaussian2d(x) then
+		return 0.0
 	else
-		if dd<ds then
-			k=k
-			return c_init / (1.0 + math.exp(-kk2*dd))
-		else
-			return c_init
-		end
-	end
-	
-	
-	
-end
-
-
-function StartValueC(x,y)
-	return VolumeFraction(x,y)
-end
-
-function ConstValue(x, y, t)
-	if (y < 15 and x < 30 and x>10) then
-		return (1/params.alpha_max) * 1.0e-01
-	else return 0.0
+		return c_init
 	end
 end
+function VolumeFraction3d(x,y,z)
+	if z>superGaussian3d(x,y) then
+		return 0.0
+	else
+		return c_init
+	end
+end
+
+
 ---------------------------------------------------------------------- Boundary Condition
 ----------------------------------------------------------- Inlet
-local H=1
 
 function InflowVel2d(x, y, t)
-
-	return StartValueX(x,y),StartValueY(x,y)
+	return StartValueX2d(x,y),StartValueY2d(x,y)
 end
 function MassInflowVel2d(x, y, t)
 	local rho = 1.0--params.rho_a
-	return  rho * StartValueX(x,y), rho * StartValueY(x,y)
+	return  rho * StartValueX2d(x,y), rho * StartValueY2d(x,y)
+end
+
+function InflowVel3d(x, y, z, t)
+	return StartValueX3d(x,y,z),StartValueY3d(x,y,z),StartValueZ3d(x,y,z)
+end
+function MassInflowVel3d(x, y, z, t)
+	local rho = 1.0--params.rho_a
+	return  rho * StartValueX3d(x,y,z), rho * StartValueY3d(x,y,z), rho * StartValueZ3d(x,y,z)
 end
 
 
@@ -585,243 +387,47 @@ function BoundaryVolumeFraction(x,y)
 end
 
 function BottomFlux(x,y) return 0 end
----------------------------------------------------------------------- Interface Properties
-
-InterfaceValues = Interface()
-
-InterfaceValues:set_particle_diameter(params.dp)
-InterfaceValues:set_particle_density(params.rho_s)
-InterfaceValues:set_air_density(params.rho_a)
-InterfaceValues:set_fluid_Visc(params.nu_a*params.rho_a)
-InterfaceValues:set_particle_kinVisc(params.nu_s)
-InterfaceValues:set_alpha_max(params.alpha_max)
-InterfaceValues:set_alpha_min(params.alpha_min)
-InterfaceValues:set_packing_factor(params.packing_factor)
-InterfaceValues:set_FrictionMu_1(params.FricMu_1)
-InterfaceValues:set_FrictionMu_2(params.FricMu_2)
-InterfaceValues:set_I_0(params.I_0)
-InterfaceValues:set_deltaI(params.deltaI)
-InterfaceValues:set_deltaPs(params.deltaPs)
-InterfaceValues:set_FR(params.FR)
-InterfaceValues:set_B_phi(params.B_phi)
-InterfaceValues:set_deltaGamma(params.deltaGamma)
-InterfaceValues:set_limit(params.Visc_limit)
-InterfaceValues:set_bool_particle_pressure_force(params.boolGradientPsSource)
-InterfaceValues:set_bool_consistent_gravity(false)
-InterfaceValues:set_reference_pressure(params.ReferencePressure)
-InterfaceValues:set_time_step_factor(params.DT)
-InterfaceValues:set_interface_volume_fraction(interface_value)
-InterfaceValues:set_drag_model(params.drag_mod)
-InterfaceValues:set_relative_vel_error(1)
-InterfaceValues:set_bool_initialized(true)
-
--------------------------------------------------------------- VelocityGradMag
-
-gamma = ShearStressFV1(approxSpace,u)
-
----------------------------------------------------------------------- Density
-Density = nil
-if params.bStokes then
-	Density = ConstUserNumber(params.rho_a)
-else
-	Density = GranularDensityLinker();
-	Density:set_model(params.density_model)
-	Density:set_phase_parameters(InterfaceValues)
-end
+-------------------------------------------------------------------------- Parameters List
+------------------------------------------------------------------------------------------
+-- Parameters List
+------------------------------------------------------------------------------------------
 
 
+InterfaceValues = myProblem:InterfaceParameters()
 
 
----------------------------------------------------------------------- Viscosity
-
-Inverse_RHO = InverseLinker();
-Inverse_RHO:divide(1.0,Density);
-
-Scale_RHO = ScaleLinker();
-Scale_RHO:set_import_1(Inverse_RHO)
-Scale_RHO:set_import_2(params.rho_a)
-
-KinMixViscosity = nil
-KinMixViscosity = ScaleLinker();
-KinMixViscosity:set_import_1(Inverse_RHO)
+------------------------------------------------------------------------------------------
+-- Secondary Variables (Closures)
+------------------------------------------------------------------------------------------
 
 
+myProblem:Clousures(approxSpace,u)
 
-if params.turbViscMethod=="dyn" then
-	KinTurbulentViscosity = FV1DynamicTurbViscData(approxSpace,u)
-	
-else
-	KinTurbulentViscosity = FV1SmagorinskyTurbViscData(approxSpace,u,params.modellconstant)
- end
-KinTurbulentViscosity:set_turbulence_zero_bnd("Left,Bottom,Top,Right")
-KinTurbulentViscosity:set_kinematic_viscosity(0.0)
-
-
-EfectiveKinViscosity = nil
-if params.turbViscMethod=="no" then
-	EfectiveKinViscosity = KinMixViscosity
-else
-	EfectiveKinViscosity = ScaleAddLinkerNumber()
-	EfectiveKinViscosity:add(1.0,KinMixViscosity)
-	EfectiveKinViscosity:add(Scale_RHO,KinTurbulentViscosity)
-
-end
-
-
-
-
-MixViscosity = ScaleLinker();
-MixViscosity:set_import_1(Density)
-MixViscosity:set_import_2(EfectiveKinViscosity)
-
-
-
-DiffusionViscosity = nil
-if params.turbViscMethod=="no" then
-	DiffusionViscosity = params.rho_a * params.nu_a
-else
-	DiffusionViscosity = params.rho_a * params.nu_a
-
-
-end
-
-
-TurbulentViscosity = ScaleLinker();
-TurbulentViscosity:set_import_1(params.rho_a)
-TurbulentViscosity:set_import_2(KinTurbulentViscosity)
-
-
-
-
-
-
----------------------------------------------------------------------- Pjump
-
-Source = GranularSourceLinker()
-Source:set_particle_density(params.rho_s)
-Source:set_fluid_density(params.rho_a)
-Source:set_mix_density(Density)
-Source:set_gravity(params.gravity)
-Source:set_cons_gravity(params.consistentRho_in_source)
-
-
----------------------------------------------------------------------- Sediment Velocity
-
-iter = 0
-Vs = InterfaceValues:RelVel_ext(0.0,params.rho_a,params.dp,params.rho_s,params.gravity)
-re=InterfaceValues:RE(params.nu_a*params.rho_a,params.rho_a,params.dp,Vs)
-Cd =InterfaceValues:CD(re,params.drag_mod)
-
-
-RelVel = RelativeVelocity(approxSpace,u)
-RelVel:set_phase_parameters(InterfaceValues)
-
----------------------------------------------------------------------- Diffusion
-
-Diff_beta = 0.217
-d1= 250e-06
-A1= 1.673
-k0 = 1.0 + A1 * (1-params.dp/d1)
-Diff_factor = Diff_beta*k0*k0*Vs/(2*params.rho_a*(math.abs(params.gravity)))
-Diffusion = GranularDiffusionLinker();
-Diffusion:set_mix_viscosity(DiffusionViscosity)
-Diffusion:set_diff_factor(Diff_factor)
-Diffusion:set_phase_parameters(InterfaceValues)
-
-
-ss_value = math.atan(params.FricMu_2)*180/3.1415926
-
-if params.boolSlipDiff then
-	SlipDiff = SlipDiffusion(approxSpace,u)
-	SlipDiff:set_theta(ss_value)
-	SlipDiff:set_diff(0.05)
-	SlipDiff:set_gradient_limit(1e-02)
-	SlipDiff:set_phase_parameters(InterfaceValues)
-	if params.boolAveDiff then
-		SlipDiff:set_diffusion(Diffusion)
-	end
-else if params.boolSlipVel then
-		SlipVel = SlipVelocity(approxSpace,u)
-		SlipVel:set_theta(ss_value)
-		SlipVel:set_vel(1.0)
-		SlipVel:set_gradient_limit(1e-02)
-		SlipVel:set_phase_parameters(InterfaceValues)
-	end
-end
-
-Normal = DuneNormal(approxSpace,u)
-Normal:set_theta(ss_value)
-Normal:set_gradient_limit(1e-02)
-Normal:set_phase_parameters(InterfaceValues)
-
---PressureGradientMean = PressureGradientMean(approxSpace,u)
---PressureGradientMean:set_theta(ss_value)
---PressureGradientMean:set_gradient_limit(1e-02)
---PressureGradientMean:set_phase_parameters(InterfaceValues)
 
 ------------------------------------------------------------------------------------------
 -- Compose the discretization
 ------------------------------------------------------------------------------------------
 
--- inner space
 
-NavierStokesDisc = NavierStokesFV1M (fct_cmp_tbl, Inner_total)
-NavierStokesDisc:set_exact_jacobian (params.bExactJac)
-NavierStokesDisc:set_stokes (params.bStokes)
-NavierStokesDisc:set_laplace (params.bNoLaplace)
-NavierStokesDisc:set_upwind (params.upwind_m)
-NavierStokesDisc:set_upwind_vol(params.upwind_t)
-NavierStokesDisc:set_peclet_blend (params.bPecletBlend)
-NavierStokesDisc:set_stabilization (params.stab, params.diffLength)
-NavierStokesDisc:set_div_correction (params.div_correction)
-NavierStokesDisc:set_transport_ip_velocity(params.boolIPVelocity)
-NavierStokesDisc:set_transport_jac(params.boolTransportJac)
-NavierStokesDisc:set_mass_term(params.boolMassTerm)
-NavierStokesDisc:set_mass_mean(params.boolDensityMean)
+NavierStokesDisc = myProblem:Discretization(Inner_total)
 
 
-NavierStokesDisc:set_density(Density,true)
-if params.timeMethod == "limex" and params.boolMassTerm and not(params.bStokes) then
-	NavierStokesDisc:set_limex_correction(true)
-end
+------------------------------------------------------------------------------------------
+-- Boundary Conditions
+------------------------------------------------------------------------------------------
 
-	
-if params.boolRelativeVel then
-	NavierStokesDisc:set_relative_velocity(RelVel,params.riemman)
-	NavierStokesDisc:set_upwind_rel(params.upwind_r)
-end
-if params.boolSlipDiff then
-	NavierStokesDisc:set_diffusion(SlipDiff)
-else
-	if params.boolAveDiff then
-		NavierStokesDisc:set_diffusion(Diffusion)
-	end
-	if params.boolSlipVel then
-		NavierStokesDisc:set_slip_velocity(SlipVel)
-	end
-	
-end
-if(params.boolpress_jump) then
-	NavierStokesDisc:set_pressure_jump ( params.diffLength)
-end
---NavierStokesDisc:set_interface_normal(Normal)
---NavierStokesDisc:set_rhie_chow(PressureGradientMean)
-
-if (params.boolSource) then
-	NavierStokesDisc:set_source(Source)
-end
-NavierStokesDisc:set_kinematic_viscosity (EfectiveKinViscosity)
-
-NavierStokesDisc:set_average_gamma(gamma)
-NavierStokesDisc:set_phase_parameters(InterfaceValues)
 
 InletDisc = NavierStokesInflowFV1M (NavierStokesDisc)
-InletDisc:add ("InflowVel2d", "InflowVel2d","Left,Top")
+InletDisc:add ("InflowVel"..params.dim.."d", "InflowVel"..params.dim.."d","Left,Top")
+if params.dim == 3 then
+	InletDisc:add ("InflowVel3d", "InflowVel3d","Back,Front")
+end
+
 
 -- boundary condition at the outlet
 OutletDisc = NavierStokesNoNormalStressOutflowFV1M (NavierStokesDisc)
 OutletDisc:add ("Right")
-OutletDisc:set_phase_parameters(InterfaceValues)
+OutletDisc:set_phase_parameters(myProblem.InterfaceValues)
 
 -- boundary condition at the impermeable walls
 WallDisc = NavierStokesWall (NavierStokesDisc)
@@ -841,15 +447,14 @@ flowBnd:add(0.0, "c", "Left,Top")
 -- Parameters Inputs
 ---------------------------------------------------------------------------------------
 if not(params.bStokes) then
-	Density:set_volume_fraction(NavierStokesDisc:volume_fraction())
+	myProblem.Density:set_volume_fraction(NavierStokesDisc:volume_fraction())
 end
 
+myProblem.Diffusion:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 
-Diffusion:set_velocity_gradient(NavierStokesDisc:velocity_grad())
+--myProblem.DensityRelVel:set_viscosity(NavierStokesDisc:einstein_viscosity())
 
---RelVel:set_viscosity(NavierStokesDisc:einstein_viscosity())
-
-KinMixViscosity:set_import_2(NavierStokesDisc:mix_viscosity())
+myProblem.KinMixViscosity:set_import_2(NavierStokesDisc:mix_viscosity())
 
 ---------------------------------------------------------------------------------------
 -- Global Discretization
@@ -864,7 +469,6 @@ domainDisc:add (WallDisc)
 domainDisc:add(flowBnd)
 
 
-
 --domainDisc:add(TransportEq)
 --domainDisc:add(OutflowBND)
 
@@ -873,30 +477,24 @@ print("Domain Discretization: DONE")
 -- Time Discretization
 ---------------------------------------------------------------------------------------
 print("Time Discretization")
--- create the assembled operator for the solver
-local timeDisc = nil
--- create time discretization
-if params.timeMethod=="cn" then
-	timeDisc = ThetaTimeStep(domainDisc)
-	timeDisc:set_theta(0.5) -- Crank-Nicolson method
-end
-if params.timeMethod=="euler" then
-	timeDisc = ThetaTimeStep(domainDisc)
-	timeDisc:set_theta(1) -- implicit Euler
-end	
-if params.timeMethod=="fracstep" then
-	timeDisc = ThetaTimeStep(domainDisc,"FracStep")
-end
-if params.timeMethod=="alex" then
-	timeDisc = ThetaTimeStep(domainDisc, "Alexander")
-end
+
+local timeDisc = myProblem:TimeDiscretization(domainDisc)
 
 ------------------------------------------------------------------------------------------
 -- Set up the solver
 ------------------------------------------------------------------------------------------
 print("Setting Solver")
 boolSolution = 1
-op, NLSolver, NewtonSolverSteady, limex, boolSolution = myProblem:CreateSolver(domainDisc, approxSpace, timeDisc)
+op, NLSolver, NewtonSolverSteady, limex, boolSolution = myProblem:CreateSolver(domainDisc, approxSpace)
+
+
+
+------------------------------------------------------------------------------------------
+-- Set up the Output (For printing variables)
+------------------------------------------------------------------------------------------
+
+
+out = myProblem:OutputParameters()
 
 
 ------------------------------------------------------------------------------------------
@@ -906,22 +504,25 @@ print("Initializing Values")
 
 --Interpolate(StartValueX, u, "u")
 Interpolate(0.0, u, "u")
-Interpolate("StartValueY", u, "v")
-Interpolate("StartValueP", u, "p")
-Interpolate("StartValueC", u, "c")
---Interpolate("ConstValue", u, "c")
+Interpolate("StartValueY"..params.dim.."d", u, "v")
+if params.dim == 3 then
+	Interpolate("StartValueZ"..params.dim.."d", u, "v")
+end
+Interpolate("StartValueP"..params.dim.."d", u, "p")
+Interpolate("VolumeFraction"..params.dim.."d", u, "c")
 
-KinTurbulentViscosity:update()
-gamma:update()
-RelVel:update()
+
+myProblem.KinTurbulentViscosity:update()
+myProblem.gamma:update()
+myProblem.RelVel:update()
 if params.boolSlipDiff then
-	SlipDiff:update()
+	myProblem.SlipDiff:update()
 else if params.boolSlipVel then
-		SlipVel:update()
+		myProblem.SlipVel:update()
 	end
 end
-Normal:update()
---PressureGradientMean:update()
+myProblem.Normal:update()
+
 ------------------------------------------------------------------------------------------
 -- Steady State Solution
 ------------------------------------------------------------------------------------------
@@ -933,25 +534,26 @@ linsolver_steps = 0
 if params.doSteadyState and boolSolution == 1 then
 	-- Steady state solution.
 	
-	NewtonSolverSteady:add_inner_step_update(gamma)
-	NewtonSolverSteady:add_step_update(RelVel)
-	NewtonSolverSteady:add_step_update(Normal)
+	NewtonSolverSteady:add_inner_step_update(myProblem.gamma)
+	NewtonSolverSteady:add_step_update(myProblem.RelVel)
+	NewtonSolverSteady:add_step_update(myProblem.Normal)
 	if params.turbViscMethod=="no" then
-		NewtonSolverSteady:add_step_update(KinTurbulentViscosity)
+		NewtonSolverSteady:add_step_update(myProblem.KinTurbulentViscosity)
 	else
-		NewtonSolverSteady:add_inner_step_update(KinTurbulentViscosity)
+		NewtonSolverSteady:add_inner_step_update(myProblem.KinTurbulentViscosity)
 	end
-	--NewtonSolverSteady:add_inner_step_update(PressureGradientMean)
+
 	if params.boolSlipDiff then
-		NewtonSolverSteady:add_step_update(SlipDiff)
+		NewtonSolverSteady:add_step_update(myProblem.SlipDiff)
 	else if params.boolSlipVel then
-			NewtonSolverSteady:add_step_update(SlipVel)
+			NewtonSolverSteady:add_step_update(myProblem.SlipVel)
 		end
 	end
 	
 	time_work_steady, linsolver_calls, linsolver_steps, boolSolution = myProblem:ComputeNonLinearSteadyStateSolution(u, domainDisc, NewtonSolverSteady)
 	
 end
+
 if(params.boolFixVel) then
 	fixer = DirichletBoundary()
 	domainDisc:add(fixer)
@@ -966,6 +568,7 @@ if(params.boolFixVol) then
 	fixer:invert_subset_selection()
 	fixer:add("c", "")
 end
+
 ------------------------------------------------------------------------------------------
 -- Printing Initial Conditions
 ------------------------------------------------------------------------------------------
@@ -975,42 +578,14 @@ step = 0
 
 	-- write start solution
 if boolSolution == 1 then
+
 	print("Writing initial values")
-	out = VTKOutput()
-	out:clear_selection()
-	out:select_all(false)
-	out:select_nodal ("u,v", "velocity")
-	out:select_nodal ("u", "u")
-	out:select_nodal ("v", "v")
-	out:select_nodal ("p", "p")
-	out:select_nodal ("c", "c")
-	out:select(Density, "Rho")
-	out:select(NavierStokesDisc:einstein_viscosity(), "Mu_eins")
-	out:select(NavierStokesDisc:mix_viscosity(), "Mu_I")
-	out:select(MixViscosity, "MixViscosity")
-	out:select(TurbulentViscosity, "Mu_turb")
-	
-	out:select(RelVel, "RelVel")
-	out:select(NavierStokesDisc:particle_pressure(), "Ps")
-	out:select(NavierStokesDisc:particle_pressure_grad(), "DPs")
-	out:select(NavierStokesDisc:velocity_grad(), "Gamma")
-	out:select(gamma, "MeanGamma")
-	if (params.boolSlipDiff) then
-		out:select_element(SlipDiff, "SDiff")
-	else
-		if params.boolSlipVel then
-			out:select_element(SlipVel, "SVel")
-		end
-	end
-	out:select_element(Diffusion, "D")
-	out:select_element(Normal, "n")
-	--out:select_element(PressureGradientMean, "DP")
 	out:print_subsets(vtk_file_name, u,allSubsets,step,time, true)
-	--out:write_time_pvd(vtk_file_name, u)
 	print ("Output to file " .. vtk_file_name .. ".vtu  in time t = 0")
 	print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
 	print ("                                                            ")
 	print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+	
 end
 
 
@@ -1034,28 +609,28 @@ end
 
 
 if params.turbViscMethod=="no" then
-	NLSolver:add_step_update(KinTurbulentViscosity)
+	NLSolver:add_step_update(myProblem.KinTurbulentViscosity)
 else
-	NLSolver:add_inner_step_update(KinTurbulentViscosity)
+	NLSolver:add_inner_step_update(myProblem.KinTurbulentViscosity)
 end
 
 
-NLSolver:add_step_update(RelVel)
-NLSolver:add_step_update(Normal)
+NLSolver:add_step_update(myProblem.RelVel)
+NLSolver:add_step_update(myProblem.Normal)
 
 if params.timeMethod == "limex" then
-	NLSolver:add_step_update(gamma)
+	NLSolver:add_step_update(myProblem.gamma)
 	if params.boolSlipDiff then
-		NLSolver:add_step_update(SlipDiff)
+		NLSolver:add_step_update(myProblem.SlipDiff)
 	elseif params.boolSlipVel then
-		NLSolver:add_step_update(SlipVel)
+		NLSolver:add_step_update(myProblem.SlipVel)
 	end
 else
-	NLSolver:add_inner_step_update(gamma)
+	NLSolver:add_inner_step_update(myProblem.gamma)
 	if params.boolSlipDiff then
-		NLSolver:add_inner_step_update(SlipDiff)
+		NLSolver:add_inner_step_update(myProblem.SlipDiff)
 	elseif params.boolSlipVel then
-		NLSolver:add_inner_step_update(SlipVel)
+		NLSolver:add_inner_step_update(myProblem.SlipVel)
 	end
 end
 	
@@ -1087,7 +662,7 @@ if boolSolution == 1 then
 			--[[if doo then
 				
 				for step2 = 1, 1 do
-					Newton_Steps2, Newton_Steps_fail2, linsolver_calls_step2, linsolver_steps_step2 , boolSolution = myProblem:SolveNonlinearProblem( u, NLSolver, op, timeDisc, solTimeSeries, 1, 0,0,1)
+					Newton_Steps2, Newton_Steps_fail2, linsolver_calls_step2, linsolver_steps_step2 , boolSolution = myProblem:SolveNonlinearProblem( u, NLSolver, op, solTimeSeries, 1, 0,0,1)
 				
 				end
 				fixer = DirichletBoundary()
@@ -1096,7 +671,7 @@ if boolSolution == 1 then
 				fixer:add("c", "")
 				doo = false
 			end]]
-			Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step , boolSolution = myProblem:SolveNonlinearProblem( u, NLSolver, op, timeDisc, solTimeSeries, DT, step,StartTime,EndTime)
+			Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step , boolSolution = myProblem:SolveNonlinearProblem( u, NLSolver, op, solTimeSeries, DT, step,StartTime,EndTime)
 		end
 		time = EndTime
 		tAfter_step = os.clock()
