@@ -12,6 +12,8 @@ ug_load_script("util/conv_rates_kinetic.lua")
 
 RequiredPlugins({"Limex", "NavierStokes"})
 
+local myProblem=require("SandDunesConfig")
+
 ------------------------------------------------------------------------------------------
 -- Split communicator
 ------------------------------------------------------------------------------------------
@@ -63,7 +65,7 @@ params =
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
 	file_name = util.GetParam("-file_name", "SolutionX") .."_".. fixedNum,
-	folder_name = util.GetParam("-folder_name", "SolutionY"),
+	folder_name = util.GetParam("-folder_name", "SolutionY") .. "Flow",
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 3, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)"),

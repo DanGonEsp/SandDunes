@@ -7,6 +7,7 @@ myProblem.Init = function(self, o)
 
 		-- Numerical parameters of the discretization
 	self.dim = o.dim
+	self.dir_name = o.dir_name
 	self.file_name = o.file_name
 	self.folder_name = o.folder_name
 	self.elem_type = o.elem_type
@@ -21,7 +22,9 @@ myProblem.Init = function(self, o)
 	self.DT = o.DT
 	self.DTmax = o.DTmax
 	self.DTmin = o.DTmin
+	self.DTLimex = o.DTLimex
 	self.outputFactor = o.outputFactor
+	self.boolCheckPoint = o.boolCheckPoint
 
 	self.timeMethod  = o.timeMethod
 	self.modifyDT  = o.modifyDT
@@ -62,7 +65,8 @@ myProblem.Init = function(self, o)
 	self.LinRedDefectImp = o.LinRedDefectImp
 	self.LinAbsDefectLim = o.LinAbsDefectLim
 	self.LinRedDefectLim = o.LinRedDefectLim
-	self.max_linear_steps = o.max_linear_steps
+	self.max_linear_steps_Lim = o.max_linear_steps_Lim
+	self.max_linear_steps_Imp = o.max_linear_steps_Imp
 	self.damping_mg = o.damping_mg
 	self.value_beta = o.value_beta
 
@@ -78,8 +82,6 @@ myProblem.Init = function(self, o)
 	self.boolViscPs = o.boolViscPs
 	self.boolAveDiff = o.boolAveDiff
 	self.boolSlipDiff = o.boolSlipDiff
-	
-	
 	self.boolSlipVel = o.boolSlipVel
 	self.boolpress_jump = o.boolpress_jump
 	self.boolNormal = o.boolNormal
@@ -153,7 +155,7 @@ end
 --------------------------------------------------------------------------------
 -- File Names
 --------------------------------------------------------------------------------
-myProblem.FileNames = function (self,rank)
+myProblem.FileNames = function (self,rank,SpaceSize)
 
 
 	riemman_name = nil
@@ -170,8 +172,20 @@ myProblem.FileNames = function (self,rank)
 	end
 
 	local file_name = self.file_name
+	
+	if self.dir_name == "" then
+		folder_name = self.folder_name
+	else
+		folder_name = self.dir_name .. "/" .. self.folder_name
+	end
 
-	folder_name = self.folder_name .. self.dim.. "D"
+	if(SpaceSize>1) then
+		folder_name = folder_name .. "Parallel"
+	else
+		folder_name = folder_name .. "Serial"
+	end
+	folder_name = folder_name .. self.dim.. "D"
+	
 	if self.bStokes then
 		folder_name = folder_name .. "-Stokes"
 	end
@@ -267,11 +281,34 @@ myProblem.FileNames = function (self,rank)
 	self.debug_dir = folder
 	self.riemman_name = riemman_name
 
-
+	print("Files Setting DONE")
 	print("File Adress: ".. vtk_file_name)
 	
 	return vtk_file_name,folder,folder_name
 end
+
+--------------------------------------------------------------------------------
+-- LOG Files
+--------------------------------------------------------------------------------
+myProblem.LogFiles = function (self,rank_t,Name)
+	
+	
+	local counter = 0
+	local filename = Name .. "_" .. counter
+	while io.open(filename, "r") do
+
+		counter = counter + 1
+		filename = Name .. "_" .. counter
+
+	end
+	GetLogAssistant():enable_file_output(true, filename)
+	if rank_t > 0 then GetLogAssistant():enable_terminal_output(false) end
+
+end
+
+
+
+
 
 --------------------------------------------------------------------------------
 -- Printing Simulation Settings
@@ -330,7 +367,7 @@ end
 -- Approximation Space
 --------------------------------------------------------------------------------
 myProblem.ApproximationSpace = function (self,allSubsets)
-
+	print("Approximation Space Setting")
 	local fct_cmp_tbl = nil
 	local vel_cmp_tbl = nil
 			
@@ -374,11 +411,14 @@ myProblem.ApproximationSpace = function (self,allSubsets)
 	-- grid function for the solution
 	local u = GridFunction (approxSpace)
 	u:set(0)
-	
+
 	self.fct_cmp_tbl = fct_cmp_tbl
 	self.vel_cmp_tbl = vel_cmp_tbl
 	self.u = u
 	self.approxSpace = approxSpace
+	
+	print("Approximation Space DONE")
+	
 	
 	return approxSpace,u
 end
@@ -418,13 +458,15 @@ myProblem.InterfaceParameters = function (self)
 	
 	self.InterfaceValues = InterfaceValues
 	
+	print("Interfce Parameters list: DONE")
+	
 	return InterfaceValues
 end
 
 --------------------------------------------------------------------------------
 -- Variables
 --------------------------------------------------------------------------------
-myProblem.Clousures = function (self,approxSpace,u)
+myProblem.Clousures = function (self,approxSpace,u,walls)
 		
 	local InterfaceValues = self.InterfaceValues
 	-------------------------------------------------------------- VelocityGradMag
@@ -465,7 +507,7 @@ myProblem.Clousures = function (self,approxSpace,u)
 	else
 		KinTurbulentViscosity = FV1SmagorinskyTurbViscData(approxSpace,u,self.modellconstant)
 	 end
-	KinTurbulentViscosity:set_turbulence_zero_bnd("Left,Bottom,Top,Right")
+	KinTurbulentViscosity:set_turbulence_zero_bnd(walls)
 	KinTurbulentViscosity:set_kinematic_viscosity(0.0)
 
 
@@ -534,9 +576,20 @@ myProblem.Clousures = function (self,approxSpace,u)
 
 	self.Diffusion = Diffusion
 	
-	---------------------------------------------------------------------- Vel-Diffusion (Avalanching)
+	---------------------------------------------------------------------- Normal
 	
 	local ss_value = math.atan(self.FricMu_2)*180/3.1415926
+	
+	local Normal = DuneNormal(approxSpace,u)
+	Normal:set_theta(ss_value)
+	Normal:set_gradient_limit(5)
+	Normal:set_phase_parameters(InterfaceValues)
+	
+	self.Normal = Normal
+	
+	---------------------------------------------------------------------- Vel-Diffusion (Avalanching)
+	
+	
 
 	local SlipDiff = nil
 	local SlipVel = nil
@@ -544,8 +597,10 @@ myProblem.Clousures = function (self,approxSpace,u)
 		SlipDiff = SlipDiffusion(approxSpace,u)
 		SlipDiff:set_theta(ss_value)
 		SlipDiff:set_diff(0.05)
-		SlipDiff:set_gradient_limit(1e-02)
+		SlipDiff:set_slope_limit(2e-02)
+		SlipDiff:set_normal(Normal)
 		SlipDiff:set_phase_parameters(InterfaceValues)
+		
 		if self.boolAveDiff then
 			SlipDiff:set_diffusion(Diffusion)
 		end
@@ -553,21 +608,17 @@ myProblem.Clousures = function (self,approxSpace,u)
 			SlipVel = SlipVelocity(approxSpace,u)
 			SlipVel:set_theta(ss_value)
 			SlipVel:set_vel(self.SlipVelValue)
-			SlipVel:set_gradient_limit(1e-02)
+			SlipVel:set_slope_limit(3e-02)
 			SlipVel:set_phase_parameters(InterfaceValues)
+			SlipVel:set_normal(Normal)
 		end
 	end
 	
 	self.SlipDiff = SlipDiff
 	self.SlipVel = SlipVel
 	
-	---------------------------------------------------------------------- Normal
-	local Normal = DuneNormal(approxSpace,u)
-	Normal:set_theta(ss_value)
-	Normal:set_gradient_limit(1e-02)
-	Normal:set_phase_parameters(InterfaceValues)
 	
-	self.Normal = Normal
+	print("Clousures Discretization DONE")
 
 
 end
@@ -622,6 +673,8 @@ myProblem.Discretization = function (self,Inner_total)
 	NavierStokesDisc:set_average_gamma(self.gamma)
 	NavierStokesDisc:set_phase_parameters(self.InterfaceValues)
 	
+	print("Space Discretization DONE")
+	
 	self.NavierStokesDisc = NavierStokesDisc
 	return NavierStokesDisc
 end
@@ -649,6 +702,8 @@ myProblem.TimeDiscretization = function (self,domainDisc)
 	if self.timeMethod=="alex" then
 		timeDisc = ThetaTimeStep(domainDisc, "Alexander")
 	end
+	
+	print("Time Discretization DONE")
 	
 	self.timeDisc = timeDisc
 	return timeDisc
@@ -687,9 +742,9 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	----------------------
 	local NewtonSteadyConvCheck=ConvCheck(self.max_newton_steps_steady_state, self.SteadyAbsDefect, self.SteadyRedDefect, true)
 	local NewtonConvCheck=ConvCheck(self.max_newton_steps_transient, self.AbsDefect, self.RedDefect, true)
-	local LinearConvCheckImp=ConvCheck(self.max_linear_steps, self.LinAbsDefectImp, self.LinRedDefectImp, true)
-	local LinearConvCheckLim=ConvCheck(self.max_linear_steps, self.LinAbsDefectLim, self.LinRedDefectLim, true)
-	local LimexConvCheck=ConvCheck(1, self.AbsDefect, 1e-8, true)
+	local LinearConvCheckImp=ConvCheck(self.max_linear_steps_Imp, self.LinAbsDefectImp, self.LinRedDefectImp, true)
+	local LinearConvCheckLim=ConvCheck(self.max_linear_steps_Lim, self.LinAbsDefectLim, self.LinRedDefectLim, true)
+	local LimexConvCheck=ConvCheck(1, 1e-12, 1e-12, true)
 	      LimexConvCheck:set_supress_unsuccessful(true)
 	
 	--------------
@@ -706,7 +761,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	ilu:set_ordering_algorithm(TopologicalOrdering())
 	ilu:set_sort(true)
 	--ilu:set_sort_eps(1.e-50)
-	ilu:set_inversion_eps(1.e-16)
+	ilu:set_inversion_eps(1.e-8)
 	ilu:enable_consistent_interfaces(true)
 	ilu:enable_overlap(false)
 	
@@ -848,9 +903,10 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	self.NewtonSolverDesc = NewtonSolverDesc
 	self.boolSolverDesc = true
 	
-	  
-	return op, NLSolver, NewtonSolverSteady, limex, 1
+	print("Solver Setting DONE")
+	return op, NLSolver, NewtonSolverSteady, limex
 end
+
 
 --------------------------------------------------------------------------------
 -- OutputParameters
@@ -893,10 +949,63 @@ myProblem.OutputParameters = function (self)
 	out:select_element(self.Diffusion, "D")
 	out:select_element(self.Normal, "n")
 
-	
+	print("Output file setting DONE")
 	return out
 end
+--------------------------------------------------------------------------------
+-- CheckPoint
+--------------------------------------------------------------------------------
+myProblem.SaveCheckPoint = function (self,u,folder)
 
+	SaveToFile(u, folder .. "/CheckPoint" .. ".vec")
+	print("Saving CheckPoint: DONE")
+
+end
+
+myProblem.LoadCheckPoint = function (self,u,folder)
+
+	
+	local boolInterpolate = false
+	local filename = folder .. "/Integral.txt"
+
+	local step = nil
+	local file = io.open(filename, "r")
+
+	if file then
+		print("Loading CheckPoint")
+		for line in file:lines() do
+
+			-- Skip the header
+			if not line:match("^Step") and not line:match("^%-") then
+
+				local columns = {}
+
+				for value in line:gmatch("%S+") do
+					table.insert(columns, value)
+				end
+
+				-- First column = Step
+				step = tonumber(columns[1])
+
+				-- Sixth column = TNSteps
+				--Newtonstep = tonumber(columns[6])
+			end
+		end
+
+		file:close()
+		
+		ReadFromFile(u, folder .. "/CheckPoint" .. ".vec")
+	else
+		boolInterpolate = true
+		step = 0
+	end
+
+	
+	time = self.DT * step
+	
+	
+ return time, step, boolInterpolate
+end
 --------------------------------------------------------------------------------
 -- Writing Output parameters
 --------------------------------------------------------------------------------
@@ -915,6 +1024,11 @@ myProblem.WriteValues = function (self, folder, step, time, Value_inner1, Value_
 	else
 		file = io.open(folder .. "/Integral.txt", "a")
 		file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n", step, time, Value_inner1, Value_inner2, WorkTime, Newton_Steps, Newton_Steps-Newton_Steps_fail, Newton_Steps_fail,linsolver_calls,linsolver_steps))
+		file:close()
+	end
+	if(boolTotal) then
+		file = io.open(folder .. "/Integral.txt", "a")
+		file:write(string.format("-----------------------------------------------------------------------------------------------------------\n"))
 		file:close()
 	end
 end
@@ -1178,7 +1292,7 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 
 	local dtmax = self.DTmax
 	local dtmin = self.DTmin
-	local dtlimex = self.DTmin
+	local dtlimex = self.DTLimex
 
 	--  Euclidean (algebraic) norm
 	--local estimator = Norm2Estimator()
@@ -1271,13 +1385,11 @@ end
 --------------------------------------------------------------------------------
 -- SolutionNonLinearProblem LIMEX
 --------------------------------------------------------------------------------
-myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, time_step, StartTime, EndTime)
+myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, time_step, StartTime, EndTime, NewtonLimexSteps)
 	
 	if(time_step == 1) then
 		limex:set_dt_min(1e-012)
 	end
-	
-		
 	limex:set_start_step(1)
 	limex:apply(u, EndTime, u, StartTime)
 	n_step = limex:get_step()-1
