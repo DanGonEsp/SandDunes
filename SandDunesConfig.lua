@@ -180,7 +180,7 @@ myProblem.FileNames = function (self,rank,SpaceSize)
 	end
 
 	if(SpaceSize>1) then
-		folder_name = folder_name .. "Parallel"
+		folder_name = folder_name .. "Parallel" .. SpaceSize .."_"
 	else
 		folder_name = folder_name .. "Serial"
 	end
