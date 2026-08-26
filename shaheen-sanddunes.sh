@@ -1,4 +1,5 @@
 #!/bin/bash
+#SBATCH --account=k10105
 #SBATCH -N 2
 #SBATCH --partition=workq
 #SBATCH -J SandDunes
@@ -6,7 +7,6 @@
 #SBATCH --error=SandDunes-error.txt
 #SBATCH --mail-user=daniel.gonzalezesparza@kaust.edu.sa
 #SBATCH --mail-type=ALL
-#SBATCH -A k10105
 #SBATCH -t 23:59:00
 
 #OpenMP settings:
