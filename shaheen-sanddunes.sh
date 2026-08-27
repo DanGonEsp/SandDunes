@@ -14,6 +14,6 @@ export OMP_NUM_THREADS=1
 
 
 #run the application:
-srun -n 192 --ntasks-per-node=192 /project/k10105/gonzald/SandDunes/UG4/ug4/bin/ugshell -ex Avalanche.lua -dir_name /scratch/gonzald/SandDunes -dim 3  -timeMethod limex -numTimeSteps 1
+srun -n 192 --ntasks-per-node=192 /project/k10105/gonzald/SandDunes/UG4/ug4/bin/ugshell -ex Avalanche.lua -dir_name /scratch/gonzald/SandDunes -dim 3  -timeMethod limex -numTimeSteps 1 -numProcs 4
 
 #End of File
