@@ -33,6 +33,10 @@ local SpaceSize = SpaceTimeComm:get_spatial_size()
 print("TemporalSize = " ..TemporalSize)
 print("SpaceSize = " ..SpaceSize)
 
+if numProc > 1 then
+	simCase = rank_t
+end
+
 ------------------------------------------------------------------------------------------
 -- Input parameter table
 ------------------------------------------------------------------------------------------
@@ -41,9 +45,6 @@ local InValues, num_rows, num_cols = csvfile.read('./AvalancheTable_in.csv') -- 
 if( TemporalSize > num_rows-1) then print ("TemporalSize larger than rows in input parametrs."); exit(); end
 if( simCase+1 > num_rows-1) then print ("Simulation case larger than rows in input parametrs."); exit(); end
 
-if numProc > 1 then
-	simCase = rank_t
-end
 
 inflow       = InValues[simCase+2][1]
 H_0          = InValues[simCase+2][2]
