@@ -123,6 +123,8 @@ myProblem.Init = function(self, o)
 	self.alpha_max = o.alpha_max
 	self.alpha_min = o.alpha_min
 	self.packing_factor = o.packing_factor
+	self.grad_limit = o.grad_limit
+	self.slope_limit = o.slope_limit
 	self.granular_model = o.granular_model
 	self.density_model = o.density_model
 	self.interface_value = o.interface_value
@@ -314,7 +316,7 @@ end
 -- Printing Simulation Settings
 --------------------------------------------------------------------------------
 myProblem.PrintingSettings = function (self)
-
+	-----------------------------------------------------------------------
 	print (" Sand Dune Dynamics     " .. os.date("%A, %B %d, %Y at %I:%M %p"))
 	print (" Geometry: " .. self.gridName ..", dim = " .. self.dim)
 	print (" Physical parameter:")
@@ -332,6 +334,7 @@ myProblem.PrintingSettings = function (self)
 	print ("	SlipDiff         	= " .. tostring (self.boolSlipDiff))
 	print ("	SlipVel         	= " .. tostring (self.boolSlipVel))
 	print ("	MassMean         	= " .. tostring (self.boolDensityMean))
+	-----------------------------------------------------------------------
 	print (" Numerical parameter:")
 	print ("	elem_type		= " .. self.elem_type)
 	print ("	numRefs			= " .. self.numRefs)
@@ -349,6 +352,18 @@ myProblem.PrintingSettings = function (self)
 	print ("	stab			= " .. self.stab)
 	print ("	difflength		= " .. self.diffLength)
 	print ("	Turbulence		= " .. self.turbViscMethod)
+	-----------------------------------------------------------------------
+	print (" Linear Solver parameters:")
+	print ("	damping_mg		= " .. self.damping_mg)
+	print ("	beta			= " .. self.value_beta)
+	print ("	AbsDefImp		= " .. self.LinAbsDefectImp)
+	print ("	RedDefImp		= " .. self.LinRedDefectImp)
+	print ("	AbsDefLim 		= " .. self.LinAbsDefectLim)
+	print ("	RedDefLim		= " .. self.LinRedDefectLim)
+	print ("	MaxStepsLim		= " .. tostring (self.max_linear_steps_Lim))
+	print ("	MaxStepsImp		= " .. tostring (self.max_linear_steps_Imp))
+
+	-----------------------------------------------------------------------
 
 	if self.timeMethod == "limex" then
 		print (" Limex Numerical parameter:")
@@ -582,7 +597,7 @@ myProblem.Clousures = function (self,approxSpace,u,walls)
 	
 	local Normal = DuneNormal(approxSpace,u)
 	Normal:set_theta(ss_value)
-	Normal:set_gradient_limit(5)
+	Normal:set_gradient_limit(self.grad_limit)
 	Normal:set_phase_parameters(InterfaceValues)
 	
 	self.Normal = Normal
@@ -596,8 +611,8 @@ myProblem.Clousures = function (self,approxSpace,u,walls)
 	if self.boolSlipDiff then
 		SlipDiff = SlipDiffusion(approxSpace,u)
 		SlipDiff:set_theta(ss_value)
-		SlipDiff:set_diff(0.05)
-		SlipDiff:set_slope_limit(2e-02)
+		SlipDiff:set_diff(self.SlipVelValue)
+		SlipDiff:set_slope_limit(self.slope_limit)
 		SlipDiff:set_normal(Normal)
 		SlipDiff:set_phase_parameters(InterfaceValues)
 		
@@ -608,7 +623,7 @@ myProblem.Clousures = function (self,approxSpace,u,walls)
 			SlipVel = SlipVelocity(approxSpace,u)
 			SlipVel:set_theta(ss_value)
 			SlipVel:set_vel(self.SlipVelValue)
-			SlipVel:set_slope_limit(3e-02)
+			SlipVel:set_slope_limit(self.slope_limit)
 			SlipVel:set_phase_parameters(InterfaceValues)
 			SlipVel:set_normal(Normal)
 		end
@@ -792,8 +807,8 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	gmg:set_base_solver(baseSolver)
 	gmg:set_smoother(ilu)
 	gmg:set_cycle_type(1)
-	gmg:set_num_presmooth(2)
-	gmg:set_num_postsmooth(2)
+	gmg:set_num_presmooth(3)
+	gmg:set_num_postsmooth(3)
 	gmg:set_rap( true)
 	gmg:set_smooth_on_surface_rim(false)
 
