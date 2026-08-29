@@ -35,6 +35,8 @@ print("SpaceSize = " ..SpaceSize)
 
 if numProc > 1 then
 	simCase = rank_t
+elseif simCase < 0
+	print ("Simulation case (simCase) not available."); exit();
 end
 
 ------------------------------------------------------------------------------------------
