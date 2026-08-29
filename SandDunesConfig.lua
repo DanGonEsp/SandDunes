@@ -181,11 +181,8 @@ myProblem.FileNames = function (self,rank,SpaceSize)
 		folder_name = self.dir_name .. "/" .. self.folder_name
 	end
 
-	if(SpaceSize>1) then
-		folder_name = folder_name .. "Parallel" .. SpaceSize .."_"
-	else
-		folder_name = folder_name .. "Serial"
-	end
+	folder_name = folder_name .. "Parallel" .. SpaceSize .."_"
+
 	folder_name = folder_name .. self.dim.. "D"
 	
 	if self.bStokes then
