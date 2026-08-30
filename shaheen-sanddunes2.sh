@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -N 1
 #SBATCH --partition=workq
-#SBATCH -J SimpleAvalanche_2_Lev4
+#SBATCH -J AvalancheSmall
 #SBATCH --output=/scratch/gonzald/SandDunes/SandDunes-output.txt
 #SBATCH --error=/scratch/gonzald/SandDunes/SandDunes-error.txt
 #SBATCH --mail-user=daniel.gonzalezesparza@kaust.edu.sa
