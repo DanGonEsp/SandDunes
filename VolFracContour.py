@@ -42,14 +42,45 @@ def calculate_contour(folder, dim, data):
     # FIND FILES
     # ========================================================
 
-    pattern = os.path.join(folder, "*.pvtu")
+    pvtu_pattern = os.path.join(folder, "*.pvtu")
+    vtu_pattern = os.path.join(folder, "*.vtu")
 
-    files = sorted(glob.glob(pattern))
+    pvtu_files = sorted(glob.glob(pvtu_pattern))
+    vtu_files = sorted(glob.glob(vtu_pattern))
 
-    print("Found", len(files), "files")
+    # ========================================================
+    # SELECT FILE TYPE AND READER
+    # ========================================================
 
-    if len(files) == 0:
-        raise RuntimeError("No .pvtu files found!")
+    if len(pvtu_files) > 0:
+
+        files = pvtu_files
+
+        print("Detected partitioned VTU data.")
+        print("Using .pvtu files.")
+        print("Found", len(files), "files")
+
+        solution = XMLPartitionedUnstructuredGridReader(
+            registrationName="Solution", FileName=files
+        )
+
+    elif len(vtu_files) > 0:
+
+        files = vtu_files
+
+        print("Detected standard VTU data.")
+        print("Using .vtu files.")
+        print("Found", len(files), "files")
+
+        solution = XMLUnstructuredGridReader(
+            registrationName="Solution", FileName=files
+        )
+
+    else:
+
+        raise RuntimeError(
+            "ERROR: No .pvtu or .vtu files found!"
+        )
 
 
     # ========================================================
@@ -66,12 +97,7 @@ def calculate_contour(folder, dim, data):
     # READ FILES
     # ========================================================
 
-    solution = XMLPartitionedUnstructuredGridReader(
-        registrationName="Solution", FileName=files
-    )
-
     solution.UpdatePipeline()
-
 
     # ========================================================
     # TIME STEPS
