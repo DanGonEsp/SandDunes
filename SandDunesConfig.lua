@@ -178,7 +178,7 @@ myProblem.FileNames = function (self,rank,SpaceSize)
 		print ("Numerical Flux Scheme for NonLinear Scalar conservation Law not defined"); exit();
 	end
 
-	local file_name = self.file_name
+	local folder_name = nil
 	
 	if self.dir_name == "" then
 		folder_name = self.folder_name
@@ -251,6 +251,7 @@ myProblem.FileNames = function (self,rank,SpaceSize)
 	---------------------
 	-- VTK folder
 	---------------------
+	local file_name = self.file_name
 	
 	vtk_file_name = file_name .. "-" .. self.timeMethod
 	vtk_file_name = vtk_file_name .. "-" .. self.elem_type
@@ -277,7 +278,7 @@ myProblem.FileNames = function (self,rank,SpaceSize)
 
 	
 
-	vtk_file_name = folder_vtk .. "/" .. vtk_file_name -- VTK output file name base
+	vtk_file_name = folder_vtk .. "/" .. self.file_name -- VTK output file name base
 	
 	
 	self.debug_dir = folder_vtk

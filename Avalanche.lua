@@ -80,7 +80,7 @@ params =
 	
 	
 	--Output Data
-	boolData = util.GetParamBool("-boolData", true, "To generate files as contours at c=0.5"),
+	boolData = util.GetParamBool("-boolData", true),
 	data_name = util.GetParam("-data_name", "Data"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	boolCheckPoint = util.GetParamBool("-boolCheckPoint", true),
@@ -857,7 +857,7 @@ Headers = " Sim, Vel, H0, W0, Solved\n"
 lineWriter:write_line(Tablename,simCase, Headers, params.inflow, H_0, W0, boolSolution)
 ]]
 
-myProblem.RunParaViewContour( rank, folder_vtk)
+myProblem:RunParaViewContour( rank, folder_vtk)
 
 --SynchronizeProcesses()
 --SpaceTimeComm:unsplit()
