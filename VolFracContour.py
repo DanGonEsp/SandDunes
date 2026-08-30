@@ -157,7 +157,7 @@ def calculate_contour(folder, dim, data):
 
         for i, time in enumerate(timesteps):
 
-            print("Processing timestep", i, "/", len(timesteps) - 1)
+            #print("Processing timestep", i, "/", len(timesteps) - 1)
 
             solution.UpdatePipeline(time)
             contour1.UpdatePipeline(time)

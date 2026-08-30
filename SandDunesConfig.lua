@@ -16,18 +16,23 @@ myProblem.Init = function(self, o)
 	
 	self.simCase = o.simCase
 	
-	self.startTime = o.startTime
-	self.endTime = o.endTime
-	self.numTimeSteps = o.numTimeSteps
+	self.timeMethod  = o.timeMethod
 	self.DT = o.DT
 	self.DTmax = o.DTmax
 	self.DTmin = o.DTmin
 	self.DTLimex = o.DTLimex
+	self.numTimeSteps = o.numTimeSteps
+	self.startTime = o.startTime
+	self.endTime = o.endTime
+	self.modifyDT  = o.modifyDT
+	
+	
+		--Output Data
+	self.boolData = o.boolData
+	self.data_name = o.data_name
 	self.outputFactor = o.outputFactor
 	self.boolCheckPoint = o.boolCheckPoint
 
-	self.timeMethod  = o.timeMethod
-	self.modifyDT  = o.modifyDT
 	self.incr_factor = o.incr_factor
 	self.red_factor_fail = o.red_factor_fail
 	self.red_factor_success = o.red_factor_success
@@ -181,24 +186,60 @@ myProblem.FileNames = function (self,rank,SpaceSize)
 		folder_name = self.dir_name .. "/" .. self.folder_name
 	end
 
-	folder_name = folder_name .. "Parallel" .. SpaceSize .."_"
+	---------------------
+	-- FolderName
+	---------------------
 
-	folder_name = folder_name .. self.dim.. "D"
+	folder_name = folder_name .. "_" .. self.dim.. "D"
 	
 	if self.bStokes then
 		folder_name = folder_name .. "-Stokes"
 	end
-	folder_name = folder_name .. "_" .. self.timeMethod
 
-	if self.timeMethod == "limex" then
-		folder_name = folder_name .. "_" ..self.VelErrorNorm .. self.PressErrorNorm .. self.VolErrorNorm
+	folder_name = folder_name .. "-" ..riemman_name
+
+	if self.boolRelativeVel then
+		folder_name =folder_name .. "-RelVel"
+	else
+		folder_name =folder_name .. "-NoRelVel"
 	end
 
 
+	if  self.boolGradientPsSource  or self.boolSource  then
 
-	---------------------
-	-- Folder and files
-	---------------------
+		if self.boolSource then
+			if self.consistentRho_in_source then
+				folder_name =folder_name .. "-Consistent"
+			end
+			folder_name = folder_name .. "-MG_Force"
+		end
+		
+		if self.boolGradientPsSource then
+			folder_name = folder_name .. "-DPs"
+		else
+			folder_name = folder_name .. "-DPh"
+		end
+		
+	else
+		folder_name = folder_name .. "-NoForce"
+	end
+
+	if self.boolAveDiff then
+		folder_name = folder_name .. "-AveDiff"
+	else
+		folder_name = folder_name .. "-NoAveDiff"
+	end
+
+	if (self.boolSlipDiff and self.boolSlipVel) then print ("SlipVel and SlipDiff activated at the same time."); exit(); end
+	if self.boolSlipDiff then
+		folder_name = folder_name .. "-SlipDiff"
+	else if self.boolSlipVel then
+			folder_name = folder_name .. "-SlipVel"
+		else
+			folder_name = folder_name .. "-NoSlip"
+		end
+	end
+	
 
 	if (rank==0) then
 		if not DirectoryExists (folder_name) then
@@ -206,84 +247,50 @@ myProblem.FileNames = function (self,rank,SpaceSize)
 		end
 		print(folder_name)
 	end
-	vtk_file_name = file_name .. "-" .. self.elem_type
+	
+	---------------------
+	-- VTK folder
+	---------------------
+	
+	vtk_file_name = file_name .. "-" .. self.timeMethod
+	vtk_file_name = vtk_file_name .. "-" .. self.elem_type
 	vtk_file_name = vtk_file_name .. "-lev" .. self.numRefs
-	print(vtk_file_name)
-	if self.bStokes then
-		vtk_file_name = vtk_file_name .. "-Stokes"
-	end
+	
+	local fixedSpaceSize = string.format("%04d", SpaceSize)
+	vtk_file_name = vtk_file_name .. "_Parallel_" .. fixedSpaceSize
 
-	vtk_file_name = vtk_file_name .. "-" ..riemman_name
-
-	if self.boolRelativeVel then
-		vtk_file_name =vtk_file_name .. "-RelVel"
-	else
-		vtk_file_name =vtk_file_name .. "-NoRelVel"
-	end
-
-
-	if  self.boolGradientPsSource  or self.boolSource  then
-
-		if self.boolSource then
-			if self.consistentRho_in_source then vtk_file_name =vtk_file_name .. "-Consistent" end
-			vtk_file_name = vtk_file_name .. "-MG_Force"
-		end
-		
-		if self.boolGradientPsSource then
-			vtk_file_name = vtk_file_name .. "-DPs"
-		else
-			vtk_file_name = vtk_file_name .. "-DPh"
-		end
-		
-	else
-		vtk_file_name = vtk_file_name .. "-NoForce"
-	end
-
-	if self.boolAveDiff then
-		vtk_file_name = vtk_file_name .. "-AveDiff"
-	else
-		vtk_file_name = vtk_file_name .. "-NoAveDiff"
-	end
-
-	if (self.boolSlipDiff and self.boolSlipVel) then print ("SlipVel and SlipDiff activated at the same time."); exit(); end
-	if self.boolSlipDiff then
-		vtk_file_name = vtk_file_name .. "-SlipDiff"
-	else if self.boolSlipVel then
-			vtk_file_name = vtk_file_name .. "-SlipVel"
-		else
-			vtk_file_name = vtk_file_name .. "-NoSlip"
-		end
-	end
-
-	folder = folder_name .. "/" .. vtk_file_name
+	folder_vtk = folder_name .. "/" .. vtk_file_name
 	
 	if (rank== 0) then
 		
-		if not DirectoryExists (folder) then
-			print("Hola hola2"..folder)
-			CreateDirectory (folder)
+		if not DirectoryExists (folder_vtk) then
+			CreateDirectory (folder_vtk)
 		else
 			if(self.NewtonDebug or self.NewtonSteadyDebug) then
-				local cmd = "rm -rf " .. folder
+				local cmd = "rm -rf " .. folder_vtk
 				os.execute(cmd)
 				print(" Directory reseted")
-				CreateDirectory (folder)
+				CreateDirectory (folder_vtk)
 			end
 		end
 	end
 
 	
 
-	vtk_file_name = folder .. "/" .. vtk_file_name -- VTK output file name base
+	vtk_file_name = folder_vtk .. "/" .. vtk_file_name -- VTK output file name base
 	
 	
-	self.debug_dir = folder
+	self.debug_dir = folder_vtk
 	self.riemman_name = riemman_name
 
 	print("Files Setting DONE")
 	print("File Adress: ".. vtk_file_name)
 	
-	return vtk_file_name,folder,folder_name
+	-- vtk_file_name: Name of the vtk files
+	-- folder_vtk: Directory where vtk files are saved
+	-- folder_name: Directory where the different simulations are saved, e.g. folder2dLimex, folder3dEuler
+	
+	return vtk_file_name,folder_vtk,folder_name
 end
 
 --------------------------------------------------------------------------------
@@ -1421,5 +1428,48 @@ myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, time_
   return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, 1
 end
 
+
+--------------------------------------------------------------------------------
+-- ParaView Contour Extraction
+--------------------------------------------------------------------------------
+myProblem.RunParaViewContour = function(self, rank, folder_vtk)
+
+	if not self.boolData or rank ~= 0 then
+		return
+	end
+
+	print("============================================")
+	print("Starting ParaView contour extraction")
+	print("============================================")
+
+	local command =
+		"pvpython VolFracContour.py " ..
+		"\"" .. folder_vtk .. "\" " ..
+		tostring(self.dim) .. " " ..
+		"\"" .. self.data_name .. "\""
+
+	print("Input folder : " .. folder_vtk)
+	print("Dimension    : " .. tostring(self.dim))
+	print("Data name    : " .. self.data_name)
+	print("Command      : " .. command)
+
+	local result = os.execute(command)
+
+	if result ~= 0 then
+		print("WARNING: ParaView contour extraction failed.")
+	else
+		print("ParaView contour extraction completed successfully.")
+	end
+
+	print("ParaView return code:", result)
+
+	print("============================================")
+	print("ParaView contour extraction finished")
+	print("============================================")
+
+
+end
+
 return myProblem
-    
+
+

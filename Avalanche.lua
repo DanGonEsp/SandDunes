@@ -58,7 +58,7 @@ print("Heigh = " ..H_0.. "m.")
 print("Width = " ..W0.. "m.")
 print("SlipVel = " ..SlipVelValue.. "m.")
 
-local fixedNum = string.format("%04d", simCase)
+local fixedNum = string.format("%04d", simCase+1)
 
 
 ------------------------------------------------------------------------------------------
@@ -68,24 +68,29 @@ params =
 {
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
-	dir_name = util.GetParam("-dir_name", ".."),
-	file_name = util.GetParam("-file_name", "Solution") .."_".. fixedNum,
-	folder_name = util.GetParam("-folder_name", "Solution") .. "Avanche".. simCaseBnd,
+	dir_name = util.GetParam("-dir_name", ""),
+	file_name = util.GetParam("-file_name", "Solution"),
+	folder_name = util.GetParam("-folder_name", "Solution") .."_".. fixedNum .."_".. "Avanche".. simCaseBnd,
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 4, "number of grid refinements"),
-	numPreRefs     = util.GetParamNumber("-numPreRefs", 2, "number of prerefinements (parallel)"),
+	numPreRefs     = util.GetParamNumber("-numPreRefs", 3, "number of prerefinements (parallel)"),
 	
 	simCase = simCase,
 	simCaseBnd = simCaseBnd,
 	
-	DT= util.GetParamNumber("-DT", 10.0, "DT[seconds]"),
-	DTmin= util.GetParamNumber("-DTmin", 1e-04, "min  DT"),
-	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 100, "time steps"),
+	
+	--Output Data
+	boolData = util.GetParamBool("-boolData", true, "To generate files as contours at c=0.5"),
+	data_name = util.GetParam("-data_name", "Data"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	boolCheckPoint = util.GetParamBool("-boolCheckPoint", true),
 	
 	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", false),
+	DT= util.GetParamNumber("-DT", 10.0, "DT[seconds]"),
+	DTmin= util.GetParamNumber("-DTmin", 1e-04, "min  DT"),
+	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 100, "time steps"),
+	
 	
 	tol     = util.GetParamNumber("-limex-tol", 1e-2, "time step size"),
 	nstages = util.GetParamNumber("-limex-nstages", 2, "limex stages (2 default)"),
@@ -253,7 +258,7 @@ myProblem:Init(params)
 ------------------------------------------------------------------------------------------
 
 SynchronizeProcesses()
-vtk_file_name,folder,folder_name = myProblem:FileNames(rank,SpaceSize)
+vtk_file_name,folder_vtk,folder_name = myProblem:FileNames(rank,SpaceSize)
 SynchronizeProcesses()
 
 
@@ -269,7 +274,7 @@ InitUG (params.dim, AlgebraType("CPU", params.dim+2))
 -- LOG File
 ------------------------------------------------------------------------------------------
 
-myProblem:LogFiles(rank_t,folder .. "/LogFile")
+myProblem:LogFiles(rank_t,folder_vtk .. "/LogFile")
 
 
 ------------------------------------------------------------------------------------------
@@ -563,7 +568,7 @@ step = 0
 local interpolate = false
 
 if(params.boolCheckPoint) then
-	time, step, interpolate = myProblem:LoadCheckPoint(u,folder)
+	time, step, interpolate = myProblem:LoadCheckPoint(u,folder_vtk)
 end
 
 if interpolate then
@@ -700,7 +705,7 @@ if boolSolution == 1 then
 	print ("                                                            ")
 	print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
 	
-	myProblem:SaveCheckPoint(u,folder)
+	myProblem:SaveCheckPoint(u,folder_vtk)
 	
 end
 
@@ -719,7 +724,7 @@ solTimeSeries:push(uOld, time)
 Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
 
 if (rank == 0 and  boolSolution == 1 and interpolate) then
-	myProblem:WriteValues( folder, step, time, Value_inner1, 0.0, time_work_steady, 1, 0, linsolver_calls, linsolver_steps,false)
+	myProblem:WriteValues( folder_vtk, step, time, Value_inner1, 0.0, time_work_steady, 1, 0, linsolver_calls, linsolver_steps,false)
 end
 
 
@@ -772,7 +777,7 @@ if boolSolution == 1 then
 				print(" ")
 			end
 			
-			myProblem:SaveCheckPoint(u,folder)
+			myProblem:SaveCheckPoint(u,folder_vtk)
 			
 			print("++++++ TIMESTEP " .. step .. "  END ++++++")
 			print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
@@ -799,7 +804,7 @@ if boolSolution == 1 then
 			Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
 			
 			if rank == 0 then
-				myProblem:WriteValues( folder, step, time, Value_inner1, 0.0, tAfter_step - tBefore_step, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
+				myProblem:WriteValues( folder_vtk, step, time, Value_inner1, 0.0, tAfter_step - tBefore_step, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
 			end
 			
 		else
@@ -834,7 +839,7 @@ if boolSolution == 1 then
 
 
 	if rank == 0 then
-		myProblem:WriteValues( folder, params.numTimeSteps, time, Value_inner1, 0.0, time_work_steady+tAfter-tBefore, total_Newton_Steps, total_Newton_Steps_fail, total_linsolver_calls_step, total_linsolver_steps_step,true)
+		myProblem:WriteValues( folder_vtk, params.numTimeSteps, time, Value_inner1, 0.0, time_work_steady+tAfter-tBefore, total_Newton_Steps, total_Newton_Steps_fail, total_linsolver_calls_step, total_linsolver_steps_step,true)
 	end
 end
 
@@ -846,10 +851,13 @@ if (params.NewtonDebug and rank == 0 and SpaceSize > 1) then
 	
 end
 
-local Tablename = folder_name .. "/Table_out_" .. numProc ..".csv"
+--[[local Tablename = folder_name .. "/Table_out_" .. numProc ..".csv"
 lineWriter = LineWriter()
 Headers = " Sim, Vel, H0, W0, Solved\n"
 lineWriter:write_line(Tablename,simCase, Headers, params.inflow, H_0, W0, boolSolution)
+]]
+
+myProblem.RunParaViewContour( rank, folder_vtk)
 
 --SynchronizeProcesses()
 --SpaceTimeComm:unsplit()
