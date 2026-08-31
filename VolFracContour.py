@@ -170,7 +170,7 @@ def calculate_contour(folder, dim, data):
 
             number_of_points = data_contour.GetNumberOfPoints()
 
-            print("Contour points:", number_of_points)
+            #print("Contour points:", number_of_points)
 
             if number_of_points == 0:
                 print("WARNING: Empty contour at timestep", i)
