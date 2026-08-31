@@ -802,11 +802,12 @@ if boolSolution == 1 then
 			total_Newton_Steps_fail = total_Newton_Steps_fail + Newton_Steps_fail
 			total_linsolver_calls_step = total_linsolver_calls_step + linsolver_calls_step
 			total_linsolver_steps_step = total_linsolver_steps_step + linsolver_steps_step
-			time_work_total = time_work_total + tAfter_step - tBefore_step
+			
 					
 			Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
 			
 			if rank == 0 and boolSolution == 1 then
+				time_work_total = time_work_total + tAfter_step - tBefore_step
 				myProblem:WriteValues( folder_vtk, step, time, Value_inner1, 0.0, tAfter_step - tBefore_step, time_work_total, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
 			end
 			
