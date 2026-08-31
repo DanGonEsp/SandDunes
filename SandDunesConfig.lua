@@ -191,6 +191,7 @@ myProblem.FileNames = function (self,rank,SpaceSize)
 	---------------------
 
 	folder_name = folder_name .. "_" .. self.dim.. "D"
+	folder_name = folder_name .. "-" .. self.timeMethod
 	
 	if self.bStokes then
 		folder_name = folder_name .. "-Stokes"
@@ -253,8 +254,7 @@ myProblem.FileNames = function (self,rank,SpaceSize)
 	---------------------
 	local file_name = self.file_name
 	
-	vtk_file_name = file_name .. "-" .. self.timeMethod
-	vtk_file_name = vtk_file_name .. "-" .. self.elem_type
+	vtk_file_name = file_name .. "-" .. self.elem_type
 	vtk_file_name = vtk_file_name .. "-lev" .. self.numRefs
 	
 	local fixedSpaceSize = string.format("%04d", SpaceSize)
