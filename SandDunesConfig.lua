@@ -990,6 +990,7 @@ myProblem.LoadCheckPoint = function (self,u,folder)
 
 	local step = nil
 	local file = io.open(filename, "r")
+	local time_work_total = 0.0
 
 	if file then
 		print("Loading CheckPoint")
@@ -1008,7 +1009,7 @@ myProblem.LoadCheckPoint = function (self,u,folder)
 				step = tonumber(columns[1])
 
 				-- Sixth column = TNSteps
-				--Newtonstep = tonumber(columns[6])
+				time_work_total = tonumber(columns[6])
 			end
 		end
 
@@ -1024,13 +1025,14 @@ myProblem.LoadCheckPoint = function (self,u,folder)
 	time = self.DT * step
 	
 	
- return time, step, boolInterpolate
+ return time, step, time_work_total, boolInterpolate
 end
 --------------------------------------------------------------------------------
 -- Writing Output parameters
 --------------------------------------------------------------------------------
 
-myProblem.WriteValues = function (self, folder, step, time, Value_inner1, Value_inner2, WorkTime, Newton_Steps, Newton_Steps_fail,linsolver_calls,linsolver_steps,boolTotal)
+myProblem.WriteValues = function (self, folder, step, time, Value_inner1, Value_inner2, WorkTime, TotalWorkTime, Newton_Steps, Newton_Steps_fail,linsolver_calls,linsolver_steps,boolTotal)
+
 	if(boolTotal) then
 		file = io.open(folder .. "/Integral.txt", "a")
 		file:write(string.format("-----------------------------------------------------------------------------------------------------------\n"))
@@ -1038,12 +1040,12 @@ myProblem.WriteValues = function (self, folder, step, time, Value_inner1, Value_
 	end
 	if(step == 0) then
 		file = io.open(folder .. "/Integral.txt", "w+")
-		file:write(string.format("Step\tTime\t\tVol-Dom_1\tVol-Dom_2\tWork time\tTNSteps\tSNSteps\tFNSteps\tLinCalls LinSteps\n"))
-		file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n", step, time, Value_inner1, Value_inner2, WorkTime, Newton_Steps, Newton_Steps-Newton_Steps_fail, Newton_Steps_fail,linsolver_calls,linsolver_steps))
+		file:write(string.format("Step\tTime\t\tVol-Dom_1\tVol-Dom_2\tWork time\tTotal work time\tTNSteps\tSNSteps\tFNSteps\tLinCalls LinSteps\n"))
+		file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n", step, time, Value_inner1, Value_inner2, WorkTime, TotalWorkTime, Newton_Steps, Newton_Steps-Newton_Steps_fail, Newton_Steps_fail,linsolver_calls,linsolver_steps))
 		file:close()
 	else
 		file = io.open(folder .. "/Integral.txt", "a")
-		file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n", step, time, Value_inner1, Value_inner2, WorkTime, Newton_Steps, Newton_Steps-Newton_Steps_fail, Newton_Steps_fail,linsolver_calls,linsolver_steps))
+		file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n", step, time, Value_inner1, Value_inner2, WorkTime, TotalWorkTime, Newton_Steps, Newton_Steps-Newton_Steps_fail, Newton_Steps_fail,linsolver_calls,linsolver_steps))
 		file:close()
 	end
 	if(boolTotal) then
@@ -1071,11 +1073,11 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
 
 	-- apply the solver for the stationary pressure problem
      print("++++++ STEADY STATE CALCULATION BEGIN ++++++")
-	tBefore_s= os.clock()
+	local tBefore_s= os.clock()
 	if not solver:apply(u) then
 		print("===> THE PREPARATION PHASE FAILED! <===")
 	end
-	tAfter_s = os.clock()
+	local tAfter_s = os.clock()
     num_newton_steps = solver:num_newton_steps()
     linsolver_calls = solver:total_linsolver_calls()
     linsolver_steps = solver:total_linsolver_steps()
@@ -1435,40 +1437,49 @@ end
 --------------------------------------------------------------------------------
 myProblem.RunParaViewContour = function(self, rank, folder_vtk)
 
-	if not self.boolData or rank ~= 0 then
-		return
-	end
+    print(
+        "RunParaViewContour ENTER: rank=" .. tostring(rank) ..
+        ", boolData=" .. tostring(self.boolData) ..
+        ", folder=" .. tostring(folder_vtk)
+    )
 
-	print("============================================")
-	print("Starting ParaView contour extraction")
-	print("============================================")
+    if not self.boolData then
+        print("RunParaViewContour SKIPPED: boolData=false")
+        return
+    end
 
-	local command =
-		"pvpython VolFracContour.py " ..
-		"\"" .. folder_vtk .. "\" " ..
-		tostring(self.dim) .. " " ..
-		"\"" .. self.data_name .. "\""
+    if rank ~= 0 then
+        return
+    end
 
-	print("Input folder : " .. folder_vtk)
-	print("Dimension    : " .. tostring(self.dim))
-	print("Data name    : " .. self.data_name)
-	print("Command      : " .. command)
+    print("============================================")
+    print("Starting ParaView contour extraction")
+    print("============================================")
 
-	local result = os.execute(command)
+    local command =
+        "pvpython FunctionTools.py contour " ..
+        "\"" .. folder_vtk .. "\" " ..
+        tostring(self.dim) .. " " ..
+        "\"" .. self.data_name .. "\""
 
-	if result ~= 0 then
-		print("WARNING: ParaView contour extraction failed.")
-	else
-		print("ParaView contour extraction completed successfully.")
-	end
+    print("Input folder : " .. folder_vtk)
+    print("Dimension    : " .. tostring(self.dim))
+    print("Data name    : " .. self.data_name)
+    print("Command      : " .. command)
 
-	print("ParaView return code:", result)
+    local result = os.execute(command)
 
-	print("============================================")
-	print("ParaView contour extraction finished")
-	print("============================================")
+    print("ParaView return code:", result)
 
+    if result ~= 0 then
+        print("WARNING: ParaView contour extraction failed.")
+    else
+        print("ParaView contour extraction completed successfully.")
+    end
 
+    print("============================================")
+    print("ParaView contour extraction finished")
+    print("============================================")
 end
 
 return myProblem

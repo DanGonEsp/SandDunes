@@ -565,10 +565,11 @@ print("Initializing Values")
 -- start
 time = 0
 step = 0
+local time_work_total = 0.0
 local interpolate = false
 
 if(params.boolCheckPoint) then
-	time, step, interpolate = myProblem:LoadCheckPoint(u,folder_vtk)
+	time, step, time_work_total, interpolate = myProblem:LoadCheckPoint(u,folder_vtk)
 end
 
 if interpolate then
@@ -617,9 +618,9 @@ myProblem.Normal:update()
 -- Steady State Solution
 ------------------------------------------------------------------------------------------
 print("Calculating SteadyState")
-time_work_steady=0.0
-linsolver_calls = 0
-linsolver_steps = 0
+local time_work_steady=0.0
+local linsolver_calls = 0
+local linsolver_steps = 0
 
 if params.doSteadyState and interpolate then
 	-- Steady state solution.
@@ -641,7 +642,7 @@ if params.doSteadyState and interpolate then
 	end
 	
 	time_work_steady, linsolver_calls, linsolver_steps, boolSolution = myProblem:ComputeNonLinearSteadyStateSolution(u, domainDisc, NewtonSolverSteady)
-	
+	time_work_total = time_work_total + time_work_steady
 end
 
 if(params.boolFixVel) then
@@ -707,6 +708,12 @@ if boolSolution == 1 then
 	
 	myProblem:SaveCheckPoint(u,folder_vtk)
 	
+	Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
+
+	if (rank == 0 and interpolate) then
+		myProblem:WriteValues( folder_vtk, step, time, Value_inner1, 0.0, time_work_steady, time_work_total, 1, 0, linsolver_calls, linsolver_steps,false)
+	end
+	
 end
 
 
@@ -721,11 +728,7 @@ solTimeSeries = SolutionTimeSeries()
 solTimeSeries:push(uOld, time)
 
 
-Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
 
-if (rank == 0 and  boolSolution == 1 and interpolate) then
-	myProblem:WriteValues( folder_vtk, step, time, Value_inner1, 0.0, time_work_steady, 1, 0, linsolver_calls, linsolver_steps,false)
-end
 
 
 
@@ -733,7 +736,6 @@ total_Newton_Steps = 0
 total_Newton_Steps_fail = 0
 total_linsolver_calls_step = 0
 total_linsolver_steps_step = 0
-tBefore = os.clock()
 
 --doo = true
 ------------------------------------------------------------------------------------------
@@ -800,11 +802,12 @@ if boolSolution == 1 then
 			total_Newton_Steps_fail = total_Newton_Steps_fail + Newton_Steps_fail
 			total_linsolver_calls_step = total_linsolver_calls_step + linsolver_calls_step
 			total_linsolver_steps_step = total_linsolver_steps_step + linsolver_steps_step
+			time_work_total = time_work_total + tAfter_step - tBefore_step
 					
 			Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
 			
-			if rank == 0 then
-				myProblem:WriteValues( folder_vtk, step, time, Value_inner1, 0.0, tAfter_step - tBefore_step, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
+			if rank == 0 and boolSolution == 1 then
+				myProblem:WriteValues( folder_vtk, step, time, Value_inner1, 0.0, tAfter_step - tBefore_step, time_work_total, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
 			end
 			
 		else
@@ -819,7 +822,7 @@ if boolSolution == 1 then
 		
 	end
 end
-tAfter = os.clock()
+
 
 if boolSolution == 1 then
 	------------------------------------------------------------------------------------------
@@ -829,8 +832,8 @@ if boolSolution == 1 then
 	print("-			-")
 	print("-------------------------------------------------------------------------------")
 	print("Steady state Computation took " .. time_work_steady .. " seconds.")
-	print("Temporal Computation took " .. tAfter-tBefore .. " seconds.")
-	print("Total Computation took " .. time_work_steady+tAfter-tBefore .. " seconds.")
+	print("Temporal Computation took " .. time_work_total-time_work_steady .. " seconds.")
+	print("Total Computation took " .. time_work_steady .. " seconds.")
 	print("-------------------------------------------------------------------------------")
 	print("")
 	print("")
@@ -839,7 +842,7 @@ if boolSolution == 1 then
 
 
 	if rank == 0 then
-		myProblem:WriteValues( folder_vtk, params.numTimeSteps, time, Value_inner1, 0.0, time_work_steady+tAfter-tBefore, total_Newton_Steps, total_Newton_Steps_fail, total_linsolver_calls_step, total_linsolver_steps_step,true)
+		myProblem:WriteValues( folder_vtk, params.numTimeSteps, time, Value_inner1, 0.0, time_work_total, time_work_total, total_Newton_Steps, total_Newton_Steps_fail, total_linsolver_calls_step, total_linsolver_steps_step,true)
 	end
 end
 
