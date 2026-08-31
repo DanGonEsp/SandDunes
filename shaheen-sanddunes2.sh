@@ -39,25 +39,44 @@ COMMON_ARGS=(
     -DT 10.0
 )
 
+# ============================================================
 # 64 MPI ranks = 4 cases x 16 spatial ranks
-srun --exclusive --exact --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${COMMON_ARGS[@]}" &
+# ============================================================
+
+srun --exclusive --exact --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --output="${WORKDIR}/Avalanche64-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche64-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
 PID64=$!
 
+# ============================================================
 # 32 MPI ranks = 4 cases x 8 spatial ranks
-srun --exclusive --exact --ntasks=32 --ntasks-per-node=32 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${COMMON_ARGS[@]}" &
+# ============================================================
+
+srun --exclusive --exact --ntasks=32 --ntasks-per-node=32 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --output="${WORKDIR}/Avalanche32-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche32-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
 PID32=$!
 
+# ============================================================
 # 16 MPI ranks = 4 cases x 4 spatial ranks
-srun --exclusive --exact --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${COMMON_ARGS[@]}" &
+# ============================================================
+
+srun --exclusive --exact --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --output="${WORKDIR}/Avalanche16-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche16-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
 PID16=$!
 
+# ============================================================
 # 8 MPI ranks = 4 cases x 2 spatial ranks
-srun --exclusive --exact --ntasks=8 --ntasks-per-node=8 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${COMMON_ARGS[@]}" &
+# ============================================================
+
+srun --exclusive --exact --ntasks=8 --ntasks-per-node=8 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --output="${WORKDIR}/Avalanche8-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche8-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
 PID8=$!
 
+# ============================================================
 # 4 MPI ranks = 4 cases x 1 spatial rank
-srun --exclusive --exact --ntasks=4 --ntasks-per-node=4 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${COMMON_ARGS[@]}" &
+# ============================================================
+
+srun --exclusive --exact --ntasks=4 --ntasks-per-node=4 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --output="${WORKDIR}/Avalanche4-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche4-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
 PID4=$!
+
+# ============================================================
+# Wait for all experiments
+# ============================================================
 
 STATUS=0
 
@@ -79,3 +98,4 @@ echo "=============================================="
 echo "All AvalancheSmall simulations finished."
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "=============================================="
+```
