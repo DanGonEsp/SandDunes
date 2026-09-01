@@ -33,6 +33,7 @@ cd "${APPDIR}" || exit 1
 ARGS=(
     -ex Avalanche.lua
     -dir_name "${WORKDIR}"
+    -boolData false  #Always false#
     -file_name WeakSol
     -folder_name WeakSol
     -dim 2

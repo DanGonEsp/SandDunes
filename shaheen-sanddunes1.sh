@@ -31,6 +31,7 @@ cd "${APPDIR}" || exit 1
 COMMON_ARGS=(
     -ex Avalanche.lua
     -dir_name "${WORKDIR}"
+    -boolData false  #Always false#
     -dim 2
     -simCaseBnd 1
     -timeMethod limex
