@@ -80,7 +80,7 @@ params =
 	
 	
 	--Output Data
-	boolData = util.GetParamBool("-boolData", true),
+	boolData = util.GetParamBool("-boolData", false),
 	data_name = util.GetParam("-data_name", "Data"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	boolCheckPoint = util.GetParamBool("-boolCheckPoint", true),
