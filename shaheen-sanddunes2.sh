@@ -35,7 +35,6 @@ ARGS=(
     -dim 2
     -simCaseBnd 1
     -timeMethod limex
-    -numProc 1
     -numRefs 4
     -numPreRefs 3
     -numTimeSteps 100
@@ -47,20 +46,30 @@ ARGS=(
 # One simulation at a time, using all 128 spatial ranks
 # ============================================================
 
-srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -simCase 1
-srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -simCase 2
-srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -simCase 3
-srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -simCase 4
+srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numProc 1 -simCase 1
+srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numProc 1 -simCase 2
+srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numProc 1 -simCase 3
+srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numProc 1 -simCase 4
 
 # ============================================================
 # 64 MPI ranks
 # One simulation at a time, using 64 spatial ranks
 # ============================================================
 
-srun --exclusive --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -simCase 1
-srun --exclusive --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -simCase 2
-srun --exclusive --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -simCase 3
-srun --exclusive --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -simCase 4
+srun --exclusive --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numProc 1 -simCase 1
+srun --exclusive --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numProc 1 -simCase 2
+srun --exclusive --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numProc 1 -simCase 3
+srun --exclusive --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numProc 1 -simCase 4
+
+
+# ============================================================
+# 128 MPI ranks
+# One simulation at a time, using 32 spatial ranks
+# ============================================================
+srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numProc 4
+
+
+
 
 echo "=============================================="
 echo "All Avalanche simulations finished."
