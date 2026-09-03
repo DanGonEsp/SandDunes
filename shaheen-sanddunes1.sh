@@ -4,13 +4,13 @@
 #SBATCH --partition=workq
 #SBATCH --account=k10105
 #SBATCH --nodes=1
-#SBATCH --ntasks=124
-#SBATCH --ntasks-per-node=124
+#SBATCH --ntasks=40
+#SBATCH --ntasks-per-node=40
 #SBATCH --cpus-per-task=1
 #SBATCH --hint=nomultithread
 #SBATCH --time=24:00:00
-#SBATCH --output=/scratch/gonzald/SandDunes/SandDunes-%j.out
-#SBATCH --error=/scratch/gonzald/SandDunes/SandDunes-%j.err
+#SBATCH --output=/scratch/gonzald/SandDunes/AvalancheGlobal1-%j.out
+#SBATCH --error=/scratch/gonzald/SandDunes/AvalancheGlobal1-%j.err
 #SBATCH --mail-user=daniel.gonzalezesparza@kaust.edu.sa
 #SBATCH --mail-type=ALL
 
@@ -35,40 +35,44 @@ COMMON_ARGS=(
     -dim 2
     -simCaseBnd 1
     -timeMethod limex
-    -numProc 4
-    -numRefs 4
-    -numPreRefs 3
+    -numProc 1
+    -numRefs 5
+    -numPreRefs 4
     -numTimeSteps 100
-    -DT 10.0
+    -DT 1000.0
 )
 
-# 64 MPI ranks = 4 cases x 16 spatial ranks
-srun --exclusive --exact --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/Avalanche64-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche64-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
-PID64=$!
-
-# 32 MPI ranks = 4 cases x 8 spatial ranks
+# 32 MPI ranks = 1 cases x 32 spatial ranks
 srun --exclusive --exact --ntasks=32 --ntasks-per-node=32 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/Avalanche32-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche32-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
 PID32=$!
 
-# 16 MPI ranks = 4 cases x 4 spatial ranks
-srun --exclusive --exact --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/Avalanche16-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche16-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
-PID16=$!
+# 16 MPI ranks = 1 cases x 16 spatial ranks
+#srun --exclusive --exact --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/Avalanche16-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche16-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
+#PID16=$!
 
-# 8 MPI ranks = 4 cases x 2 spatial ranks
+# 8 MPI ranks = 1 cases x 8 spatial ranks
 srun --exclusive --exact --ntasks=8 --ntasks-per-node=8 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/Avalanche8-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche8-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
 PID8=$!
 
-# 4 MPI ranks = 4 cases x 1 spatial rank
-srun --exclusive --exact --ntasks=4 --ntasks-per-node=4 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/Avalanche4-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche4-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
-PID4=$!
+# 4 MPI ranks = 1 cases x 4 spatial rank
+#srun --exclusive --exact --ntasks=4 --ntasks-per-node=4 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/Avalanche4-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche4-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
+#PID4=$!
+
+# 2 MPI ranks = 1 cases x 2 spatial ranks
+#srun --exclusive --exact --ntasks=2 --ntasks-per-node=2 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/Avalanche2-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche2-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
+#PID2=$!
+
+# 1 MPI ranks = 1 cases x 1 spatial rank
+#srun --exclusive --exact --ntasks=1 --ntasks-per-node=1 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/Avalanche1-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche1-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
+#PID1=$!
 
 STATUS=0
-
-wait "${PID64}" || { echo "ERROR: 64 MPI rank experiment failed."; STATUS=1; }
 wait "${PID32}" || { echo "ERROR: 32 MPI rank experiment failed."; STATUS=1; }
-wait "${PID16}" || { echo "ERROR: 16 MPI rank experiment failed."; STATUS=1; }
-wait "${PID8}"  || { echo "ERROR: 8 MPI rank experiment failed."; STATUS=1; }
-wait "${PID4}"  || { echo "ERROR: 4 MPI rank experiment failed."; STATUS=1; }
+#wait "${PID16}" || { echo "ERROR: 16 MPI rank experiment failed."; STATUS=1; }
+wait "${PID8}" ||  { echo "ERROR: 8  MPI rank experiment failed."; STATUS=1; }
+#wait "${PID4}"  || { echo "ERROR: 4  MPI rank experiment failed."; STATUS=1; }
+#wait "${PID2}"  || { echo "ERROR: 2  MPI rank experiment failed."; STATUS=1; }
+#wait "${PID1}"  || { echo "ERROR: 1  MPI rank experiment failed."; STATUS=1; }
 
 if [ "${STATUS}" -ne 0 ]; then
     echo "=============================================="

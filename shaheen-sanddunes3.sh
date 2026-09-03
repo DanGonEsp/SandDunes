@@ -4,8 +4,8 @@
 #SBATCH --partition=workq
 #SBATCH --account=k10105
 #SBATCH --nodes=1
-#SBATCH --ntasks=128
-#SBATCH --ntasks-per-node=128
+#SBATCH --ntasks=64
+#SBATCH --ntasks-per-node=64
 #SBATCH --cpus-per-task=1
 #SBATCH --hint=nomultithread
 #SBATCH --time=24:00:00
@@ -34,15 +34,13 @@ ARGS=(
     -ex Avalanche.lua
     -dir_name "${WORKDIR}"
     -boolData false  #Always false#
-    -file_name WeakSol
-    -folder_name WeakSol
     -dim 2
     -numProc 1
     -simCase 1
     -simCaseBnd 1
     -timeMethod limex
     -numTimeSteps 100
-    -DT 10.0
+    -DT 1000.0
 )
 
 # ============================================================
@@ -50,9 +48,9 @@ ARGS=(
 # One simulation at a time
 # ============================================================
 
-srun --exclusive --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 6 -numPreRefs 3
+srun --exclusive --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 6 -numPreRefs 5
 
-srun --exclusive --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 5 -numPreRefs 3
+srun --exclusive --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 5 -numPreRefs 4
 
 srun --exclusive --ntasks=4 --ntasks-per-node=4 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 4 -numPreRefs 3
 
