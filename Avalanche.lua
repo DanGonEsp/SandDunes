@@ -125,12 +125,12 @@ params =
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
 
 	damping_mg = util.GetParamNumber("-damping_mg", 1.0),
-	value_beta = util.GetParamNumber("-value_beta", 0 ),
+	value_beta = util.GetParamNumber("-value_beta", -0.01 ),
 	--value_beta = util.GetParamNumber("-value_beta", -0.14 ),
 	LinAbsDefectImp = util.GetParamNumber("-LinAbsDefectImp", 1e-012),
 	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", 1e-03),
 	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", 1e-8),
-	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", 1e-8),
+	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", 1e-5),
 	max_linear_steps_Lim=util.GetParamNumber("-max_linear_steps_lim", 256),
 	max_linear_steps_Imp=util.GetParamNumber("-max_linear_steps_imp", 1000),
 
@@ -142,7 +142,7 @@ params =
 	boolRelativeVel = util.GetParamBool("-boolRelativeVel", true),
 	boolGradientPsSource = util.GetParamBool("-boolGradientPsSource", false),
 	boolViscPs = util.GetParamBool("-boolViscPs", true),
-	boolAveDiff = util.GetParamBool("-boolAveDiff", true),
+	boolAveDiff = util.GetParamBool("-boolAveDiff", false),
 	boolSlipDiff = util.GetParamBool("-boolSlipDiff", true),
 	boolSlipVel = util.GetParamBool("-boolSlipVel", false),
 	boolpress_jump= util.GetParamBool("-boolpress_jump", false),
@@ -184,8 +184,8 @@ params =
 	alpha_max        = util.GetParamNumber("-alpha_max", 0.635, "max volume fraction"),
 	alpha_min        = util.GetParamNumber("-min alpha_min", 0.57, "max volume fraction"),
 	packing_factor   = util.GetParamNumber("-packing_factor", 0.6, "Packingfactor"),
-	grad_limit = util.GetParamNumber("-grad_limit", 5.0, "grad limit in Normal vector"),
-	slope_limit = util.GetParamNumber("-slope_limit", 2.0e-02, "regularization factor in slip and diff velocity"),
+	grad_limit = util.GetParamNumber("-grad_limit", 0.1, "grad limit in Normal vector"),
+	slope_limit = util.GetParamNumber("-slope_limit", 1e-02, "regularization factor in slip and diff velocity"),
 	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein, 4 Relax"),
 	density_model  = util.GetParam("-density_model", "linear", "constant, linear"),
 	drag_mod = util.GetParamNumber("-drag_model", 2, "Opt: 0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel"),
@@ -389,11 +389,11 @@ end
 
 
 ----------------------------------------------------------- Top
-
+local q = -1e-05
 function TopFlux12d(x,y)
 	local a= 0.3
 	local b = 2
-	local q = -0.001
+	
 	if x>a and x<b then
 		return q
 	else
@@ -405,7 +405,6 @@ function TopFlux22d(x,y)
 	local b = 0.4
 	local c = 0.8
 	
-	local q = -0.01
 	if (x>a and x<b) or (x>c) then
 		return q
 	else
@@ -416,7 +415,6 @@ end
 function TopFlux13d(x,y,z)
 	local a= -1
 	local b = 2
-	local q = -0.001
 	if x>a and x<b then
 		return q
 	else
@@ -426,7 +424,6 @@ end
 function TopFlux23d(x,y,z)
 	local a= -1
 	local b = 2
-	local q = -0.001
 	if x>a and x<b then
 		return q
 	else
@@ -482,7 +479,7 @@ WallDisc:add ("Bottom")
 local DirichletBnd = DirichletBoundary()
 local NeumannBnd = NeumannBoundaryFV1("c")
 NeumannBnd:add("TopFlux"..simCaseBnd..params.dim.."d","Top", "Inner")
-DirichletBnd:add(1.0, "c", "Bottom")
+NeumannBnd:add(0.0,"Bottom","Inner")
 if params.dim == 2 then
 	if simCaseBnd == 1 then
 		DirichletBnd:add(0.0, "c", "Left")
@@ -491,7 +488,6 @@ if params.dim == 2 then
 	elseif simCaseBnd == 2 then
 		DirichletBnd:add(0.0, "c", "Left")
 		DirichletBnd:add(0.0, "c", "Right")
-		
 		
 	else
 		print ("simCaseBnd Not defined"); exit();
@@ -566,7 +562,7 @@ print("Initializing Values")
 time = 0
 step = 0
 local time_work_total = 0.0
-local interpolate = false
+local interpolate = true
 
 if(params.boolCheckPoint) then
 	time, step, time_work_total, interpolate = myProblem:LoadCheckPoint(u,folder_vtk)

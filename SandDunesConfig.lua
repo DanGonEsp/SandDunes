@@ -778,12 +778,12 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	ilu = ILU()
 	ilu:set_beta(self.value_beta)
 	ilu:set_damp(self.damping_mg)
-	ilu:set_ordering_algorithm(TopologicalOrdering())
-	ilu:set_sort(true)
+	--ilu:set_ordering_algorithm(TopologicalOrdering())
+	--ilu:set_sort(true)
 	--ilu:set_sort_eps(1.e-50)
 	ilu:set_inversion_eps(1.e-8)
-	ilu:enable_consistent_interfaces(true)
-	ilu:enable_overlap(false)
+	ilu:enable_consistent_interfaces(false)
+	ilu:enable_overlap(true)
 	
 	jac = Jacobi (0.7);
 	
@@ -988,7 +988,7 @@ myProblem.LoadCheckPoint = function (self,u,folder)
 	local boolInterpolate = false
 	local filename = folder .. "/Integral.txt"
 
-	local step = nil
+	local step = 0
 	local file = io.open(filename, "r")
 	local time_work_total = 0.0
 
@@ -1437,16 +1437,14 @@ end
 --------------------------------------------------------------------------------
 myProblem.RunParaViewContour = function(self, rank, folder_vtk)
 
+    if not self.boolData then
+        return
+    end
     print(
         "RunParaViewContour ENTER: rank=" .. tostring(rank) ..
         ", boolData=" .. tostring(self.boolData) ..
         ", folder=" .. tostring(folder_vtk)
     )
-
-    if not self.boolData then
-        print("RunParaViewContour SKIPPED: boolData=false")
-        return
-    end
 
     if rank ~= 0 then
         return

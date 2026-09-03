@@ -155,6 +155,8 @@ def calculate_contour(folder, dim, data):
         # LOOP OVER TIME
         # ====================================================
 
+		data_found = False
+		
         for i, time in enumerate(timesteps):
 
             #print("Processing timestep", i, "/", len(timesteps) - 1)
@@ -175,7 +177,8 @@ def calculate_contour(folder, dim, data):
             if number_of_points == 0:
                 print("WARNING: Empty contour at timestep", i)
                 continue
-
+                
+            data_found = True
 
             # =================================================
             # DATA ARRAYS
@@ -260,7 +263,14 @@ def calculate_contour(folder, dim, data):
                         velocity_x, velocity_y, velocity_z
                     ])
 
+	# ========================================================
+    # CHECK DATA
+    # ========================================================
 
+    if not data_found:
+        print("")
+        print("WARNING: No contour data was found.")
+        
     # ========================================================
     # CLEANUP
     # ========================================================
@@ -275,13 +285,19 @@ def calculate_contour(folder, dim, data):
 
     print("")
     print("============================================")
-    print("DONE")
+    if data_found:
+        print("DONE")
+    else:
+        print("DONE - NO CONTOUR DATA")
     print("============================================")
     print("Files found :", len(files))
     print("Output file :", OUTPUT_FILE)
     print("============================================")
 
-    return OUTPUT_FILE
+	if data_found:
+        return OUTPUT_FILE
+    else:
+        return None
 
 
 # ============================================================
