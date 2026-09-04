@@ -14,7 +14,6 @@
 #SBATCH --mail-user=daniel.gonzalezesparza@kaust.edu.sa
 #SBATCH --mail-type=ALL
 
-set -e
 
 export OMP_NUM_THREADS=1
 export OMP_PROC_BIND=true

@@ -14,7 +14,6 @@
 #SBATCH --mail-user=daniel.gonzalezesparza@kaust.edu.sa
 #SBATCH --mail-type=ALL
 
-set -e
 
 export OMP_NUM_THREADS=1
 export OMP_PROC_BIND=true
@@ -34,8 +33,6 @@ ARGS=(
     -ex Avalanche.lua
     -dir_name "${WORKDIR}"
     -boolData false  #Always false#
-    -file_name WeakSol
-    -folder_name WeakSol
     -dim 2
     -numProc 1
     -simCase 1
@@ -53,7 +50,15 @@ ARGS=(
 
 srun --exclusive --ntasks=256 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 7 -numPreRefs 6
 
+if [ "${STATUS}" -ne 0 ]; then
+    echo "=============================================="
+    echo "Avalanche4 experiment failed."
+    echo "Job ID: ${SLURM_JOB_ID}"
+    echo "=============================================="
+    exit 1
+fi
+
 echo "=============================================="
-echo "All Avalanche simulations finished."
+echo "Avalanche4 simulation finished successfully."
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "=============================================="
