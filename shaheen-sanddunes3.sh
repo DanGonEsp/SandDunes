@@ -47,14 +47,10 @@ ARGS=(
 # One simulation at a time
 # ============================================================
 
-
-srun --exclusive --ntasks=32 --ntasks-per-node=32 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 6 -numPreRefs 3
-
-srun --exclusive --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 5 -numPreRefs 3
-
-
-
+srun --exclusive --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 5 -numPreRefs 4
 srun --exclusive --ntasks=2 --ntasks-per-node=2 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 4 -numPreRefs 3
+
+srun --exclusive --ntasks=32 --ntasks-per-node=32 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 6 -numPreRefs 4
 
 
 echo "=============================================="
