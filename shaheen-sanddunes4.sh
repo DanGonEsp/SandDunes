@@ -48,7 +48,7 @@ ARGS=(
 # 128 ranks per node across 2 nodes
 # ============================================================
 
-srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 7 -numPreRefs 3
+srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 7 -numPreRefs 4
 
 if [ "${STATUS}" -ne 0 ]; then
     echo "=============================================="
