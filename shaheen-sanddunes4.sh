@@ -3,8 +3,8 @@
 #SBATCH --job-name=Avalanche4
 #SBATCH --partition=workq
 #SBATCH --account=k10105
-#SBATCH --nodes=2
-#SBATCH --ntasks=256
+#SBATCH --nodes=1
+#SBATCH --ntasks=128
 #SBATCH --ntasks-per-node=128
 #SBATCH --cpus-per-task=1
 #SBATCH --hint=nomultithread
@@ -48,7 +48,7 @@ ARGS=(
 # 128 ranks per node across 2 nodes
 # ============================================================
 
-srun --exclusive --ntasks=256 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 7 -numPreRefs 6
+srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 7 -numPreRefs 3
 
 if [ "${STATUS}" -ne 0 ]; then
     echo "=============================================="
