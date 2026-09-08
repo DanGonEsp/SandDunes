@@ -392,11 +392,11 @@ def StrongScalability(folder, step, level):
     print("==========================================================================================================")
     print("STRONG SCALABILITY RESULTS")
     print("==========================================================================================================")
-    print(f"{'PE':>6} {'Ttotal(s)':>14} {'NLIMEX':>12} {'tLIMEX(s)':>14} {'LinCalls':>12} {'LinSteps':>12} {'AvgLinSteps':>14} {'Speedup':>10}")
+    print(f"{'PE':>6} {'Ttotal(s)':>14} {'NTimeSteps':>14} {'tTimeStep(s)':>14} {'LinCalls':>12} {'LinSteps':>12} {'AvgLinSteps':>14} {'Speedup':>10}")
     print("----------------------------------------------------------------------------------------------------------")
     for case in cases:
-        nlimex = f"{case[4]} ({case[5]})"
-        print(f"{case[0]:6d} {case[2]:14.6f} {nlimex:>12} {case[6]:14.6f} {case[7]:12d} {case[8]:12d} {case[12]:14.3f} {case[11]:10.3f}")
+        ntime_steps = f"{case[4]} ({case[5]})"
+        print(f"{case[0]:6d} {case[2]:14.6f} {ntime_steps:>12} {case[6]:14.6f} {case[7]:12d} {case[8]:12d} {case[12]:14.3f} {case[11]:10.3f}")
     print("==========================================================================================================")
     
 	# ========================================================
@@ -409,12 +409,12 @@ def StrongScalability(folder, step, level):
     worksheet = workbook.active
     worksheet.title = "Strong Scalability"
 
-    headers = ["PE", "Ttotal (s)", "NLIMEX", "tLIMEX (s)", "LinCalls", "LinSteps", "AvgLinSteps", "Speedup"]
+    headers = ["PE", "Ttotal (s)", "NTimeSteps", "tTimeStep (s)", "LinCalls", "LinSteps", "AvgLinSteps", "Speedup"]
     worksheet.append(headers)
 
     for case in cases:
-        nlimex = f"{case[4]} ({case[5]})"
-        worksheet.append([case[0], case[2], nlimex, case[6], case[7], case[8], case[12], case[11]])
+        ntime_steps = f"{case[4]} ({case[5]})"
+        worksheet.append([case[0], case[2], ntime_steps, case[6], case[7], case[8], case[12], case[11]])
 
     for cell in worksheet[1]:
         cell.font = Font(bold=True)
