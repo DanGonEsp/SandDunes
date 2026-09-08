@@ -144,8 +144,8 @@ def calculate_contour(folder, dim, data):
         # LOOP OVER TIME
         # ====================================================
 
-		data_found = False
-		
+        data_found = False
+        
         for i, time in enumerate(timesteps):
 
             #print("Processing timestep", i, "/", len(timesteps) - 1)
