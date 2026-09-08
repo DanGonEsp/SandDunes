@@ -378,18 +378,23 @@ def StrongScalability(folder, step, level):
     cases.sort(key=lambda case: case[0])
     reference_time = cases[0][2]
     for case in cases:
+        if case[7] == 0:
+            raise RuntimeError(f"ERROR: Linear solver calls is zero in: {case[10]}")
         speedup = reference_time / case[2]
+        avg_linear_steps = case[8] / case[7]
+
         case.append(speedup)
+        case.append(avg_linear_steps)
         
     print("")
     print("==========================================================================================================")
     print("STRONG SCALABILITY RESULTS")
     print("==========================================================================================================")
-    print(f"{'PE':>6} {'Ttotal(s)':>14} {'NLIMEX':>12} {'tLIMEX(s)':>14} {'LinCalls':>12} {'LinSteps':>12} {'Speedup':>10}")
+    print(f"{'PE':>6} {'Ttotal(s)':>14} {'NLIMEX':>12} {'tLIMEX(s)':>14} {'LinCalls':>12} {'LinSteps':>12} {'AvgLinSteps':>14} {'Speedup':>10}")
     print("----------------------------------------------------------------------------------------------------------")
     for case in cases:
         nlimex = f"{case[4]} ({case[5]})"
-        print(f"{case[0]:6d} {case[2]:14.6f} {nlimex:>12} {case[6]:14.6f} {case[7]:12d} {case[8]:12d} {case[11]:10.3f}")
+        print(f"{case[0]:6d} {case[2]:14.6f} {nlimex:>12} {case[6]:14.6f} {case[7]:12d} {case[8]:12d} {case[12]:14.3f} {case[11]:10.3f}")
     print("==========================================================================================================")
         
     # ========================================================
