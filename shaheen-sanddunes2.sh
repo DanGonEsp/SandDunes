@@ -30,6 +30,8 @@ cd "${APPDIR}" || exit 1
 
 ARGS=(
     -ex Avalanche.lua
+    -file_name SolutionILUT
+    -folder_name SolutionILUT
     -dir_name "${WORKDIR}"
     -boolData false  #Always false#
     -dim 2

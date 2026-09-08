@@ -31,7 +31,9 @@ myProblem.Init = function(self, o)
 	self.boolData = o.boolData
 	self.data_name = o.data_name
 	self.outputFactor = o.outputFactor
-	self.boolCheckPoint = o.boolCheckPoint
+	self.writeIntegral = o.writeIntegral
+	self.boolLoadCheckPoint = o.boolLoadCheckPoint
+	self.boolSaveCheckPoint = o.boolSaveCheckPoint
 
 	self.incr_factor = o.incr_factor
 	self.red_factor_fail = o.red_factor_fail
@@ -74,6 +76,10 @@ myProblem.Init = function(self, o)
 	self.max_linear_steps_Imp = o.max_linear_steps_Imp
 	self.damping_mg = o.damping_mg
 	self.value_beta = o.value_beta
+	self.pre_smooth = o.pre_smooth
+	self.post_smooth = o.post_smooth
+	self.smoother = o.smoother
+	self.eps_ilut = o.eps_ilut
 
 	self.lambdamaxSteps = o.lambdamaxSteps
 	self.lambdaStart = o.lambdaStart
@@ -367,7 +373,10 @@ myProblem.PrintingSettings = function (self)
 	print ("	RedDefLim		= " .. self.LinRedDefectLim)
 	print ("	MaxStepsLim		= " .. tostring (self.max_linear_steps_Lim))
 	print ("	MaxStepsImp		= " .. tostring (self.max_linear_steps_Imp))
-
+	print ("	Smoother		= " .. tostring (self.smoother))
+	print ("	Pre Smooth		= " .. tostring (self.pre_smooth))
+	print ("	Post Smooth		= " .. tostring (self.post_smooth))
+	
 	-----------------------------------------------------------------------
 
 	if self.timeMethod == "limex" then
@@ -771,35 +780,44 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	-- Smoothers
 	--------------
 	-- base solver
-	baseSolver = LU()
-	baseSolver = AgglomeratingSolver(SuperLU());
+	local baseSolver = LU()
+	local baseSolver = AgglomeratingSolver(SuperLU());
+	smoother = nil
+	if self.smoother == "ilut" then
+		local ilut = ILUT(self.eps_ilut)
+		ilut:set_damp(self.damping_mg)
+		ilut:set_sort(false)
+		smoother = ilut
+	elseif self.smoother == "ilu" then
+		local ilu = ILU()
+		ilu:set_beta(self.value_beta)
+		ilu:set_damp(self.damping_mg)
+		--ilu:set_ordering_algorithm(TopologicalOrdering())
+		--ilu:set_sort(true)
+		--ilu:set_sort_eps(1.e-50)
+		ilu:set_inversion_eps(1.e-12)
+		ilu:enable_consistent_interfaces(false)
+		ilu:enable_overlap(true)
+		smoother = ilu
+	else
+		print ("Smoother not defined"); exit();
+		local jac = Jacobi (0.7);
+		
+		local bgs = BlockGaussSeidel ();
+		
+		local gs = GaussSeidel()
+		gs:enable_consistent_interfaces(false)
+		gs:enable_overlap(false)
+		
+		local sgs = SymmetricGaussSeidel ()
+		sgs:enable_consistent_interfaces(true)
+		sgs:enable_overlap(false)
+		
+		local egs = ElementGaussSeidel();
+		local cgs = ComponentGaussSeidel(0.1, {"p"}, {1,2}, {1})
+	end
 	
-	
-	ilu = ILU()
-	ilu:set_beta(self.value_beta)
-	ilu:set_damp(self.damping_mg)
-	--ilu:set_ordering_algorithm(TopologicalOrdering())
-	--ilu:set_sort(true)
-	--ilu:set_sort_eps(1.e-50)
-	ilu:set_inversion_eps(1.e-8)
-	ilu:enable_consistent_interfaces(false)
-	ilu:enable_overlap(true)
-	
-	jac = Jacobi (0.7);
-	
-	bgs = BlockGaussSeidel ();
-	
-	gs = GaussSeidel()
-	gs:enable_consistent_interfaces(false)
-	gs:enable_overlap(false)
-	
-	sgs = SymmetricGaussSeidel ()
-	sgs:enable_consistent_interfaces(true)
-	sgs:enable_overlap(false)
 
-	egs = ElementGaussSeidel();
-
-	cgs = ComponentGaussSeidel(0.1, {"p"}, {1,2}, {1})
 	
 
 	------------------
@@ -810,10 +828,10 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	gmg:set_discretization(domainDisc)
 	gmg:set_base_level(self.numPreRefs)
 	gmg:set_base_solver(baseSolver)
-	gmg:set_smoother(ilu)
+	gmg:set_smoother(smoother)
 	gmg:set_cycle_type(1)
-	gmg:set_num_presmooth(3)
-	gmg:set_num_postsmooth(3)
+	gmg:set_num_presmooth(self.pre_smooth)
+	gmg:set_num_postsmooth(self.post_smooth)
 	gmg:set_rap( true)
 	gmg:set_smooth_on_surface_rim(false)
 
@@ -977,6 +995,8 @@ end
 --------------------------------------------------------------------------------
 myProblem.SaveCheckPoint = function (self,u,folder)
 
+	if (not(self.boolSaveCheckPoint)) then return end
+	
 	SaveToFile(u, folder .. "/CheckPoint" .. ".vec")
 	print("Saving CheckPoint: DONE")
 
@@ -987,71 +1007,74 @@ myProblem.LoadCheckPoint = function (self,u,folder)
 	
 	local boolInterpolate = false
 	local filename = folder .. "/Integral.txt"
-
+	local ChekPointname = folder .. "/CheckPoint.vec"
+	
 	local step = 0
-	local file = io.open(filename, "r")
 	local time_work_total = 0.0
+	local Checkfile = io.open(ChekPointname, "r")
 
-	if file then
+	if Checkfile then
 		print("Loading CheckPoint")
-		for line in file:lines() do
-
-			-- Skip the header
-			if not line:match("^Step") and not line:match("^%-") then
-
-				local columns = {}
-
-				for value in line:gmatch("%S+") do
-					table.insert(columns, value)
-				end
-
-				-- First column = Step
-				step = tonumber(columns[1])
-
-				-- Sixth column = TNSteps
-				time_work_total = tonumber(columns[6])
-			end
-		end
-
-		file:close()
+		Checkfile:close()
+		ReadFromFile(u, ChekPointname)
 		
-		ReadFromFile(u, folder .. "/CheckPoint" .. ".vec")
+		local file = io.open(filename, "r")
+		if file then
+			for line in file:lines() do
+				-- Skip the header
+				if not line:match("^Step") and not line:match("^%-") then
+
+					local columns = {}
+
+					for value in line:gmatch("%S+") do
+						table.insert(columns, value)
+					end
+
+					-- First column = Step
+					step = tonumber(columns[1])
+
+					-- Sixth column = TNSteps
+					time_work_total = tonumber(columns[6])
+				end
+			end
+			file:close()
+		end
+		
+		
 	else
+		print("File does not exist: " .. ChekPointname)
 		boolInterpolate = true
-		step = 0
 	end
 
+	local time = self.DT * step
 	
-	time = self.DT * step
-	
-	
- return time, step, time_work_total, boolInterpolate
+	return time, step, time_work_total, boolInterpolate
 end
+
 --------------------------------------------------------------------------------
 -- Writing Output parameters
 --------------------------------------------------------------------------------
 
 myProblem.WriteValues = function (self, folder, step, time, Value_inner1, Value_inner2, WorkTime, TotalWorkTime, Newton_Steps, Newton_Steps_fail,linsolver_calls,linsolver_steps,boolTotal)
 
-	if(boolTotal) then
-		file = io.open(folder .. "/Integral.txt", "a")
-		file:write(string.format("-----------------------------------------------------------------------------------------------------------\n"))
-		file:close()
-	end
 	if(step == 0) then
-		file = io.open(folder .. "/Integral.txt", "w+")
+		local file = io.open(folder .. "/Integral.txt", "w+")
 		file:write(string.format("Step\tTime\t\tVol-Dom_1\tVol-Dom_2\tWork time\tTotal work time\tTNSteps\tSNSteps\tFNSteps\tLinCalls LinSteps\n"))
 		file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n", step, time, Value_inner1, Value_inner2, WorkTime, TotalWorkTime, Newton_Steps, Newton_Steps-Newton_Steps_fail, Newton_Steps_fail,linsolver_calls,linsolver_steps))
 		file:close()
+		print("Integral file created")
 	else
-		file = io.open(folder .. "/Integral.txt", "a")
-		file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n", step, time, Value_inner1, Value_inner2, WorkTime, TotalWorkTime, Newton_Steps, Newton_Steps-Newton_Steps_fail, Newton_Steps_fail,linsolver_calls,linsolver_steps))
-		file:close()
-	end
-	if(boolTotal) then
-		file = io.open(folder .. "/Integral.txt", "a")
-		file:write(string.format("-----------------------------------------------------------------------------------------------------------\n"))
-		file:close()
+		local file = io.open(folder .. "/Integral.txt", "a")
+		if(file) then
+			if(boolTotal) then
+				file:write(string.format("-----------------------------------------------------------------------------------------------------------\n"))
+			end
+			file:write(string.format("%d\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%d\t%d\t%d\t%d\t%d\n", step, time, Value_inner1, Value_inner2, WorkTime, TotalWorkTime, Newton_Steps, Newton_Steps-Newton_Steps_fail, Newton_Steps_fail,linsolver_calls,linsolver_steps))
+			if(boolTotal) then
+				file:write(string.format("-----------------------------------------------------------------------------------------------------------\n"))
+			end
+			file:close()
+		end
 	end
 end
 
@@ -1410,14 +1433,20 @@ end
 myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, time_step, StartTime, EndTime, NewtonLimexSteps)
 	
 	if(time_step == 1) then
-		limex:set_dt_min(1e-012)
+		limex:set_dt_min(1e-06)
 	end
 	limex:set_start_step(1)
 	limex:apply(u, EndTime, u, StartTime)
+	
+	print("LIMEX total   = ", limex:get_total_steps())
+	print("LIMEX success = ", limex:get_success_steps())
+	print("LIMEX fail    = ", limex:get_failed_steps())
+	print("LIMEX step    = ", limex:get_step())
+	
 	n_step = limex:get_step()-1
 	
-    local Newton_Steps = NLSolver:total_linsolver_calls()/(self.nstages+1)
-	local Newton_Steps_fail = 0/(self.nstages+1)
+    local Newton_Steps = limex:get_total_steps()
+	local Newton_Steps_fail = limex:get_failed_steps()
 	linsolver_calls_step = NLSolver:total_linsolver_calls()
 	linsolver_steps_step =  NLSolver:total_linsolver_steps()
 	limex:set_time_step(self.DTmax/(math.max(n_step-1,1)))

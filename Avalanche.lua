@@ -83,11 +83,13 @@ params =
 	boolData = util.GetParamBool("-boolData", false),
 	data_name = util.GetParam("-data_name", "Data"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
-	boolCheckPoint = util.GetParamBool("-boolCheckPoint", true),
+	writeIntegral = util.GetParamBool("-writeIntegral", true),
+	boolLoadCheckPoint = util.GetParamBool("-boolLoadCheckPoint", true),
+	boolSaveCheckPoint = util.GetParamBool("-boolSaveCheckPoint", true),
 	
 	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", false),
-	DT= util.GetParamNumber("-DT", 10.0, "DT[seconds]"),
+	DT= util.GetParamNumber("-DT", 1000.0, "DT[seconds]"),
 	DTmin= util.GetParamNumber("-DTmin", 1e-04, "min  DT"),
 	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 100, "time steps"),
 	
@@ -104,7 +106,7 @@ params =
 	alphaVol = util.GetParamNumber("-alphaVol", 100, "Error estimator scale factor for Volume fraction"),
 	
 	incr_factor     = util.GetParamNumber("-incr_factor", 1.5),
-	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.5),
+	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.7),
 	red_factor_success     = util.GetParamNumber("-red_factor_success", 0.8),
 	optimal_newton_steps = util.GetParamNumber("-optimal_newton_steps", 10),
 	maxConvRate = util.GetParamNumber("-maxConvRate", 0.9),
@@ -125,14 +127,19 @@ params =
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
 
 	damping_mg = util.GetParamNumber("-damping_mg", 1.0),
-	value_beta = util.GetParamNumber("-value_beta", -0.01 ),
+	value_beta = util.GetParamNumber("-value_beta", 0.0 ),
 	--value_beta = util.GetParamNumber("-value_beta", -0.14 ),
 	LinAbsDefectImp = util.GetParamNumber("-LinAbsDefectImp", 1e-012),
 	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", 1e-03),
 	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", 1e-8),
 	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", 1e-5),
-	max_linear_steps_Lim=util.GetParamNumber("-max_linear_steps_lim", 256),
+	max_linear_steps_Lim=util.GetParamNumber("-max_linear_steps_lim", 70),
 	max_linear_steps_Imp=util.GetParamNumber("-max_linear_steps_imp", 1000),
+	smoother = util.GetParam("-smoother","ilut","ilu,ilut"),
+	pre_smooth   = util.GetParamNumber("-pre_smooth", 3, "PreSmooth steps"),
+	post_smooth = util.GetParamNumber("-post_smooth", 3, "PostSmooth steps"),
+	eps_ilut = util.GetParamNumber("-eps_ilut", 1e-02),
+
 
 	
 			-- Physical phenomenon of simulation
@@ -184,8 +191,8 @@ params =
 	alpha_max        = util.GetParamNumber("-alpha_max", 0.635, "max volume fraction"),
 	alpha_min        = util.GetParamNumber("-min alpha_min", 0.57, "max volume fraction"),
 	packing_factor   = util.GetParamNumber("-packing_factor", 0.6, "Packingfactor"),
-	grad_limit = util.GetParamNumber("-grad_limit", 0.1, "grad limit in Normal vector"),
-	slope_limit = util.GetParamNumber("-slope_limit", 1e-02, "regularization factor in slip and diff velocity"),
+	grad_limit = util.GetParamNumber("-grad_limit", 0.05, "grad limit in Normal vector"),
+	slope_limit = util.GetParamNumber("-slope_limit", 2e-02, "regularization factor in slip and diff velocity"),
 	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein, 4 Relax"),
 	density_model  = util.GetParam("-density_model", "linear", "constant, linear"),
 	drag_mod = util.GetParamNumber("-drag_model", 2, "Opt: 0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel"),
@@ -563,8 +570,7 @@ time = 0
 step = 0
 local time_work_total = 0.0
 local interpolate = true
-
-if(params.boolCheckPoint) then
+if(params.boolLoadCheckPoint) then
 	time, step, time_work_total, interpolate = myProblem:LoadCheckPoint(u,folder_vtk)
 end
 
@@ -614,6 +620,8 @@ myProblem.Normal:update()
 -- Steady State Solution
 ------------------------------------------------------------------------------------------
 print("Calculating SteadyState")
+local Newton_Steps = 0
+local Newton_Steps_fail = 0
 local time_work_steady=0.0
 local linsolver_calls = 0
 local linsolver_steps = 0
@@ -639,6 +647,8 @@ if params.doSteadyState and interpolate then
 	
 	time_work_steady, linsolver_calls, linsolver_steps, boolSolution = myProblem:ComputeNonLinearSteadyStateSolution(u, domainDisc, NewtonSolverSteady)
 	time_work_total = time_work_total + time_work_steady
+	Newton_Steps = 1
+	Newton_Steps_fail = Newton_Steps - boolSolution
 end
 
 if(params.boolFixVel) then
@@ -694,22 +704,24 @@ end
 
 	-- write start solution
 if boolSolution == 1 then
-
-	print("Writing initial values")
-	out:print_subsets(vtk_file_name, u,allSubsets,step,time, true)
-	print ("Output to file " .. vtk_file_name .. ".vtu  in time t = 0")
-	print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-	print ("                                                            ")
-	print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-	
-	myProblem:SaveCheckPoint(u,folder_vtk)
-	
-	Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
-
-	if (rank == 0 and interpolate) then
-		myProblem:WriteValues( folder_vtk, step, time, Value_inner1, 0.0, time_work_steady, time_work_total, 1, 0, linsolver_calls, linsolver_steps,false)
+	if (step % params.outputFactor == 0 ) then
+		local vtkStep = math.floor(step / params.outputFactor)
+		print("Writing initial values")
+		out:print_subsets(vtk_file_name, u,allSubsets,vtkStep,time, true)
+		print ("Output to file " .. vtk_file_name .. ".vtu  in time t =" .. time)
+		print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+		print ("                                                            ")
+		print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
 	end
 	
+	myProblem:SaveCheckPoint(u,folder_vtk)
+	if  (params.writeIntegral and step==0) then
+		Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
+		local Value_inner2 = 0.0
+		if(rank == 0) then
+			myProblem:WriteValues( folder_vtk, step, time, Value_inner1, Value_inner2, time_work_steady, time_work_total, Newton_Steps, Newton_Steps_fail, linsolver_calls, linsolver_steps,false)
+		end
+	end
 end
 
 
@@ -770,7 +782,8 @@ if boolSolution == 1 then
 		if boolSolution == 1 then
 		
 			if (step % params.outputFactor == 0 ) then
-				out:print_subsets(vtk_file_name, u,allSubsets,step,time)
+				local vtkStep = math.floor(step / params.outputFactor)
+				out:print_subsets(vtk_file_name, u,allSubsets,vtkStep,time)
 				print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
 				print(" ")
 			end
@@ -800,16 +813,21 @@ if boolSolution == 1 then
 			total_linsolver_steps_step = total_linsolver_steps_step + linsolver_steps_step
 			
 					
-			Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
 			
-			if rank == 0 and boolSolution == 1 then
+			
+			if (params.writeIntegral) then
+				Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
+				Value_inner2 = 0.0
 				time_work_total = time_work_total + tAfter_step - tBefore_step
-				myProblem:WriteValues( folder_vtk, step, time, Value_inner1, 0.0, tAfter_step - tBefore_step, time_work_total, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
+				if(rank==0) then
+					myProblem:WriteValues( folder_vtk, step, time, Value_inner1, Value_inner2, tAfter_step - tBefore_step, time_work_total, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
+				end
 			end
 			
 		else
 			print("++++++ TIMESTEP " .. step .. "  FAILED ++++++")
-			out:print_subsets(vtk_file_name, u,allSubsets,step,time)
+			local vtkStep = math.floor(step / params.outputFactor)
+			out:print_subsets(vtk_file_name, u,allSubsets,vtkStep,time)
 			print ("Failed Output file" .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
 			print("++++++ TIMESTEP " .. step .. "  FAILED ++++++")
 			print(" ")
@@ -819,6 +837,7 @@ if boolSolution == 1 then
 		
 	end
 end
+
 
 
 if boolSolution == 1 then
@@ -838,8 +857,10 @@ if boolSolution == 1 then
 	print("done.")
 
 
-	if rank == 0 then
-		myProblem:WriteValues( folder_vtk, params.numTimeSteps, time, Value_inner1, 0.0, time_work_total, time_work_total, total_Newton_Steps, total_Newton_Steps_fail, total_linsolver_calls_step, total_linsolver_steps_step,true)
+	if (params.writeIntegral) then
+		if(rank == 0) then
+			myProblem:WriteValues( folder_vtk, params.numTimeSteps, time, Value_inner1, Value_inner2, time_work_total, time_work_total, total_Newton_Steps, total_Newton_Steps_fail, total_linsolver_calls_step, total_linsolver_steps_step,true)
+		end
 	end
 end
 

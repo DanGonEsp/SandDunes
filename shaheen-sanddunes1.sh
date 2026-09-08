@@ -30,13 +30,15 @@ cd "${APPDIR}" || exit 1
 
 COMMON_ARGS=(
     -ex Avalanche.lua
+    -file_name SolutionILUT
+    -folder_name SolutionILUT
     -dir_name "${WORKDIR}"
     -boolData false  #Always false#
     -dim 2
     -simCaseBnd 1
     -timeMethod limex
     -numProc 1
-    -numRefs 5
+    -numRefs 7
     -numPreRefs 4
     -numTimeSteps 100
     -DT 1000.0
@@ -62,9 +64,9 @@ PID8=$!
 #srun --exclusive --exact --ntasks=2 --ntasks-per-node=2 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/Avalanche2-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche2-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
 #PID2=$!
 
-# 1 MPI ranks = 1 cases x 1 spatial rank
-#srun --exclusive --exact --ntasks=1 --ntasks-per-node=1 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/Avalanche1-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Avalanche1-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
-#PID1=$!
+ 1 MPI ranks = 1 cases x 1 spatial rank
+srun --exclusive --exact --ntasks=1 --ntasks-per-node=1 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/Strong1-${SLURM_JOB_ID}.out" --error="${WORKDIR}/Strong1-${SLURM_JOB_ID}.err" "${UGSHELL}" "${COMMON_ARGS[@]}" &
+PID1=$!
 
 STATUS=0
 wait "${PID32}" || { echo "ERROR: 32 MPI rank experiment failed."; STATUS=1; }

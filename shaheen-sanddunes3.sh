@@ -1,6 +1,6 @@
 #!/bin/bash -l
 
-#SBATCH --job-name=Avalanche3
+#SBATCH --job-name=Weak3
 #SBATCH --partition=workq
 #SBATCH --account=k10105
 #SBATCH --nodes=1
@@ -9,8 +9,8 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --hint=nomultithread
 #SBATCH --time=24:00:00
-#SBATCH --output=/scratch/gonzald/SandDunes/Avalanche3-%j.out
-#SBATCH --error=/scratch/gonzald/SandDunes/Avalanche3-%j.err
+#SBATCH --output=/scratch/gonzald/SandDunes/Weak3-%j.out
+#SBATCH --error=/scratch/gonzald/SandDunes/Weak3-%j.err
 #SBATCH --mail-user=daniel.gonzalezesparza@kaust.edu.sa
 #SBATCH --mail-type=ALL
 
@@ -31,6 +31,8 @@ cd "${APPDIR}" || exit 1
 
 ARGS=(
     -ex Avalanche.lua
+    -file_name SolutionILUT
+    -folder_name SolutionILUT
     -dir_name "${WORKDIR}"
     -boolData false  #Always false#
     -dim 2
@@ -46,11 +48,13 @@ ARGS=(
 # Weak-scaling simulations
 # One simulation at a time
 # ============================================================
-
-srun --exclusive --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 5 -numPreRefs 4
-srun --exclusive --ntasks=2 --ntasks-per-node=2 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 4 -numPreRefs 3
+srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 7 -numPreRefs 4
 
 srun --exclusive --ntasks=32 --ntasks-per-node=32 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 6 -numPreRefs 4
+srun --exclusive --ntasks=8 --ntasks-per-node=8 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 5 -numPreRefs 4
+srun --exclusive --ntasks=2 --ntasks-per-node=2 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 4 -numPreRefs 3
+
+
 
 
 echo "=============================================="
