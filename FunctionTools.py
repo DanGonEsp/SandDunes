@@ -333,6 +333,11 @@ def StrongScalability(folder, step, level):
 
         numstep = None
         total_work_time = None
+        limex_total = None
+        limex_success = None
+        limex_fail = None
+        linear_calls = None
+        linear_steps = None
 
         with open(integral_file, "r") as file:
 
@@ -343,7 +348,7 @@ def StrongScalability(folder, step, level):
 
                 columns = line.split()
 
-                if len(columns) < 6:
+                if len(columns) < 11:
                     continue
 
                 current_step = int(columns[0])
@@ -352,13 +357,30 @@ def StrongScalability(folder, step, level):
 
                     numstep = current_step
                     total_work_time = float(columns[5])
+                    limex_total = int(columns[6])
+                    limex_success = int(columns[7])
+                    limex_fail = int(columns[8])
+                    linear_calls = int(columns[9])
+                    linear_steps = int(columns[10])
 
         if total_work_time is None:
             raise RuntimeError(f"ERROR: Step {step} was not found in: {integral_file}")
+        if limex_total != limex_success + limex_fail:
+            raise RuntimeError(f"ERROR: LIMEX counters are inconsistent in: {integral_file}")
+        if limex_total == 0:
+            raise RuntimeError(f"ERROR: LIMEX total steps is zero in: {integral_file}")
+            
+        limex_time = total_work_time / limex_total
 
         print("Ranks:", ranks," Step:", numstep," Total work time:", total_work_time)
 
-        cases.append([ranks,numstep,total_work_time,parallel_folder,integral_file])
+        cases.append([ranks, numstep, total_work_time, limex_total, limex_success, limex_fail, limex_time, linear_calls, linear_steps, parallel_folder, integral_file])
+        cases.sort(key=lambda case: case[0])
+        reference_time = cases[0][2]
+        for case in cases:
+            speedup = reference_time / case[2]
+		    case.append(speedup)
+        
 
     # ========================================================
     # FINISHED
