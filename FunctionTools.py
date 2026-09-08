@@ -1,6 +1,8 @@
 from paraview.simple import *
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
+import matplotlib.pyplot as plt
+import matplotlib as mpl
 import glob
 import os
 import csv
@@ -283,7 +285,167 @@ def calculate_contour(folder, dim, data):
         return OUTPUT_FILE
     else:
         return None
+# ============================================================
+# PLOT CONTOUR
+# ============================================================
 
+def plot_contour(folder, dim, data, num_contours):
+
+    # ========================================================
+    # CHECK INPUTS
+    # ========================================================
+
+    if dim != 2: raise ValueError("ERROR: plot_contour is currently implemented only for dim = 2.")
+    if not os.path.isdir(folder): raise ValueError(f"ERROR: Folder does not exist: {folder}")
+    if not data: raise ValueError("ERROR: Data folder name cannot be empty.")
+    if num_contours <= 0: raise ValueError("ERROR: num_contours must be greater than zero.")
+
+    # ========================================================
+    # INPUT / OUTPUT FILES
+    # ========================================================
+
+    data_folder = os.path.join(folder, data)
+    input_file = os.path.join(data_folder, f"Contour{dim}D.csv")
+    output_file = os.path.join(data_folder, f"ContourEvolution{dim}D.png")
+
+    if not os.path.isfile(input_file):
+        print(f"Contour file does not exist: {input_file}")
+        print("Creating contour file...")
+        calculate_contour(folder, dim, data)
+        if not os.path.isfile(input_file):
+            raise RuntimeError(f"ERROR: Failed to create contour file: {input_file}")
+
+    print("")
+    print("============================================")
+    print("PLOT CONTOUR")
+    print("============================================")
+    print("Input file      :", input_file)
+    print("Output file     :", output_file)
+    print("Requested plots :", num_contours)
+
+    # ========================================================
+    # READ CONTOUR DATA
+    # ========================================================
+
+    contours = {}
+
+    with open(input_file, "r", newline="") as csvfile:
+        reader = csv.DictReader(csvfile)
+        required_columns = ["TimeStep", "Time", "X", "Y"]
+
+        if reader.fieldnames is None: raise RuntimeError(f"ERROR: Empty CSV file: {input_file}")
+
+        for column in required_columns:
+            if column not in reader.fieldnames: raise RuntimeError(f"ERROR: Column '{column}' was not found in: {input_file}")
+
+        for row in reader:
+            timestep = int(row["TimeStep"])
+            time = float(row["Time"])
+            x = float(row["X"])
+            y = float(row["Y"])
+            if timestep not in contours: contours[timestep] = {"time": time, "x": [], "y": []}
+            contours[timestep]["x"].append(x)
+            contours[timestep]["y"].append(y)
+
+    # ========================================================
+    # CHECK DATA
+    # ========================================================
+
+    if len(contours) == 0: raise RuntimeError("ERROR: No contour data was found.")
+
+    timesteps = sorted(contours.keys())
+    print("Available plots :", len(timesteps))
+
+    # ========================================================
+    # SELECT TIMESTEPS
+    # ========================================================
+
+    num_selected = min(num_contours, len(timesteps))
+
+    if num_selected == 1:
+        selected_timesteps = [timesteps[0]]
+    else:
+        selected_timesteps = []
+        for i in range(num_selected):
+            index = round(i * (len(timesteps) - 1) / (num_selected - 1))
+            selected_timesteps.append(timesteps[index])
+
+    print("Selected plots  :", len(selected_timesteps))
+
+    # ========================================================
+    # SELECTED TIMES
+    # ========================================================
+
+    selected_times = [contours[timestep]["time"] for timestep in selected_timesteps]
+    time_min = min(selected_times)
+    time_max = max(selected_times)
+
+    # ========================================================
+    # COLORMAP
+    # ========================================================
+
+    if time_min == time_max: norm = mpl.colors.Normalize(vmin=time_min - 0.5, vmax=time_max + 0.5)
+    else: norm = mpl.colors.Normalize(vmin=time_min, vmax=time_max)
+
+    cmap = plt.get_cmap("viridis")
+
+    # ========================================================
+    # CREATE FIGURE
+    # ========================================================
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    # ========================================================
+    # PLOT CONTOURS
+    # ========================================================
+
+    for timestep in selected_timesteps:
+        time = contours[timestep]["time"]
+        points = sorted(zip(contours[timestep]["x"], contours[timestep]["y"]), key=lambda point: point[0])
+        x_sorted = [point[0] for point in points]
+        y_sorted = [point[1] for point in points]
+        ax.plot(x_sorted, y_sorted, color=cmap(norm(time)), linewidth=1.2)
+
+    # ========================================================
+    # COLORBAR
+    # ========================================================
+
+    scalar_map = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
+    scalar_map.set_array([])
+    colorbar = fig.colorbar(scalar_map, ax=ax)
+    colorbar.set_label("Time")
+
+    # ========================================================
+    # AXES
+    # ========================================================
+
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_aspect("equal")
+
+    # ========================================================
+    # SAVE FIGURE
+    # ========================================================
+
+    fig.tight_layout()
+    fig.savefig(output_file, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+    # ========================================================
+    # FINISHED
+    # ========================================================
+
+    print("")
+    print("============================================")
+    print("DONE")
+    print("============================================")
+    print("Contours plotted:", len(selected_timesteps))
+    print("Initial time    :", time_min)
+    print("Final time      :", time_max)
+    print("Output file     :", output_file)
+    print("============================================")
+
+    return output_file
 
 # ============================================================
 # SCALABILITY
@@ -638,6 +800,16 @@ if __name__ == "__main__":
         data = sys.argv[4]
 
         calculate_contour(folder, dim, data)
+        
+    elif function == "plot_contour":
+        if len(sys.argv) != 6:
+            raise RuntimeError("Usage: pvpython FunctionTools.py plot_contour <folder> <dim> <data> <num_contours>")
+            
+        folder = sys.argv[2]
+        dim = int(sys.argv[3])
+        data = sys.argv[4]
+        num_contours = int(sys.argv[5])
+        plot_contour(folder, dim, data, num_contours)
 
     elif function == "strong_scalability":
 
