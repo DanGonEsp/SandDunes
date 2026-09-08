@@ -1,4 +1,6 @@
 from paraview.simple import *
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment
 import glob
 import os
 import csv
@@ -396,6 +398,57 @@ def StrongScalability(folder, step, level):
         nlimex = f"{case[4]} ({case[5]})"
         print(f"{case[0]:6d} {case[2]:14.6f} {nlimex:>12} {case[6]:14.6f} {case[7]:12d} {case[8]:12d} {case[12]:14.3f} {case[11]:10.3f}")
     print("==========================================================================================================")
+    
+	# ========================================================
+    # WRITE EXCEL FILE
+    # ========================================================
+
+    excel_file = os.path.join(folder,"StrongScalability.xlsx")
+
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Strong Scalability"
+
+    headers = ["PE", "Ttotal (s)", "NLIMEX", "tLIMEX (s)", "LinCalls", "LinSteps", "AvgLinSteps", "Speedup"]
+    worksheet.append(headers)
+
+    for case in cases:
+        nlimex = f"{case[4]} ({case[5]})"
+        worksheet.append([case[0], case[2], nlimex, case[6], case[7], case[8], case[12], case[11]])
+
+    for cell in worksheet[1]:
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal="center")
+
+    for row in worksheet.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = Alignment(horizontal="center")
+
+    worksheet.column_dimensions["A"].width = 10
+    worksheet.column_dimensions["B"].width = 15
+    worksheet.column_dimensions["C"].width = 15
+    worksheet.column_dimensions["D"].width = 15
+    worksheet.column_dimensions["E"].width = 15
+    worksheet.column_dimensions["F"].width = 15
+    worksheet.column_dimensions["G"].width = 15
+    worksheet.column_dimensions["H"].width = 12
+
+    for cell in worksheet["B"][1:]:
+        cell.number_format = "0.000000"
+
+    for cell in worksheet["D"][1:]:
+        cell.number_format = "0.000000"
+
+    for cell in worksheet["G"][1:]:
+        cell.number_format = "0.000"
+
+    for cell in worksheet["H"][1:]:
+        cell.number_format = "0.000"
+
+    workbook.save(excel_file)
+
+    print("")
+    print("Excel file:", excel_file)
         
     # ========================================================
     # FINISHED
