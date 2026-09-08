@@ -60,9 +60,7 @@ def calculate_contour(folder, dim, data):
         print("Using .pvtu files.")
         print("Found", len(files), "files")
 
-        solution = XMLPartitionedUnstructuredGridReader(
-            registrationName="Solution", FileName=files
-        )
+        solution = XMLPartitionedUnstructuredGridReader(registrationName="Solution", FileName=files)
 
     elif len(vtu_files) > 0:
 
@@ -78,9 +76,7 @@ def calculate_contour(folder, dim, data):
 
     else:
 
-        raise RuntimeError(
-            "ERROR: No .pvtu or .vtu files found!"
-        )
+        raise RuntimeError("ERROR: No .pvtu or .vtu files found!")
 
 
     # ========================================================
@@ -138,17 +134,10 @@ def calculate_contour(folder, dim, data):
 
         if dim == 2:
             writer.writerow([
-                "TimeStep", "Time", "X", "Y", "Z",
-                "c", "p", "u", "v",
-                "velocity_x", "velocity_y", "velocity_z"
-            ])
+                "TimeStep", "Time", "X", "Y", "Z","c", "p", "u", "v","velocity_x", "velocity_y", "velocity_z"])
 
         elif dim == 3:
-            writer.writerow([
-                "TimeStep", "Time", "X", "Y", "Z",
-                "c", "p", "u", "v", "w",
-                "velocity_x", "velocity_y", "velocity_z"
-            ])
+            writer.writerow(["TimeStep", "Time", "X", "Y", "Z","c", "p", "u", "v", "w","velocity_x", "velocity_y", "velocity_z"])
 
 
         # ====================================================
@@ -251,17 +240,11 @@ def calculate_contour(folder, dim, data):
 
                 if dim == 2:
 
-                    writer.writerow([
-                        i, time, x, y, z, c, p, u, v,
-                        velocity_x, velocity_y, velocity_z
-                    ])
+                    writer.writerow([i, time, x, y, z, c, p, u, v,velocity_x, velocity_y, velocity_z])
 
                 elif dim == 3:
 
-                    writer.writerow([
-                        i, time, x, y, z, c, p, u, v, w,
-                        velocity_x, velocity_y, velocity_z
-                    ])
+                    writer.writerow([i, time, x, y, z, c, p, u, v, w,velocity_x, velocity_y, velocity_z])
 
 	# ========================================================
     # CHECK DATA
@@ -304,7 +287,7 @@ def calculate_contour(folder, dim, data):
 # SCALABILITY
 # ============================================================
 
-def StrongScalability(folder, step):
+def StrongScalability(folder, step, level):
 
     # ========================================================
     # CHECK INPUTS
@@ -317,17 +300,12 @@ def StrongScalability(folder, step):
     # FIND PARALLEL CASES
     # ========================================================
 
-    parallel_pattern = os.path.join(
-        folder,
-        "Solution-quad-lev4_Parallel_*"
-    )
+    parallel_pattern = os.path.join(folder,f"*lev{level}*")
 
     parallel_folders = sorted(glob.glob(parallel_pattern))
 
     if len(parallel_folders) == 0:
-        raise RuntimeError(
-            "ERROR: No parallel simulation folders were found!"
-        )
+        raise RuntimeError("ERROR: No parallel simulation folders were found!")
 
     # ========================================================
     # CHECK FILES
@@ -344,15 +322,10 @@ def StrongScalability(folder, step):
 
         ranks = int(folder_name.split("_")[-1])
 
-        integral_file = os.path.join(
-            parallel_folder,
-            "Integral.txt"
-        )
+        integral_file = os.path.join(parallel_folder,"Integral.txt")
 
         if not os.path.isfile(integral_file):
-            raise RuntimeError(
-                f"ERROR: Integral.txt does not exist: {integral_file}"
-            )
+            raise RuntimeError(f"ERROR: Integral.txt does not exist: {integral_file}")
 
         # ====================================================
         # READ INTEGRAL
@@ -381,23 +354,11 @@ def StrongScalability(folder, step):
                     total_work_time = float(columns[5])
 
         if total_work_time is None:
-            raise RuntimeError(
-                f"ERROR: Step {step} was not found in: {integral_file}"
-            )
+            raise RuntimeError(f"ERROR: Step {step} was not found in: {integral_file}")
 
-        print(
-            "Ranks:", ranks,
-            " Step:", numstep,
-            " Total work time:", total_work_time
-        )
+        print("Ranks:", ranks," Step:", numstep," Total work time:", total_work_time)
 
-        cases.append([
-            ranks,
-            numstep,
-            total_work_time,
-            parallel_folder,
-            integral_file
-        ])
+        cases.append([ranks,numstep,total_work_time,parallel_folder,integral_file])
 
     # ========================================================
     # FINISHED
@@ -409,6 +370,7 @@ def StrongScalability(folder, step):
     print("SCALABILITY FILE CHECK")
     print("============================================")
     print("Cases found:", len(cases))
+    print("Level:", level)
     print("Step:", step)
     print("All Integral.txt files exist.")
     print("============================================")
@@ -434,17 +396,12 @@ def WeakScalability(folder, step, factor):
     # FIND PARALLEL CASES
     # ========================================================
 
-    parallel_pattern = os.path.join(
-        folder,
-        "Solution-quad-lev*_Parallel_*"
-    )
+    parallel_pattern = os.path.join(folder,"Solution-quad-lev*_Parallel_*")
 
     parallel_folders = sorted(glob.glob(parallel_pattern))
 
     if len(parallel_folders) == 0:
-        raise RuntimeError(
-            "ERROR: No parallel simulation folders were found!"
-        )
+        raise RuntimeError("ERROR: No parallel simulation folders were found!")
 
     # ========================================================
     # LEVELS
@@ -466,13 +423,9 @@ def WeakScalability(folder, step, factor):
 
         folder_name = os.path.basename(parallel_folder)
 
-        lev = int(
-            folder_name.split("_")[0].split("lev")[-1]
-        )
+        lev = int(folder_name.split("_")[0].split("lev")[-1])
 
-        parallel_rank = int(
-            folder_name.split("_")[-1]
-        )
+        parallel_rank = int(folder_name.split("_")[-1])
 
         if lev not in levels:
             continue
@@ -483,9 +436,7 @@ def WeakScalability(folder, step, factor):
             n0 = parallel_rank
 
     if lev0 is None:
-        raise RuntimeError(
-            "ERROR: No valid weak scalability levels were found!"
-        )
+        raise RuntimeError("ERROR: No valid weak scalability levels were found!")
 
     # ========================================================
     # CHECK FILES
@@ -500,31 +451,22 @@ def WeakScalability(folder, step, factor):
 
         folder_name = os.path.basename(parallel_folder)
 
-        lev = int(
-            folder_name.split("_")[0].split("lev")[-1]
-        )
+        lev = int(folder_name.split("_")[0].split("lev")[-1])
 
         if lev not in levels:
             continue
 
-        parallel_rank = int(
-            folder_name.split("_")[-1]
-        )
+        parallel_rank = int(folder_name.split("_")[-1])
 
         expected_rank = n0 * factor**(lev - lev0)
 
         if parallel_rank != expected_rank:
             continue
 
-        integral_file = os.path.join(
-            parallel_folder,
-            "Integral.txt"
-        )
+        integral_file = os.path.join(parallel_folder,"Integral.txt")
 
         if not os.path.isfile(integral_file):
-            raise RuntimeError(
-                f"ERROR: Integral.txt does not exist: {integral_file}"
-            )
+            raise RuntimeError(f"ERROR: Integral.txt does not exist: {integral_file}")
 
         # ====================================================
         # READ INTEGRAL
@@ -553,16 +495,9 @@ def WeakScalability(folder, step, factor):
                     total_work_time = float(columns[5])
 
         if total_work_time is None:
-            raise RuntimeError(
-                f"ERROR: Step {step} was not found in: {integral_file}"
-            )
+            raise RuntimeError(f"ERROR: Step {step} was not found in: {integral_file}")
 
-        print(
-            "Lev:", lev,
-            " Parallel ranks:", parallel_rank,
-            " Step:", numstep,
-            " Total work time:", total_work_time
-        )
+        print("Lev:", lev," Parallel ranks:", parallel_rank," Step:", numstep," Total work time:", total_work_time)
 
         cases.append([
             lev,
@@ -599,18 +534,14 @@ def WeakScalability(folder, step, factor):
 if __name__ == "__main__":
 
     if len(sys.argv) < 2:
-        raise RuntimeError(
-            "Usage: pvpython FunctionTools.py <function> <arguments>"
-        )
+        raise RuntimeError("Usage: pvpython FunctionTools.py <function> <arguments>")
 
     function = sys.argv[1]
 
     if function == "contour":
 
         if len(sys.argv) != 5:
-            raise RuntimeError(
-                "Usage: pvpython FunctionTools.py contour <folder> <dim> <data>"
-            )
+            raise RuntimeError("Usage: pvpython FunctionTools.py contour <folder> <dim> <data>")
 
         folder = sys.argv[2]
         dim = int(sys.argv[3])
@@ -621,9 +552,7 @@ if __name__ == "__main__":
     elif function == "strong_scalability":
 
         if len(sys.argv) != 4:
-            raise RuntimeError(
-                "Usage: pvpython FunctionTools.py strong scalability <folder> <step>"
-            )
+            raise RuntimeError("Usage: pvpython FunctionTools.py strong scalability <folder> <step>")
 
         folder = sys.argv[2]
         step = int(sys.argv[3])
@@ -631,16 +560,14 @@ if __name__ == "__main__":
         StrongScalability(folder, step)
     elif function == "weak_scalability":
         if len(sys.argv) != 5:
-            raise RuntimeError("Usage: pvpython FunctionTools.py weak_scalability <folder> <step> <factor>")
+			raise RuntimeError("Usage: pvpython FunctionTools.py strong_scalability <folder> <step> <level>")
 
-        folder = sys.argv[2]
-        step = int(sys.argv[3])
-        factor = int(sys.argv[4])
-        
-        WeakScalability(folder, step, factor)
+		folder = sys.argv[2]
+		step = int(sys.argv[3])
+		level = int(sys.argv[4])
+
+		StrongScalability(folder, step, level)
 
     else:
 
-        raise RuntimeError(
-            f"ERROR: Unknown function: {function}"
-        )
+        raise RuntimeError(f"ERROR: Unknown function: {function}")
