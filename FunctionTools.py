@@ -572,8 +572,8 @@ if __name__ == "__main__":
 
     elif function == "strong_scalability":
 
-        if len(sys.argv) != 4:
-            raise RuntimeError("Usage: pvpython FunctionTools.py strong scalability <folder> <step>")
+        if len(sys.argv) != 5:
+                    raise RuntimeError("Usage: pvpython FunctionTools.py strong_scalability <folder> <step> <level>")
 
         folder = sys.argv[2]
         step = int(sys.argv[3])
