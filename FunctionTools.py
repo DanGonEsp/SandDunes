@@ -577,6 +577,7 @@ if __name__ == "__main__":
 
         folder = sys.argv[2]
         step = int(sys.argv[3])
+        level = int(sys.argv[4])
 
         StrongScalability(folder, step, level)
     elif function == "weak_scalability":
