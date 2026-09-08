@@ -375,13 +375,12 @@ def StrongScalability(folder, step, level):
         print("Ranks:", ranks," Step:", numstep," Total work time:", total_work_time)
 
         cases.append([ranks, numstep, total_work_time, limex_total, limex_success, limex_fail, limex_time, linear_calls, linear_steps, parallel_folder, integral_file])
-        cases.sort(key=lambda case: case[0])
-        reference_time = cases[0][2]
-        for case in cases:
-            speedup = reference_time / case[2]
-		    case.append(speedup)
+    cases.sort(key=lambda case: case[0])
+    reference_time = cases[0][2]
+    for case in cases:
+        speedup = reference_time / case[2]
+        case.append(speedup)
         
-
     # ========================================================
     # FINISHED
     # ========================================================
@@ -579,17 +578,26 @@ if __name__ == "__main__":
         folder = sys.argv[2]
         step = int(sys.argv[3])
 
-        StrongScalability(folder, step)
+        StrongScalability(folder, step, level)
     elif function == "weak_scalability":
         if len(sys.argv) != 5:
-			raise RuntimeError("Usage: pvpython FunctionTools.py strong_scalability <folder> <step> <level>")
+            raise RuntimeError("Usage: pvpython FunctionTools.py weak_scalability <folder> <step> <factor>")
 
-		folder = sys.argv[2]
-		step = int(sys.argv[3])
-		level = int(sys.argv[4])
-
-		StrongScalability(folder, step, level)
+        folder = sys.argv[2]
+        step = int(sys.argv[3])
+        factor = int(sys.argv[4])
+        
+        WeakScalability(folder, step, factor)
 
     else:
 
         raise RuntimeError(f"ERROR: Unknown function: {function}")
+    elif function == "weak_scalability":
+        if len(sys.argv) != 5:
+            raise RuntimeError("Usage: pvpython FunctionTools.py weak_scalability <folder> <step> <factor>")
+
+        folder = sys.argv[2]
+        step = int(sys.argv[3])
+        factor = int(sys.argv[4])
+        
+        WeakScalability(folder, step, factor)
