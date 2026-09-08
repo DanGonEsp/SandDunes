@@ -590,14 +590,5 @@ if __name__ == "__main__":
         WeakScalability(folder, step, factor)
 
     else:
-
         raise RuntimeError(f"ERROR: Unknown function: {function}")
-    elif function == "weak_scalability":
-        if len(sys.argv) != 5:
-            raise RuntimeError("Usage: pvpython FunctionTools.py weak_scalability <folder> <step> <factor>")
 
-        folder = sys.argv[2]
-        step = int(sys.argv[3])
-        factor = int(sys.argv[4])
-        
-        WeakScalability(folder, step, factor)
