@@ -277,7 +277,7 @@ def calculate_contour(folder, dim, data):
     print("Output file :", OUTPUT_FILE)
     print("============================================")
 
-	if data_found:
+    if data_found:
         return OUTPUT_FILE
     else:
         return None
