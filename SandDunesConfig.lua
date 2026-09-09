@@ -68,6 +68,7 @@ myProblem.Init = function(self, o)
 	self.AbsDefect = o.AbsDefect
 	self.RedDefect = o.RedDefect
 
+	self.precondLim = o.precondLim
 	self.LinAbsDefectImp = o.LinAbsDefectImp
 	self.LinRedDefectImp = o.LinRedDefectImp
 	self.LinAbsDefectLim = o.LinAbsDefectLim
@@ -373,9 +374,11 @@ myProblem.PrintingSettings = function (self)
 	print ("	RedDefLim		= " .. self.LinRedDefectLim)
 	print ("	MaxStepsLim		= " .. tostring (self.max_linear_steps_Lim))
 	print ("	MaxStepsImp		= " .. tostring (self.max_linear_steps_Imp))
+	print ("	Preconditioner	= " .. tostring (self.precondLim))
 	print ("	Smoother		= " .. tostring (self.smoother))
 	print ("	Pre Smooth		= " .. tostring (self.pre_smooth))
 	print ("	Post Smooth		= " .. tostring (self.post_smooth))
+	print ("	Eps ILUT		= " .. self.eps_ilut)
 	
 	-----------------------------------------------------------------------
 
@@ -741,6 +744,112 @@ end
 --------------------------------------------------------------------------------
 -- SOLVER
 --------------------------------------------------------------------------------
+myProblem.Smoother = function (self,smoother_name)
+	--------------
+	-- Smoothers
+	--------------
+	-- base solver
+	local smoother = nil
+	if smoother_name == "ilut" then
+		local ilut = ILUT(self.eps_ilut)
+		ilut:set_damp(self.damping_mg)
+		ilut:set_sort(false)
+		smoother = ilut
+	elseif smoother_name == "ilu" then
+		local ilu = ILU()
+		ilu:set_beta(self.value_beta)
+		ilu:set_damp(self.damping_mg)
+		--ilu:set_ordering_algorithm(TopologicalOrdering())
+		--ilu:set_sort(true)
+		--ilu:set_sort_eps(1.e-50)
+		--ilu:set_inversion_eps(1.e-8)
+		ilu:enable_consistent_interfaces(true)
+		ilu:enable_overlap(false)
+		smoother = ilu
+	elseif smoother_name == "jac" then
+		local jac = Jacobi (0.7);
+		smoother = jac
+	elseif smoother_name == "bgs" then
+		local bgs = BlockGaussSeidel ();
+		smoother = bgs
+	elseif smoother_name == "gs" then
+		local gs = GaussSeidel()
+		gs:enable_consistent_interfaces(false)
+		gs:enable_overlap(true)
+		smoother = gs
+	elseif smoother_name == "sgs" then
+		local sgs = SymmetricGaussSeidel ()
+		sgs:enable_consistent_interfaces(true)
+		sgs:enable_overlap(true)
+		smoother = sgs
+	elseif smoother_name == "egs" then
+		local egs = ElementGaussSeidel();
+		smoother = egs
+	elseif smoother_name == "cgs" then
+		local cgs = ComponentGaussSeidel(0.1, {"p"}, {1,2}, {1})
+		smoother = cgs
+	else
+		print ("Smoother not defined"); exit();
+	end
+	return smoother
+end
+
+myProblem.Preconditioner = function (self,precond_name)
+	local preconditioner = nil
+	local smoother = self:Smoother(self.smoother)
+	if precond_name == "gmg" then
+		local baseSolver = LU()
+		local baseSolver = AgglomeratingSolver(SuperLU());
+		
+		local gmg = GeometricMultiGrid(approxSpace)
+		gmg:set_discretization(domainDisc)
+		gmg:set_base_level(self.numPreRefs)
+		gmg:set_base_solver(baseSolver)
+		gmg:set_smoother(smoother)
+		gmg:set_cycle_type(1)
+		gmg:set_num_presmooth(self.pre_smooth)
+		gmg:set_num_postsmooth(self.post_smooth)
+		gmg:set_rap( true)
+		gmg:set_smooth_on_surface_rim(false)
+
+		-- gmg:set_damp(MinimalResiduumDamping())
+		-- gmg:set_damp(0.8)
+		-- gmg:set_damp(MinimalEnergyDamping())
+		preconditioner = gmg
+	else
+		preconditioner = smoother
+	
+	end
+	
+	return preconditioner
+end
+
+myProblem.LinearSolver = function (self,LinSolver_name,LinearConvCheck,precond_name)
+	print("Creating Precond")
+	local LinearSolver = nil
+	local preconditioner = self:Preconditioner(precond_name)
+
+	if LinSolver_name == "gmres" then
+		-- create Linear Solver
+		LinearSolver = GMRES(20)
+		LinearSolver:set_preconditioner(preconditioner)
+	elseif LinSolver_name == "bicgStab" then
+		LinearSolver = BiCGStab()
+		LinearSolver:set_preconditioner(preconditioner)
+	elseif LinSolver_name == "gmg" then
+		LinearSolver = LinearSolver()
+		LinearSolver:set_preconditioner(preconditioner)
+	elseif LinSolver_name == "ilu" then
+		LinearSolver = LinearSolver()
+		LinearSolver:set_preconditioner(preconditioner)
+	else
+		print ("LinearSolver not defined"); exit();
+	end
+	
+	LinearSolver:set_convergence_check(LinearConvCheck)
+	
+	return LinearSolver
+end
 myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	
 	--------------
@@ -776,106 +885,16 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	local LimexConvCheck=ConvCheck(1, 1e-12, 1e-12, true)
 	      LimexConvCheck:set_supress_unsuccessful(true)
 	
-	--------------
-	-- Smoothers
-	--------------
-	-- base solver
-	local baseSolver = LU()
-	local baseSolver = AgglomeratingSolver(SuperLU());
-	smoother = nil
-	if self.smoother == "ilut" then
-		local ilut = ILUT(self.eps_ilut)
-		ilut:set_damp(self.damping_mg)
-		ilut:set_sort(false)
-		smoother = ilut
-	elseif self.smoother == "ilu" then
-		local ilu = ILU()
-		ilu:set_beta(self.value_beta)
-		ilu:set_damp(self.damping_mg)
-		--ilu:set_ordering_algorithm(TopologicalOrdering())
-		--ilu:set_sort(true)
-		--ilu:set_sort_eps(1.e-50)
-		ilu:set_inversion_eps(1.e-12)
-		ilu:enable_consistent_interfaces(false)
-		ilu:enable_overlap(true)
-		smoother = ilu
-	else
-		print ("Smoother not defined"); exit();
-		local jac = Jacobi (0.7);
-		
-		local bgs = BlockGaussSeidel ();
-		
-		local gs = GaussSeidel()
-		gs:enable_consistent_interfaces(false)
-		gs:enable_overlap(false)
-		
-		local sgs = SymmetricGaussSeidel ()
-		sgs:enable_consistent_interfaces(true)
-		sgs:enable_overlap(false)
-		
-		local egs = ElementGaussSeidel();
-		local cgs = ComponentGaussSeidel(0.1, {"p"}, {1,2}, {1})
-	end
-	
 
-	
-
-	------------------
-	-- preconditioners
-	-------------------
-
-	gmg = GeometricMultiGrid(approxSpace)
-	gmg:set_discretization(domainDisc)
-	gmg:set_base_level(self.numPreRefs)
-	gmg:set_base_solver(baseSolver)
-	gmg:set_smoother(smoother)
-	gmg:set_cycle_type(1)
-	gmg:set_num_presmooth(self.pre_smooth)
-	gmg:set_num_postsmooth(self.post_smooth)
-	gmg:set_rap( true)
-	gmg:set_smooth_on_surface_rim(false)
-
-	-- gmg:set_damp(MinimalResiduumDamping())
-	-- gmg:set_damp(0.8)
-	-- gmg:set_damp(MinimalEnergyDamping())
-	
 	
 	-----------------
 	-- Linear Solver
 	-----------------
+	print("Creatinf linear solver")
+	local LinearSolverLim = self:LinearSolver("bicgStab",LinearConvCheckLim,self.precondLim)
+	local LinearSolverImp = self:LinearSolver("bicgStab",LinearConvCheckImp,"gmg")
 	
-		-- create Linear Solver
-	--GMresSolver = GMRES(20)
-	--GMresSolver:set_preconditioner(gmg)
-	--GMresSolver:set_convergence_check(LinearConvCheck)
-	
-	-- create Linear Solver
-	BiCGStabSolverImp = BiCGStab()
-	BiCGStabSolverImp:set_preconditioner(gmg)
-	BiCGStabSolverImp:set_convergence_check(LinearConvCheckImp)
-	
-	BiCGStabSolverLim = BiCGStab()
-	BiCGStabSolverLim:set_preconditioner(gmg)
-	BiCGStabSolverLim:set_convergence_check(LinearConvCheckLim)
 
-	--gmgSolver = LinearSolver()
-	--gmgSolver:set_preconditioner(gmg)
-	--gmgSolver:set_convergence_check(LinearConvCheck)
-	
-	--ilutSolver = LinearSolver()
-	--ilutSolver:set_preconditioner(ilu)
-	--ilutSolver:set_convergence_check(LinearConvCheck)
-	
-	
-	-- choose a solver
-	LinearSolverLim = BiCGStabSolverLim
-	LinearSolverImp = BiCGStabSolverImp
-	--LinearSolver = GMresSolver
-	--LinearSolver = gmgSolver
-	--LinearSolver = ilutSolver
-	
-	
-	
 	
 
 	local NewtonSolverSteady = nil
