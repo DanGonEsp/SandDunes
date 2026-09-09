@@ -20,7 +20,7 @@ export OMP_PLACES=cores
 export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 
-module load paraview/6.1.0-mesa
+#module load paraview/6.1.0-mesa
 
 UGSHELL=/project/k10105/gonzald/SandDunes/UG4/ug4/bin/ugshell
 APPDIR=/project/k10105/gonzald/SandDunes/Files

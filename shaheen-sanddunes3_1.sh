@@ -1,16 +1,16 @@
 #!/bin/bash -l
 
-#SBATCH --job-name=Avalanche4
+#SBATCH --job-name=Weak3_1
 #SBATCH --partition=workq
 #SBATCH --account=k10105
 #SBATCH --nodes=1
-#SBATCH --ntasks=128
-#SBATCH --ntasks-per-node=128
+#SBATCH --ntasks=64
+#SBATCH --ntasks-per-node=64
 #SBATCH --cpus-per-task=1
 #SBATCH --hint=nomultithread
 #SBATCH --time=24:00:00
-#SBATCH --output=/scratch/gonzald/SandDunes/Avalanche4-%j.out
-#SBATCH --error=/scratch/gonzald/SandDunes/Avalanche4-%j.err
+#SBATCH --output=/scratch/gonzald/SandDunes/Weak3_1-%j.out
+#SBATCH --error=/scratch/gonzald/SandDunes/Weak3_1-%j.err
 #SBATCH --mail-user=daniel.gonzalezesparza@kaust.edu.sa
 #SBATCH --mail-type=ALL
 
@@ -21,7 +21,7 @@ export OMP_PLACES=cores
 export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 
-#module load paraview/6.1.0-mesa
+
 
 UGSHELL=/project/k10105/gonzald/SandDunes/UG4/ug4/bin/ugshell
 WORKDIR=/scratch/gonzald/SandDunes
@@ -45,22 +45,18 @@ ARGS=(
 )
 
 # ============================================================
-# Weak-scaling simulation
-# One simulation using 256 spatial MPI ranks
-# 128 ranks per node across 2 nodes
+# Weak-scaling simulations
+# One simulation at a time
 # ============================================================
 
-srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 7 -numPreRefs 4
+srun --exclusive --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 6 -numPreRefs 4
+srun --exclusive --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 5 -numPreRefs 4
+srun --exclusive --ntasks=4 --ntasks-per-node=4 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}" -numRefs 4 -numPreRefs 3
 
-if [ "${STATUS}" -ne 0 ]; then
-    echo "=============================================="
-    echo "Avalanche4 experiment failed."
-    echo "Job ID: ${SLURM_JOB_ID}"
-    echo "=============================================="
-    exit 1
-fi
+
+
 
 echo "=============================================="
-echo "Avalanche4 simulation finished successfully."
+echo "All Avalanche simulations finished."
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "=============================================="
