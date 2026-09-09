@@ -138,7 +138,7 @@ params =
 	smoother = util.GetParam("-smoother","ilut","ilu,ilut"),
 	pre_smooth   = util.GetParamNumber("-pre_smooth", 3, "PreSmooth steps"),
 	post_smooth = util.GetParamNumber("-post_smooth", 3, "PostSmooth steps"),
-	eps_ilut = util.GetParamNumber("-eps_ilut", 1e-02),
+	eps_ilut = util.GetParamNumber("-eps_ilut", 1e-03),
 
 
 	
