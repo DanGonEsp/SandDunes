@@ -13,7 +13,7 @@ import sys
 # FUNCTION
 # ============================================================
 
-def calculate_contour(folder, dim, data):
+def calculate_contour(folder, dim, data_name):
 
     # ========================================================
     # CHECK INPUTS
@@ -25,7 +25,7 @@ def calculate_contour(folder, dim, data):
     if not os.path.isdir(folder):
         raise ValueError(f"ERROR: Folder does not exist: {folder}")
 
-    if not data:
+    if not data_name:
         raise ValueError("ERROR: Data folder name cannot be empty.")
 
     
@@ -33,7 +33,7 @@ def calculate_contour(folder, dim, data):
     # OUTPUT FOLDER
     # ========================================================
 
-    output_folder = os.path.join(folder, data)
+    output_folder = os.path.join(folder, data_name)
 
     os.makedirs(output_folder, exist_ok=True)
 
@@ -289,7 +289,7 @@ def calculate_contour(folder, dim, data):
 # PLOT CONTOUR
 # ============================================================
 
-def plot_contour(folder, dim, data, num_contours):
+def plot_contour(folder, dim, data_name, num_contours):
 
     # ========================================================
     # CHECK INPUTS
@@ -297,21 +297,21 @@ def plot_contour(folder, dim, data, num_contours):
 
     if dim != 2: raise ValueError("ERROR: plot_contour is currently implemented only for dim = 2.")
     if not os.path.isdir(folder): raise ValueError(f"ERROR: Folder does not exist: {folder}")
-    if not data: raise ValueError("ERROR: Data folder name cannot be empty.")
+    if not data_name: raise ValueError("ERROR: Data folder name cannot be empty.")
     if num_contours <= 0: raise ValueError("ERROR: num_contours must be greater than zero.")
 
     # ========================================================
     # INPUT / OUTPUT FILES
     # ========================================================
 
-    data_folder = os.path.join(folder, data)
+    data_folder = os.path.join(folder, data_name)
     input_file = os.path.join(data_folder, f"Contour{dim}D.csv")
     output_file = os.path.join(data_folder, f"ContourEvolution{dim}D.png")
 
     if not os.path.isfile(input_file):
         print(f"Contour file does not exist: {input_file}")
         print("Creating contour file...")
-        calculate_contour(folder, dim, data)
+        calculate_contour(folder, dim, data_name)
         if not os.path.isfile(input_file):
             raise RuntimeError(f"ERROR: Failed to create contour file: {input_file}")
 
@@ -773,8 +773,14 @@ def WeakScalability(folder, step, factor):
     reference_time = cases[0][3]
 
     for case in cases:
-        weak_efficiency = reference_time / case[3]
-        case.append(weak_efficiency)
+        raw_efficiency = reference_time / case[3]
+        cfl_factor = 2**(case[0] - lev0)
+        cfl_time = case[3] / cfl_factor
+        cfl_efficiency = reference_time / cfl_time
+
+        case.append(raw_efficiency)
+        case.append(cfl_time)
+        case.append(cfl_efficiency)
         
     # ========================================================
     # PRINT RESULTS
@@ -784,12 +790,12 @@ def WeakScalability(folder, step, factor):
     print("================================================================================================================")
     print("WEAK SCALABILITY RESULTS")
     print("================================================================================================================")
-    print(f"{'Level':>7} {'PE':>6} {'Ttotal(s)':>14} {'NTimeSteps':>14} {'tTimeStep(s)':>14} {'LinCalls':>12} {'LinSteps':>12} {'AvgLinSteps':>14} {'Efficiency':>12}")
+    print(f"{'Level':>7} {'PE':>6} {'Ttotal(s)':>14} {'NTimeSteps':>14} {'tTimeStep(s)':>14} {'LinCalls':>12} {'LinSteps':>12} {'AvgLinSteps':>14} {'RawEff':>10} {'CFLTime(s)':>12} {'CFLEff':>10}")
     print("----------------------------------------------------------------------------------------------------------------")
 
     for case in cases:
         ntime_steps = f"{case[5]} ({case[6]})"
-        print(f"{case[0]:7d} {case[1]:6d} {case[3]:14.6f} {ntime_steps:>14} {case[7]:14.6f} {case[8]:12d} {case[9]:12d} {case[10]:14.3f} {case[13]:12.3f}")
+        print(f"{case[0]:7d} {case[1]:6d} {case[3]:14.6f} {ntime_steps:>14} {case[7]:14.6f} {case[8]:12d} {case[9]:12d} {case[10]:14.3f} {case[13]:10.3f} {case[14]:12.6f} {case[15]:10.3f}")
 
     print("================================================================================================================")
     # ========================================================
@@ -802,12 +808,12 @@ def WeakScalability(folder, step, factor):
     worksheet = workbook.active
     worksheet.title = "Weak Scalability"
 
-    headers = ["Level", "PE", "Ttotal (s)", "NTimeSteps", "tTimeStep (s)", "LinCalls", "LinSteps", "AvgLinSteps", "Efficiency"]
+    headers = ["Level", "PE", "Ttotal (s)", "NTimeSteps", "tTimeStep (s)", "LinCalls", "LinSteps", "AvgLinSteps", "RawEfficiency", "CFLTime (s)", "CFLEfficiency"]
     worksheet.append(headers)
 
     for case in cases:
         ntime_steps = f"{case[5]} ({case[6]})"
-        worksheet.append([case[0], case[1], case[3], ntime_steps, case[7], case[8], case[9], case[10], case[13]])
+        worksheet.append([case[0], case[1], case[3], ntime_steps, case[7], case[8], case[9], case[10], case[13], case[14], case[15]])
 
     for cell in worksheet[1]:
         cell.font = Font(bold=True)
@@ -826,6 +832,8 @@ def WeakScalability(folder, step, factor):
     worksheet.column_dimensions["G"].width = 15
     worksheet.column_dimensions["H"].width = 15
     worksheet.column_dimensions["I"].width = 12
+    worksheet.column_dimensions["J"].width = 15
+	worksheet.column_dimensions["K"].width = 15
 
     for cell in worksheet["C"][1:]:
         cell.number_format = "0.000000"
@@ -837,6 +845,15 @@ def WeakScalability(folder, step, factor):
         cell.number_format = "0.000"
 
     for cell in worksheet["I"][1:]:
+        cell.number_format = "0.000"
+        
+    for cell in worksheet["I"][1:]:
+        cell.number_format = "0.000"
+
+    for cell in worksheet["J"][1:]:
+        cell.number_format = "0.000000"
+
+    for cell in worksheet["K"][1:]:
         cell.number_format = "0.000"
 
     workbook.save(excel_file)
@@ -876,23 +893,23 @@ if __name__ == "__main__":
     if function == "contour":
 
         if len(sys.argv) != 5:
-            raise RuntimeError("Usage: pvpython FunctionTools.py contour <folder> <dim> <data>")
+            raise RuntimeError("Usage: pvpython FunctionTools.py contour <folder> <dim> <data_name>")
 
         folder = sys.argv[2]
         dim = int(sys.argv[3])
-        data = sys.argv[4]
+        data_name = sys.argv[4]
 
-        calculate_contour(folder, dim, data)
+        calculate_contour(folder, dim, data_name)
         
     elif function == "plot_contour":
         if len(sys.argv) != 6:
-            raise RuntimeError("Usage: pvpython FunctionTools.py plot_contour <folder> <dim> <data> <num_contours>")
+            raise RuntimeError("Usage: pvpython FunctionTools.py plot_contour <folder> <dim> <data_name> <num_contours>")
             
         folder = sys.argv[2]
         dim = int(sys.argv[3])
-        data = sys.argv[4]
+        data_name = sys.argv[4]
         num_contours = int(sys.argv[5])
-        plot_contour(folder, dim, data, num_contours)
+        plot_contour(folder, dim, data_name, num_contours)
 
     elif function == "strong_scalability":
 
