@@ -810,12 +810,12 @@ def WeakScalability(folder, step, factor):
     worksheet = workbook.active
     worksheet.title = "Weak Scalability"
 
-    headers = ["Level", "PE", "Ttotal (s)", "NTimeSteps", "tTimeStep (s)", "LinCalls", "LinSteps", "AvgLinSteps", "RawEfficiency", "CFLTime (s)", "CFLEfficiency"]
+    headers = ["Level", "PE", "DoFs", "DoFs/PE", "NTimeSteps", "Twall (s)", "CFLNorm (s)", "RawEff", "CFLEff"]
     worksheet.append(headers)
 
     for case in cases:
         ntime_steps = f"{case[5]} ({case[6]})"
-        worksheet.append([case[0], case[1], case[3], ntime_steps, case[7], case[8], case[9], case[10], case[13], case[14], case[15]])
+        worksheet.append([case[0], case[1], None, None, ntime_steps, case[3], case[14], case[13], case[15]])
 
     for cell in worksheet[1]:
         cell.font = Font(bold=True)
@@ -832,30 +832,19 @@ def WeakScalability(folder, step, factor):
     worksheet.column_dimensions["E"].width = 15
     worksheet.column_dimensions["F"].width = 15
     worksheet.column_dimensions["G"].width = 15
-    worksheet.column_dimensions["H"].width = 15
+    worksheet.column_dimensions["H"].width = 12
     worksheet.column_dimensions["I"].width = 12
-    worksheet.column_dimensions["J"].width = 15
-    worksheet.column_dimensions["K"].width = 15
 
-    for cell in worksheet["C"][1:]:
+    for cell in worksheet["F"][1:]:
         cell.number_format = "0.000000"
 
-    for cell in worksheet["E"][1:]:
+    for cell in worksheet["G"][1:]:
         cell.number_format = "0.000000"
 
     for cell in worksheet["H"][1:]:
         cell.number_format = "0.000"
 
     for cell in worksheet["I"][1:]:
-        cell.number_format = "0.000"
-        
-    for cell in worksheet["I"][1:]:
-        cell.number_format = "0.000"
-
-    for cell in worksheet["J"][1:]:
-        cell.number_format = "0.000000"
-
-    for cell in worksheet["K"][1:]:
         cell.number_format = "0.000"
 
     workbook.save(excel_file)
