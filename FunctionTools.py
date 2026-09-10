@@ -833,7 +833,7 @@ def WeakScalability(folder, step, factor):
     worksheet.column_dimensions["H"].width = 15
     worksheet.column_dimensions["I"].width = 12
     worksheet.column_dimensions["J"].width = 15
-	worksheet.column_dimensions["K"].width = 15
+    worksheet.column_dimensions["K"].width = 15
 
     for cell in worksheet["C"][1:]:
         cell.number_format = "0.000000"
