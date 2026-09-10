@@ -648,18 +648,14 @@ def WeakScalability(folder, step, factor):
     # FIND PARALLEL CASES
     # ========================================================
 
-    parallel_pattern = os.path.join(folder,"Solution-quad-lev*_Parallel_*")
+    parallel_pattern = os.path.join(folder,"*lev*")
 
     parallel_folders = sorted(glob.glob(parallel_pattern))
 
     if len(parallel_folders) == 0:
         raise RuntimeError("ERROR: No parallel simulation folders were found!")
 
-    # ========================================================
-    # LEVELS
-    # ========================================================
 
-    levels = [1, 2, 3, 5]
 
     # ========================================================
     # FIND INITIAL LEVEL AND n0
@@ -675,15 +671,11 @@ def WeakScalability(folder, step, factor):
 
         folder_name = os.path.basename(parallel_folder)
 
-        lev = int(folder_name.split("_")[0].split("lev")[-1])
+        lev = int(folder_name.split("lev")[1].split("_")[0])
 
         parallel_rank = int(folder_name.split("_")[-1])
 
-        if lev not in levels:
-            continue
-
-        if lev0 is None or lev < lev0:
-
+        if lev0 is None or lev < lev0 or (lev == lev0 and parallel_rank < n0):
             lev0 = lev
             n0 = parallel_rank
 
@@ -703,10 +695,7 @@ def WeakScalability(folder, step, factor):
 
         folder_name = os.path.basename(parallel_folder)
 
-        lev = int(folder_name.split("_")[0].split("lev")[-1])
-
-        if lev not in levels:
-            continue
+        lev = int(folder_name.split("lev")[1].split("_")[0])
 
         parallel_rank = int(folder_name.split("_")[-1])
 
@@ -726,6 +715,11 @@ def WeakScalability(folder, step, factor):
 
         numstep = None
         total_work_time = None
+        time_total = None
+        time_success = None
+        time_fail = None
+        linear_calls = None
+        linear_steps = None
 
         with open(integral_file, "r") as file:
 
@@ -736,7 +730,7 @@ def WeakScalability(folder, step, factor):
 
                 columns = line.split()
 
-                if len(columns) < 6:
+                if len(columns) < 11:
                     continue
 
                 current_step = int(columns[0])
@@ -745,21 +739,110 @@ def WeakScalability(folder, step, factor):
 
                     numstep = current_step
                     total_work_time = float(columns[5])
+                    time_total = int(columns[6])
+                    time_success = int(columns[7])
+                    time_fail = int(columns[8])
+                    linear_calls = int(columns[9])
+                    linear_steps = int(columns[10])
 
         if total_work_time is None:
             raise RuntimeError(f"ERROR: Step {step} was not found in: {integral_file}")
+        if time_total != time_success + time_fail:
+            raise RuntimeError(f"ERROR: Time-step counters are inconsistent in: {integral_file}")
+        if time_total == 0:
+            raise RuntimeError(f"ERROR: Total number of time steps is zero in: {integral_file}")
+        if linear_calls == 0:
+            raise RuntimeError(f"ERROR: Linear solver calls is zero in: {integral_file}")
+            
+        time_step_time = total_work_time / time_total
+        avg_linear_steps = linear_steps / linear_calls
 
         print("Lev:", lev," Parallel ranks:", parallel_rank," Step:", numstep," Total work time:", total_work_time)
 
-        cases.append([
-            lev,
-            parallel_rank,
-            numstep,
-            total_work_time,
-            parallel_folder,
-            integral_file
-        ])
+        cases.append([lev, parallel_rank, numstep, total_work_time, time_total, time_success, time_fail, time_step_time, linear_calls, linear_steps, avg_linear_steps, parallel_folder, integral_file])
+        
+    # ========================================================
+    # SORT AND CALCULATE WEAK EFFICIENCY
+    # ========================================================
 
+    if len(cases) == 0:
+        raise RuntimeError("ERROR: No valid weak scalability cases were found!")
+
+    cases.sort(key=lambda case: case[0])
+
+    reference_time = cases[0][3]
+
+    for case in cases:
+        weak_efficiency = reference_time / case[3]
+        case.append(weak_efficiency)
+        
+    # ========================================================
+    # PRINT RESULTS
+    # ========================================================
+
+    print("")
+    print("================================================================================================================")
+    print("WEAK SCALABILITY RESULTS")
+    print("================================================================================================================")
+    print(f"{'Level':>7} {'PE':>6} {'Ttotal(s)':>14} {'NTimeSteps':>14} {'tTimeStep(s)':>14} {'LinCalls':>12} {'LinSteps':>12} {'AvgLinSteps':>14} {'Efficiency':>12}")
+    print("----------------------------------------------------------------------------------------------------------------")
+
+    for case in cases:
+        ntime_steps = f"{case[5]} ({case[6]})"
+        print(f"{case[0]:7d} {case[1]:6d} {case[3]:14.6f} {ntime_steps:>14} {case[7]:14.6f} {case[8]:12d} {case[9]:12d} {case[10]:14.3f} {case[13]:12.3f}")
+
+    print("================================================================================================================")
+    # ========================================================
+    # WRITE EXCEL FILE
+    # ========================================================
+
+    excel_file = os.path.join(folder,"WeakScalability.xlsx")
+
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Weak Scalability"
+
+    headers = ["Level", "PE", "Ttotal (s)", "NTimeSteps", "tTimeStep (s)", "LinCalls", "LinSteps", "AvgLinSteps", "Efficiency"]
+    worksheet.append(headers)
+
+    for case in cases:
+        ntime_steps = f"{case[5]} ({case[6]})"
+        worksheet.append([case[0], case[1], case[3], ntime_steps, case[7], case[8], case[9], case[10], case[13]])
+
+    for cell in worksheet[1]:
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal="center")
+
+    for row in worksheet.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = Alignment(horizontal="center")
+
+    worksheet.column_dimensions["A"].width = 10
+    worksheet.column_dimensions["B"].width = 10
+    worksheet.column_dimensions["C"].width = 15
+    worksheet.column_dimensions["D"].width = 15
+    worksheet.column_dimensions["E"].width = 15
+    worksheet.column_dimensions["F"].width = 15
+    worksheet.column_dimensions["G"].width = 15
+    worksheet.column_dimensions["H"].width = 15
+    worksheet.column_dimensions["I"].width = 12
+
+    for cell in worksheet["C"][1:]:
+        cell.number_format = "0.000000"
+
+    for cell in worksheet["E"][1:]:
+        cell.number_format = "0.000000"
+
+    for cell in worksheet["H"][1:]:
+        cell.number_format = "0.000"
+
+    for cell in worksheet["I"][1:]:
+        cell.number_format = "0.000"
+
+    workbook.save(excel_file)
+
+    print("")
+    print("Excel file:", excel_file)
     # ========================================================
     # FINISHED
     # ========================================================

@@ -31,8 +31,8 @@ cd "${APPDIR}" || exit 1
 
 ARGS=(
     -ex Avalanche.lua
-    -file_name SolutionILUT
-    -folder_name SolutionILUT
+    -file_name SolutionILU
+    -folder_name SolutionILU
     -dir_name "${WORKDIR}"
     -boolData false  #Always false#
     -dim 2
@@ -42,6 +42,8 @@ ARGS=(
     -timeMethod limex
     -numTimeSteps 100
     -DT 1000.0
+    -LinAbsDefectLim 1e-5
+    -LinRedDefectLim 1e-5
 )
 
 # ============================================================
