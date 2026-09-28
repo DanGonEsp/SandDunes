@@ -1,6 +1,7 @@
 from paraview.simple import *
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
+from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import glob
@@ -8,9 +9,319 @@ import os
 import csv
 import sys
 
-
 # ============================================================
-# FUNCTION
+# PLOT SCENE
+# ============================================================
+
+def plot_scene(folder, dim, data_name, property_name, skip_scenes):
+
+    # ========================================================
+    # CHECK INPUTS
+    # ========================================================
+
+    if dim != 2:
+        raise ValueError("ERROR: plot_scene is currently implemented only for dim = 2.")
+
+    if not os.path.isdir(folder):
+        raise ValueError(f"ERROR: Folder does not exist: {folder}")
+
+    if not data_name:
+        raise ValueError("ERROR: Data folder name cannot be empty.")
+
+    if not property_name:
+        raise ValueError("ERROR: Property name cannot be empty.")
+
+    if skip_scenes < 0:
+        raise ValueError("ERROR: skip_scenes must be greater than or equal to zero.")
+
+    # ========================================================
+    # OUTPUT FOLDER
+    # ========================================================
+
+    data_folder = os.path.join(folder, data_name)
+    property_folder = os.path.join(data_folder, property_name)
+    os.makedirs(property_folder, exist_ok=True)
+
+    # ========================================================
+    # INFORMATION
+    # ========================================================
+
+    print("")
+    print("============================================")
+    print("PLOT SCENE")
+    print("============================================")
+    print("Input folder     :", folder)
+    print("Output folder    :", property_folder)
+    print("Dimension        :", dim)
+    print("Property         :", property_name)
+    print("Skipped scenes   :", skip_scenes)
+    
+    
+    # ========================================================
+    # FIND FILES
+    # ========================================================
+
+    pvtu_pattern = os.path.join(folder, "*.pvtu")
+    vtu_pattern = os.path.join(folder, "*.vtu")
+
+    pvtu_files = sorted(glob.glob(pvtu_pattern))
+    vtu_files = sorted(glob.glob(vtu_pattern))
+
+    # ========================================================
+    # SELECT FILE TYPE AND READER
+    # ========================================================
+
+    if len(pvtu_files) > 0:
+        files = pvtu_files
+
+        print("Detected partitioned VTU data.")
+        print("Using .pvtu files.")
+        print("Files found      :", len(files))
+
+        solution = XMLPartitionedUnstructuredGridReader(registrationName="Solution", FileName=files)
+
+    elif len(vtu_files) > 0:
+        files = vtu_files
+
+        print("Detected standard VTU data.")
+        print("Using .vtu files.")
+        print("Files found      :", len(files))
+
+        solution = XMLUnstructuredGridReader(registrationName="Solution", FileName=files)
+
+    else:
+        raise RuntimeError("ERROR: No .pvtu or .vtu files found!")
+
+    solution.UpdatePipeline()
+    
+    # ========================================================
+    # GET TIMESTEPS
+    # ========================================================
+
+    animation_scene = GetAnimationScene()
+    animation_scene.UpdateAnimationUsingDataTimeSteps()
+
+    timesteps = solution.TimestepValues
+
+    if timesteps is None or len(timesteps) == 0:
+        raise RuntimeError("ERROR: No timesteps found in the solution data!")
+    
+    
+    # ========================================================
+    # SELECT SCENES
+    # ========================================================
+
+    step = skip_scenes + 1
+    selected_indices = list(range(0, len(timesteps), step))
+
+    if selected_indices[-1] != len(timesteps) - 1:
+        selected_indices.append(len(timesteps) - 1)
+
+    selected_timesteps = [timesteps[i] for i in selected_indices]
+
+    print("Available scenes :", len(timesteps))
+    print("Selected scenes  :", len(selected_timesteps))
+    #print("Selected indices :", selected_indices)
+    
+    
+    # ========================================================
+    # CHECK PROPERTY
+    # ========================================================
+
+    solution.UpdatePipeline(time=selected_timesteps[0])
+
+    point_data = solution.GetPointDataInformation()
+    cell_data = solution.GetCellDataInformation()
+
+    point_properties = []
+    cell_properties = []
+
+    for i in range(point_data.GetNumberOfArrays()):
+        point_properties.append(point_data.GetArray(i).GetName())
+
+    for i in range(cell_data.GetNumberOfArrays()):
+        cell_properties.append(cell_data.GetArray(i).GetName())
+
+    if property_name in point_properties:
+        property_association = "POINTS"
+
+    elif property_name in cell_properties:
+        property_association = "CELLS"
+
+    else:
+        print("Available point properties :", point_properties)
+        print("Available cell properties  :", cell_properties)
+        raise RuntimeError(f"ERROR: Property '{property_name}' was not found in the solution data!")
+
+    print("Property location :", property_association)
+    
+    # ========================================================
+    # PROPERTY INFORMATION
+    # ========================================================
+
+    if property_association == "POINTS":
+        property_info = point_data.GetArray(property_name)
+    else:
+        property_info = cell_data.GetArray(property_name)
+
+    property_num_components = property_info.GetNumberOfComponents()
+
+    print("Property components :", property_num_components)
+
+    # ========================================================
+    # CREATE RENDER VIEW
+    # ========================================================
+
+    animation_scene.AnimationTime = selected_timesteps[0]
+    solution.UpdatePipeline(time=selected_timesteps[0])
+
+    render_view = CreateView("RenderView")
+    ViewSize = [1700, 500]
+    ImRes = [3 * value for value in ViewSize]
+    render_view.ViewSize = ViewSize
+    render_view.Background = [1.0, 1.0, 1.0]
+    render_view.OrientationAxesVisibility = 0
+
+    solution_display = Show(solution, render_view)
+    solution_display.Representation = "Surface"
+    
+    # ========================================================
+    # STREAM TRACER
+    # ========================================================
+
+    if property_name == "velocity":
+
+        bounds = solution.GetDataInformation().GetBounds()
+
+        x_min = bounds[0]
+        x_max = bounds[1]
+        y_min = bounds[2]
+        y_max = bounds[3]
+
+        seed_x = x_min + 0.36 * (x_max - x_min)
+
+        stream_tracer = StreamTracer(Input=solution, SeedType="Line")
+        stream_tracer.Vectors = ["POINTS", "velocity"]
+        stream_tracer.IntegrationDirection = "BOTH" #FORWARD BACKWARD BOTH
+        stream_tracer.MaximumStreamlineLength = 0.4 * (x_max - x_min)
+
+        stream_tracer.SeedType.Point1 = [seed_x, y_min, 0.0]
+        stream_tracer.SeedType.Point2 = [seed_x, y_max, 0.0]
+        stream_tracer.SeedType.Resolution = 50
+
+        streamline_display = Show(stream_tracer, render_view)
+        streamline_display.Representation = "Surface"
+        streamline_display.LineWidth = 2.0
+        streamline_display.AmbientColor = [0.0, 0.0, 0.0]
+        streamline_display.DiffuseColor = [1.0, 1.0, 1.0]
+
+        render_view.Update()
+
+    if property_num_components == 1:
+        ColorBy(solution_display, (property_association, property_name))
+    else:
+        ColorBy(solution_display, (property_association, property_name, "Magnitude"))
+
+    solution_display.RescaleTransferFunctionToDataRange(True, False)
+    solution_display.SetScalarBarVisibility(render_view, True)
+    
+    # ========================================================
+    # CONTOUR
+    # ========================================================
+    if property_name == "c":
+        contour_values = [0.0001, 0.001, 0.01, 0.5]
+    else:
+        contour_values = [0.5]
+
+    contour = Contour(Input=solution)
+    contour.ContourBy = ["POINTS", "c"]
+    contour.Isosurfaces = contour_values
+
+    contour_display = Show(contour, render_view)
+    contour_display.Representation = "Surface"
+
+    ColorBy(contour_display, None)
+    contour_display.AmbientColor = [0.0, 0.0, 0.0]
+    if property_name == "c":
+        contour_display.DiffuseColor = [1.0, 1.0, 1.0]
+        contour_display.LineWidth = 2.0
+    else:
+        contour_display.DiffuseColor = [1.0, 0.0, 0.0]
+        contour_display.LineWidth = 4.0
+    
+	# ========================================================
+    # COLORBAR
+    # ========================================================
+
+    color_map = GetColorTransferFunction(property_name)
+    if property_name == "c":
+        color_map.RescaleTransferFunction(1.0e-6, 1.0)
+        color_map.MapControlPointsToLogSpace()
+        color_map.UseLogScale = 1
+
+    
+    color_bar = GetScalarBar(color_map, render_view)
+
+    color_bar.Orientation = "Horizontal"
+    color_bar.WindowLocation = "Any Location"
+    color_bar.Position = [0.35, 0.75]
+    color_bar.ScalarBarLength = 0.3
+
+    render_view.Update()
+
+    print("Render view created.")
+    
+    
+    # ========================================================
+    # CAMERA
+    # ========================================================
+
+    render_view.InteractionMode = "2D"
+    render_view.CameraParallelProjection = 1
+
+    camera_x = 20.0
+    camera_y = 1.9
+    camera_z = 264.65000000000003
+    camera_scale = 3.5
+    
+    render_view.CameraFocalPoint = [camera_x, camera_y, 0.0]
+    render_view.CameraPosition = [camera_x, camera_y, camera_z]
+    render_view.CameraViewUp = [0.0, 1.0, 0.0]
+    render_view.CameraParallelScale = camera_scale
+
+    render_view.Update()
+	
+    # ========================================================
+    # SAVE ALL SELECTED SCENES
+    # ========================================================
+
+    for saved_scene_number, scene_index in enumerate(selected_indices):
+
+        scene_time = timesteps[scene_index]
+        scene_file = files[scene_index]
+
+        animation_scene.AnimationTime = scene_time
+        solution.UpdatePipeline(time=scene_time)
+        render_view.Update()
+
+        scene_base = os.path.splitext(os.path.basename(scene_file))[0]
+        scene_suffix = scene_base.split("_")[-1]
+
+        if scene_suffix.startswith("t") and scene_suffix[1:].isdigit():
+            scene_suffix = scene_suffix[1:]
+        elif not scene_suffix.isdigit():
+            raise RuntimeError(f"ERROR: Could not extract a numeric index from file: {scene_file}")
+
+        output_file = os.path.join(property_folder, f"{property_name}_{scene_suffix}.png")
+
+        SaveScreenshot(output_file, render_view, ImageResolution=ImRes, TransparentBackground=1)
+
+        print("Saved scene", saved_scene_number + 1, "of", len(selected_indices), ":", output_file)
+    
+    
+    
+# ============================================================
+# CALCULATE CONTOUR
 # ============================================================
 
 def calculate_contour(folder, dim, data_name):
@@ -377,8 +688,8 @@ def plot_contour(folder, dim, data_name, num_contours):
     # ========================================================
 
     selected_times = [contours[timestep]["time"] for timestep in selected_timesteps]
-    time_min = min(selected_times)
-    time_max = max(selected_times)
+    time_min = min(selected_times)/3.6
+    time_max = max(selected_times)/3.6
 
     # ========================================================
     # COLORMAP
@@ -388,6 +699,7 @@ def plot_contour(folder, dim, data_name, num_contours):
     else: norm = mpl.colors.Normalize(vmin=time_min, vmax=time_max)
 
     cmap = plt.get_cmap("viridis")
+    #cmap = LinearSegmentedColormap.from_list("black_yellow", ["yellow", "black"])
 
     # ========================================================
     # CREATE FIGURE
@@ -405,7 +717,9 @@ def plot_contour(folder, dim, data_name, num_contours):
         x_sorted = [point[0] for point in points]
         y_sorted = [point[1] for point in points]
         ax.plot(x_sorted, y_sorted, color=cmap(norm(time)), linewidth=1.2)
-
+        #ax.plot(x_sorted, y_sorted, color="k", linewidth=0.5)
+    ax.plot(x_sorted, y_sorted, color="k", linewidth=1.2,label="Steady State")
+    ax.fill_between(x_sorted, 0.0, y_sorted, color="yellow", alpha=0.1)
     # ========================================================
     # COLORBAR
     # ========================================================
@@ -413,16 +727,27 @@ def plot_contour(folder, dim, data_name, num_contours):
     scalar_map = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
     scalar_map.set_array([])
     colorbar = fig.colorbar(scalar_map, ax=ax)
-    colorbar.set_label("Time")
+    colorbar.set_label("Time [h]", fontsize = 14)
+    colorbar.ax.tick_params(labelsize=14)
 
     # ========================================================
     # AXES
     # ========================================================
 
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
+    ax.set_xlabel("X",fontsize=14)
+    ax.set_ylabel("Y",fontsize=14)
     ax.set_aspect("equal")
-
+    #ax.set_xlim(11.0, 27)
+    ax.set_ylim(bottom=0.0)
+    ax.xaxis.set_major_locator(mpl.ticker.MultipleLocator(0.2))
+    ax.yaxis.set_major_locator(mpl.ticker.MultipleLocator(0.2))
+    ax.tick_params(axis="both", labelsize=18)
+    ax.plot([0.3, 1.0], [0.66, 0.66], color="red", linewidth=2.0, zorder=10, solid_capstyle="butt", label=r"$\Gamma_{in}$")
+    ax.plot([1.0, 1.0], [0.0, 0.68], color="black", linewidth=7.0, zorder=10, solid_capstyle="butt")
+    ax.spines["top"].set_visible(False)
+    
+    #ax.legend()
+    
     # ========================================================
     # SAVE FIGURE
     # ========================================================
@@ -881,45 +1206,51 @@ if __name__ == "__main__":
 
     function = sys.argv[1]
 
-    if function == "contour":
-
-        if len(sys.argv) != 5:
-            raise RuntimeError("Usage: pvpython FunctionTools.py contour <folder> <dim> <data_name>")
-
+    if function == "plot_scene":
+        if len(sys.argv) != 7:
+            raise RuntimeError("Usage: pvpython FunctionTools.py plot_scene <folder> <dim> <data_name> <property_name> <skip_scenes>")
         folder = sys.argv[2]
         dim = int(sys.argv[3])
         data_name = sys.argv[4]
+        property_name = sys.argv[5]
+        skip_scenes = int(sys.argv[6])
 
-        calculate_contour(folder, dim, data_name)
+        plot_scene(folder, dim, data_name, property_name, skip_scenes)
+        
         
     elif function == "plot_contour":
         if len(sys.argv) != 6:
             raise RuntimeError("Usage: pvpython FunctionTools.py plot_contour <folder> <dim> <data_name> <num_contours>")
-            
         folder = sys.argv[2]
         dim = int(sys.argv[3])
         data_name = sys.argv[4]
         num_contours = int(sys.argv[5])
         plot_contour(folder, dim, data_name, num_contours)
-
+        
+        
+    elif function == "contour":
+        if len(sys.argv) != 5:
+            raise RuntimeError("Usage: pvpython FunctionTools.py contour <folder> <dim> <data_name>")
+        folder = sys.argv[2]
+        dim = int(sys.argv[3])
+        data_name = sys.argv[4]
+        calculate_contour(folder, dim, data_name)
+        
+        
     elif function == "strong_scalability":
-
         if len(sys.argv) != 5:
                     raise RuntimeError("Usage: pvpython FunctionTools.py strong_scalability <folder> <step> <level>")
-
         folder = sys.argv[2]
         step = int(sys.argv[3])
         level = int(sys.argv[4])
-
         StrongScalability(folder, step, level)
+        
     elif function == "weak_scalability":
         if len(sys.argv) != 5:
             raise RuntimeError("Usage: pvpython FunctionTools.py weak_scalability <folder> <step> <factor>")
-
         folder = sys.argv[2]
         step = int(sys.argv[3])
         factor = int(sys.argv[4])
-        
         WeakScalability(folder, step, factor)
 
     else:
