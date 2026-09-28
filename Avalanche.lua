@@ -101,8 +101,8 @@ params =
 	VelErrorNorm = util.GetParam("-VelErrorNorm","L2","Norm for Pressure error type H1 , L2"),
 	PressErrorNorm = util.GetParam("-limexNorm","H1","Norm for Pressure error type H1 , L2"),
 	VolErrorNorm = util.GetParam("-VolErrorNorm","L2","Norm for Pressure error type H1 , L2"),
-	alphaVel  = util.GetParamNumber("-alphaVel", 1.0, "Error estimator scale factor for Velocity"),
-	alphaPress = util.GetParamNumber("-alphaPress", 0.5e-10, "Error estimator scale factor for Pressure"),
+	alphaVel  = util.GetParamNumber("-alphaVel", 1.0e-15, "Error estimator scale factor for Velocity"),
+	alphaPress = util.GetParamNumber("-alphaPress", 0.5e-15, "Error estimator scale factor for Pressure"),
 	alphaVol = util.GetParamNumber("-alphaVol", 100, "Error estimator scale factor for Volume fraction"),
 	
 	incr_factor     = util.GetParamNumber("-incr_factor", 1.5),
@@ -126,16 +126,19 @@ params =
 	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 5),
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
 
+
+	------------------------------------------------------------------------------------- LINEAR SOLVER
 	damping_mg = util.GetParamNumber("-damping_mg", 1.0),
+	rap = util.GetParamBool("-rap", true),
 	value_beta = util.GetParamNumber("-value_beta", 0.0 ),
 	--value_beta = util.GetParamNumber("-value_beta", -0.14 ),
 	LinAbsDefectImp = util.GetParamNumber("-LinAbsDefectImp", 1e-012),
-	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", 1e-03),
-	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", 1e-5),
-	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", 1e-5),
+	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", 1e-05),
+	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", 1e-8),
+	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", 1e-7),
 	max_linear_steps_Lim=util.GetParamNumber("-max_linear_steps_lim", 1000),
 	max_linear_steps_Imp=util.GetParamNumber("-max_linear_steps_imp", 1000),
-	precondLim = util.GetParam("-precondLim","ilu","ilu,gmg"),
+	precondLim = util.GetParam("-precondLim","gmg","ilu,gmg"),
 	smoother = util.GetParam("-smoother","ilu","ilu,ilut"),
 	pre_smooth   = util.GetParamNumber("-pre_smooth", 3, "PreSmooth steps"),
 	post_smooth = util.GetParamNumber("-post_smooth", 3, "PostSmooth steps"),
@@ -182,11 +185,11 @@ params =
 	update_turb = util.GetParamNumber("-update_turb", 5, "Update Turbulent Viscosity every .. ... iterations"),
 
 	--Material Properties
-	nu_a     = util.GetParamNumber("-visc_a", 1.48e-02, "kinematic viscosity"),
+	nu_a     = util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity"),
 	rho_a     = util.GetParamNumber("-rho_a", 1.2, "Air Density"),
 	rho_s     = util.GetParamNumber("-rho_s", 2500, "Sand Density"),
 	dp     = util.GetParamNumber("-diameter", 1e-03, "Particle Diameter"),
-	nu_s     = util.GetParamNumber("-visc_s", 7.104e-09, "kinematic viscosity"),
+	nu_s     = util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity"),
 	c_init        = util.GetParamNumber("-c_init", 1.0, "max volume fraction"),
 
 	alpha_max        = util.GetParamNumber("-alpha_max", 0.635, "max volume fraction"),
@@ -211,6 +214,7 @@ params =
 	FricMu_2=0.64,
 	I_0 = 0.279,
 	gravity = -9.81,
+	roughness_length = 1e-04,
 	
 }
 
@@ -472,7 +476,7 @@ NavierStokesDisc = myProblem:Discretization(Inner_total)
 
 InletDisc = NavierStokesInflowFV1M (NavierStokesDisc)
 if params.dim == 2 then
-	InletDisc:add ("InflowVel"..params.dim.."d", "InflowVel"..params.dim.."d","Left,Top")
+	InletDisc:add ("InflowVel"..params.dim.."d", "InflowVel"..params.dim.."d","Left,Top,Right")
 elseif params.dim == 3 then
 	InletDisc:add ("InflowVel"..params.dim.."d", "InflowVel"..params.dim.."d",walls)
 	--InletDisc:add ("InflowVel3d", "InflowVel3d","Back,Front")
@@ -627,7 +631,7 @@ local time_work_steady=0.0
 local linsolver_calls = 0
 local linsolver_steps = 0
 
-if params.doSteadyState and interpolate then
+if params.doSteadyState then
 	-- Steady state solution.
 	
 	NewtonSolverSteady:add_inner_step_update(myProblem.gamma)
@@ -659,6 +663,9 @@ if(params.boolFixVel) then
 	fixer:add("u", "")
 	fixer:add("v", "")
 	fixer:add("p", "")
+	if params.dim == 3 then
+		fixer:add("w", "")
+	end
 end
 if(params.boolFixVol) then
 	fixer = DirichletBoundary()
@@ -859,6 +866,8 @@ if boolSolution == 1 then
 
 
 	if (params.writeIntegral) then
+		Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
+		Value_inner2 = 0.0
 		if(rank == 0) then
 			myProblem:WriteValues( folder_vtk, params.numTimeSteps, time, Value_inner1, Value_inner2, time_work_total, time_work_total, total_Newton_Steps, total_Newton_Steps_fail, total_linsolver_calls_step, total_linsolver_steps_step,true)
 		end

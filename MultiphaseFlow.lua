@@ -19,6 +19,7 @@ local myProblem=require("SandDunesConfig")
 ------------------------------------------------------------------------------------------
 local numProc         = util.GetParamNumber("-numProc", 1, "Number of temporal processes")
 local simCase	= util.GetParamNumber("-simCase", 1, "Simulation Case in Table in")-1
+local simCaseBnd	= util.GetParamNumber("-simCaseBnd", 1, "Simulation Case (Boundary Conditions)")
 
 SpaceTimeComm = SpaceTimeCommunicator()
 SpaceTimeComm:split(numProc)
@@ -32,6 +33,12 @@ local SpaceSize = SpaceTimeComm:get_spatial_size()
 print("TemporalSize = " ..TemporalSize)
 print("SpaceSize = " ..SpaceSize)
 
+if numProc > 1 then
+	simCase = rank_t
+elseif simCase < 0 then
+	print ("Simulation case (simCase) not available."); exit();
+end
+
 ------------------------------------------------------------------------------------------
 -- Input parameter table
 ------------------------------------------------------------------------------------------
@@ -40,9 +47,6 @@ local InValues, num_rows, num_cols = csvfile.read('./FlowTable_in.csv') -- read 
 if( TemporalSize > num_rows-1) then print ("TemporalSize larger than rows in input parametrs."); exit(); end
 if( simCase+1 > num_rows-1) then print ("Simulation case larger than rows in input parametrs."); exit(); end
 
-if numProc > 1 then
-	simCase = rank_t
-end
 
 inflow       = InValues[simCase+2][1]
 H_0          = InValues[simCase+2][2]
@@ -54,7 +58,7 @@ print("Heigh = " ..H_0.. "m.")
 print("Width = " ..W0.. "m.")
 print("SlipVel = " ..SlipVelValue.. "m.")
 
-local fixedNum = string.format("%04d", simCase)
+local fixedNum = string.format("%04d", simCase+1)
 
 
 ------------------------------------------------------------------------------------------
@@ -64,23 +68,33 @@ params =
 {
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
-	file_name = util.GetParam("-file_name", "SolutionX") .."_".. fixedNum,
-	folder_name = util.GetParam("-folder_name", "SolutionY") .. "Flow",
+	dir_name = util.GetParam("-dir_name", ""),
+	file_name = util.GetParam("-file_name", "Solution"),
+	folder_name = util.GetParam("-folder_name", "Solution") .."_".. fixedNum .."_".. "MultiphaseFlow".. simCaseBnd,
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 3, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)"),
 	
 	simCase = simCase,
+	simCaseBnd = simCaseBnd,
 	
-	DT= util.GetParamNumber("-DT", 1.0, "DT[seconds]"),
-	DTmin= util.GetParamNumber("-DTmin", 1e-04, "min  DT"),
-	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 10, "time steps"),
+	
+	--Output Data
+	boolData = util.GetParamBool("-boolData", false),
+	data_name = util.GetParam("-data_name", "Data"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
+	writeIntegral = util.GetParamBool("-writeIntegral", true),
+	boolLoadCheckPoint = util.GetParamBool("-boolLoadCheckPoint", true),
+	boolSaveCheckPoint = util.GetParamBool("-boolSaveCheckPoint", false),
 	
-	timeMethod = util.GetParam("-timeMethod","euler","euler limex"),
+	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", false),
+	DT= util.GetParamNumber("-DT", 1000.0, "DT[seconds]"),
+	DTmin= util.GetParamNumber("-DTmin", 1e-04, "min  DT"),
+	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 100, "time steps"),
 	
-	tol     = util.GetParamNumber("-limex-tol", 1e-1, "time step size"),
+	
+	tol     = util.GetParamNumber("-limex-tol", 1e-2, "time step size"),
 	nstages = util.GetParamNumber("-limex-nstages", 2, "limex stages (2 default)"),
 	limex_partial_mask = util.GetParamNumber("-limex-partial", 0, "limex partial (0 or 3)"),
 	limex_debug_level = util.GetParamNumber("-limex-debug-level", 5, "limex debug level (integer)"),
@@ -91,18 +105,18 @@ params =
 	alphaPress = util.GetParamNumber("-alphaPress", 0.5e-10, "Error estimator scale factor for Pressure"),
 	alphaVol = util.GetParamNumber("-alphaVol", 100, "Error estimator scale factor for Volume fraction"),
 	
-	incr_factor     = util.GetParamNumber("-incr_factor", 2.0),
-	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.5),
+	incr_factor     = util.GetParamNumber("-incr_factor", 1.5),
+	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.7),
 	red_factor_success     = util.GetParamNumber("-red_factor_success", 0.8),
 	optimal_newton_steps = util.GetParamNumber("-optimal_newton_steps", 10),
 	maxConvRate = util.GetParamNumber("-maxConvRate", 0.9),
 	minConvRate = util.GetParamNumber("-minConvRate", 0.5),
 	
 	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 100),
-	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 2500),
+	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 700),
 	SteadyAbsDefect = util.GetParamNumber("-AbsDefect", 1e-010),
 	SteadyRedDefect = util.GetParamNumber("-RedDefect", 1e-08),
-	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-010),
+	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05),
 	RedDefect = util.GetParamNumber("-RedDefect", 1e-05),
 	NewtonDebug = util.GetParamBool("-NewtonDebug", false),
 	NewtonSteadyDebug = util.GetParamBool("-NewtonSteadyDebug", false),
@@ -112,26 +126,36 @@ params =
 	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 5),
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
 
-	max_linear_steps=util.GetParamNumber("-max_linear_steps", 1000),
-	damping_mg = util.GetParamNumber("-damping_mg", 0.9),
-	value_beta = util.GetParamNumber("-value_beta", -0.10 ),
+
+	------------------------------------------------------------------------------------- LINEAR SOLVER
+	damping_mg = util.GetParamNumber("-damping_mg", 1.0),
+	rap = util.GetParamBool("-rap", false),
+	value_beta = util.GetParamNumber("-value_beta", 0.0 ),
 	--value_beta = util.GetParamNumber("-value_beta", -0.14 ),
 	LinAbsDefectImp = util.GetParamNumber("-LinAbsDefectImp", 1e-012),
-	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", 1e-04),
-	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", 1e-018),
-	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", 1e-12),
+	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", 1e-03),
+	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", 1e-5),
+	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", 1e-5),
+	max_linear_steps_Lim=util.GetParamNumber("-max_linear_steps_lim", 1000),
+	max_linear_steps_Imp=util.GetParamNumber("-max_linear_steps_imp", 1000),
+	precondLim = util.GetParam("-precondLim","gmg","ilu,gmg"),
+	smoother = util.GetParam("-smoother","ilu","ilu,ilut"),
+	pre_smooth   = util.GetParamNumber("-pre_smooth", 3, "PreSmooth steps"),
+	post_smooth = util.GetParamNumber("-post_smooth", 3, "PostSmooth steps"),
+	eps_ilut = util.GetParamNumber("-eps_ilut", 1e-02),
+
 
 	
 			-- Physical phenomenon of simulation
-	doSteadyState = util.GetParamBool("-doSteadyState", true),
+	doSteadyState = util.GetParamBool("-doSteadyState", false),
 	boolSource = util.GetParamBool("-boolSource", false),
 	consistentRho_in_source = util.GetParamBool("-consistentRho_in_source", true),
 	boolRelativeVel = util.GetParamBool("-boolRelativeVel", true),
 	boolGradientPsSource = util.GetParamBool("-boolGradientPsSource", false),
 	boolViscPs = util.GetParamBool("-boolViscPs", true),
 	boolAveDiff = util.GetParamBool("-boolAveDiff", true),
-	boolSlipDiff = util.GetParamBool("-boolSlipDiff", false),
-	boolSlipVel = util.GetParamBool("-boolSlipVel", true),
+	boolSlipDiff = util.GetParamBool("-boolSlipDiff", true),
+	boolSlipVel = util.GetParamBool("-boolSlipVel", false),
 	boolpress_jump= util.GetParamBool("-boolpress_jump", false),
 	boolNormal = util.GetParamBool("-boolNormal", false),
 	boolFixVel = util.GetParamBool("-boolFixVel", false),
@@ -161,17 +185,18 @@ params =
 	update_turb = util.GetParamNumber("-update_turb", 5, "Update Turbulent Viscosity every .. ... iterations"),
 
 	--Material Properties
-	nu_a     = util.GetParamNumber("-visc_a", 1.48e-02, "kinematic viscosity"),
+	nu_a     = util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity"),
 	rho_a     = util.GetParamNumber("-rho_a", 1.2, "Air Density"),
 	rho_s     = util.GetParamNumber("-rho_s", 2500, "Sand Density"),
 	dp     = util.GetParamNumber("-diameter", 1e-03, "Particle Diameter"),
-	nu_s     = util.GetParamNumber("-visc_s", 7.104e-09, "kinematic viscosity"),
+	nu_s     = util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity"),
 	c_init        = util.GetParamNumber("-c_init", 1.0, "max volume fraction"),
 
 	alpha_max        = util.GetParamNumber("-alpha_max", 0.635, "max volume fraction"),
 	alpha_min        = util.GetParamNumber("-min alpha_min", 0.57, "max volume fraction"),
 	packing_factor   = util.GetParamNumber("-packing_factor", 0.6, "Packingfactor"),
-	lee_factor = util.GetParamNumber("-lee_factor", 1.0, "lee slope factor"),
+	grad_limit = util.GetParamNumber("-grad_limit", 0.05, "grad limit in Normal vector"),
+	slope_limit = util.GetParamNumber("-slope_limit", 2e-02, "regularization factor in slip and diff velocity"),
 	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein, 4 Relax"),
 	density_model  = util.GetParam("-density_model", "linear", "constant, linear"),
 	drag_mod = util.GetParamNumber("-drag_model", 2, "Opt: 0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel"),
@@ -189,12 +214,14 @@ params =
 	FricMu_2=0.64,
 	I_0 = 0.279,
 	gravity = -9.81,
+	roughness_length = 1e-04,
 	
 }
 
 params.startTime  = 0.0
 params.endTime    = params.DT * params.numTimeSteps
 params.DTmax = params.DT
+params.DTLimex = params.DT
 
 c_init = params.c_init
 params.interface_value  = params.alpha_min/params.packing_factor
@@ -219,7 +246,10 @@ params.gridName	= util.GetParam ("-geom","Dune"..params.dim.."D_"..params.elem_t
 ------------------------------------------------------------------------------------------
 
 -- Subsets used in the problem
+allSubsets = nil
+walls = nil
 allSubsets = "Inner, Inner2, Left, Right,Top, Bottom"
+walls = "Left, Right,Top, Bottom"
 if params.dim == 3 then
 	allSubsets = allSubsets .. ", Back, Front"
 end
@@ -230,7 +260,7 @@ Inner_total={"Inner","Inner2"}
 --------------------------------------------------------------------------------
 -- Problem setup.
 --------------------------------------------------------------------------------
-local myProblem=require("SandDunesConfig")
+
 myProblem:Init(params)
 
 ------------------------------------------------------------------------------------------
@@ -238,7 +268,7 @@ myProblem:Init(params)
 ------------------------------------------------------------------------------------------
 
 SynchronizeProcesses()
-vtk_file_name,folder,folder_name = myProblem:FileNames(rank)
+vtk_file_name,folder_vtk,folder_name = myProblem:FileNames(rank,SpaceSize)
 SynchronizeProcesses()
 
 
@@ -247,9 +277,13 @@ SynchronizeProcesses()
 ------------------------------------------------------------------------------------------
 
 InitUG (params.dim, AlgebraType("CPU", params.dim+2))
-GetLogAssistant():enable_file_output(true, folder .. "/LogFile_"..simCase.. "_Lev"..params.numRefs)
-if rank_t > 0 then GetLogAssistant():enable_terminal_output(false) end
 
+
+------------------------------------------------------------------------------------------
+-- LOG File
+------------------------------------------------------------------------------------------
+
+myProblem:LogFiles(rank_t,folder_vtk .. "/LogFile")
 
 ------------------------------------------------------------------------------------------
 -- Printing Values
@@ -277,9 +311,14 @@ myProblem:PrintingSettings()
 	cc=math.pow(y/hh,5)
 	return params.inflow*(math.min(1.0, math.pow(y/hh,1/nn))*(1-cc) +(cc)* (2*hh - y) * (y ) / (hh * hh))
 end]]
-function LOGPROF(psi)
+--[[function LOGPROF(psi)
 	hh=14.1856
 	return params.inflow* (2*hh - psi) * (psi ) / (hh * hh)
+end]]
+function LOGPROF(psi)
+	local H = 14.1856
+	local z0 = params.roughness_length
+	return params.inflow * math.log(1 + psi / z0) / math.log(1 + H / z0)
 end
 
 function StartValueX3d(x,y,z)
@@ -403,7 +442,7 @@ InterfaceValues = myProblem:InterfaceParameters()
 ------------------------------------------------------------------------------------------
 
 
-myProblem:Clousures(approxSpace,u)
+myProblem:Clousures(approxSpace,u,walls)
 
 
 ------------------------------------------------------------------------------------------
@@ -478,16 +517,43 @@ print("Domain Discretization: DONE")
 ---------------------------------------------------------------------------------------
 -- Time Discretization
 ---------------------------------------------------------------------------------------
-print("Time Discretization")
+
+print("Setting Time Discretization")
 
 local timeDisc = myProblem:TimeDiscretization(domainDisc)
+
+
+------------------------------------------------------------------------------------------
+-- Interpolate initial values
+------------------------------------------------------------------------------------------
+print("Initializing Values")
+-- start
+time = 0
+step = 0
+local time_work_total = 0.0
+local interpolate = true
+if(params.boolLoadCheckPoint) then
+	time, step, time_work_total, interpolate = myProblem:LoadCheckPoint(u,folder_vtk)
+end
+
+if interpolate then
+	--Interpolate(StartValueX, u, "u")
+	Interpolate(0.0, u, "u")
+	Interpolate("StartValueY"..params.dim.."d", u, "v")
+	if params.dim == 3 then
+		Interpolate("StartValueZ"..params.dim.."d", u, "v")
+	end
+	Interpolate("StartValueP"..params.dim.."d", u, "p")
+	Interpolate("VolumeFraction"..params.dim.."d", u, "c")
+	print("Initial Conditions: Done")
+end
 
 ------------------------------------------------------------------------------------------
 -- Set up the solver
 ------------------------------------------------------------------------------------------
 print("Setting Solver")
 boolSolution = 1
-op, NLSolver, NewtonSolverSteady, limex, boolSolution = myProblem:CreateSolver(domainDisc, approxSpace)
+op, NLSolver, NewtonSolverSteady, limex = myProblem:CreateSolver(domainDisc, approxSpace)
 
 
 
@@ -498,20 +564,6 @@ op, NLSolver, NewtonSolverSteady, limex, boolSolution = myProblem:CreateSolver(d
 
 out = myProblem:OutputParameters()
 
-
-------------------------------------------------------------------------------------------
--- Interpolate initial values
-------------------------------------------------------------------------------------------
-print("Initializing Values")
-
---Interpolate(StartValueX, u, "u")
-Interpolate(0.0, u, "u")
-Interpolate("StartValueY"..params.dim.."d", u, "v")
-if params.dim == 3 then
-	Interpolate("StartValueZ"..params.dim.."d", u, "v")
-end
-Interpolate("StartValueP"..params.dim.."d", u, "p")
-Interpolate("VolumeFraction"..params.dim.."d", u, "c")
 
 
 myProblem.KinTurbulentViscosity:update()
@@ -529,11 +581,13 @@ myProblem.Normal:update()
 -- Steady State Solution
 ------------------------------------------------------------------------------------------
 print("Calculating SteadyState")
-time_work_steady=0.0
-linsolver_calls = 0
-linsolver_steps = 0
+local Newton_Steps = 0
+local Newton_Steps_fail = 0
+local time_work_steady=0.0
+local linsolver_calls = 0
+local linsolver_steps = 0
 
-if params.doSteadyState and boolSolution == 1 then
+if params.doSteadyState then
 	-- Steady state solution.
 	
 	NewtonSolverSteady:add_inner_step_update(myProblem.gamma)
@@ -553,7 +607,9 @@ if params.doSteadyState and boolSolution == 1 then
 	end
 	
 	time_work_steady, linsolver_calls, linsolver_steps, boolSolution = myProblem:ComputeNonLinearSteadyStateSolution(u, domainDisc, NewtonSolverSteady)
-	
+	time_work_total = time_work_total + time_work_steady
+	Newton_Steps = 1
+	Newton_Steps_fail = Newton_Steps - boolSolution
 end
 
 if(params.boolFixVel) then
@@ -563,6 +619,9 @@ if(params.boolFixVel) then
 	fixer:add("u", "")
 	fixer:add("v", "")
 	fixer:add("p", "")
+	if params.dim == 3 then
+		fixer:add("w", "")
+	end
 end
 if(params.boolFixVol) then
 	fixer = DirichletBoundary()
@@ -570,45 +629,9 @@ if(params.boolFixVol) then
 	fixer:invert_subset_selection()
 	fixer:add("c", "")
 end
-
 ------------------------------------------------------------------------------------------
--- Printing Initial Conditions
+-- Updating attachments
 ------------------------------------------------------------------------------------------
--- start
-time = 0
-step = 0
-
-	-- write start solution
-if boolSolution == 1 then
-
-	print("Writing initial values")
-	out:print_subsets(vtk_file_name, u,allSubsets,step,time, true)
-	print ("Output to file " .. vtk_file_name .. ".vtu  in time t = 0")
-	print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-	print ("                                                            ")
-	print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
-	
-end
-
-
-------------------------------------------------------------------------------------------
--- Final Setting
-------------------------------------------------------------------------------------------
--- create new grid function for old value
-uOld = u:clone()
-
--- store grid function in vector of  old solutions
-solTimeSeries = SolutionTimeSeries()
-solTimeSeries:push(uOld, time)
-
-
-Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
-Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
-
-if (rank == 0 and  boolSolution == 1) then
-	myProblem:WriteValues( folder, step, time, Value_inner1, Value_inner2, time_work_steady, 1, 0, linsolver_calls, linsolver_steps,false)
-end
-
 
 if params.turbViscMethod=="no" then
 	NLSolver:add_step_update(myProblem.KinTurbulentViscosity)
@@ -629,13 +652,53 @@ if params.timeMethod == "limex" then
 	end
 else
 	NLSolver:add_inner_step_update(myProblem.gamma)
+	NLSolver:add_inner_step_update(myProblem.Normal)
 	if params.boolSlipDiff then
 		NLSolver:add_inner_step_update(myProblem.SlipDiff)
 	elseif params.boolSlipVel then
 		NLSolver:add_inner_step_update(myProblem.SlipVel)
 	end
-end
 	
+end
+
+
+------------------------------------------------------------------------------------------
+-- Printing Initial Conditions
+------------------------------------------------------------------------------------------
+
+	-- write start solution
+if boolSolution == 1 then
+	if (step % params.outputFactor == 0 ) then
+		local vtkStep = math.floor(step / params.outputFactor)
+		print("Writing initial values")
+		out:print_subsets(vtk_file_name, u,allSubsets,vtkStep,time, true)
+		print ("Output to file " .. vtk_file_name .. ".vtu  in time t =" .. time)
+		print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+		print ("                                                            ")
+		print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
+	end
+	
+	myProblem:SaveCheckPoint(u,folder_vtk)
+	if  (params.writeIntegral and step==0) then
+		Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
+		Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
+		if(rank == 0) then
+			myProblem:WriteValues( folder_vtk, step, time, Value_inner1, Value_inner2, time_work_steady, time_work_total, Newton_Steps, Newton_Steps_fail, linsolver_calls, linsolver_steps,false)
+		end
+	end
+end
+
+
+------------------------------------------------------------------------------------------
+-- Final Setting
+------------------------------------------------------------------------------------------
+-- create new grid function for old value
+uOld = u:clone()
+
+-- store grid function in vector of  old solutions
+solTimeSeries = SolutionTimeSeries()
+solTimeSeries:push(uOld, time)
+
 
 
 
@@ -650,7 +713,7 @@ tBefore = os.clock()
 -- Time Steps Loop    (Solution)
 ------------------------------------------------------------------------------------------
 if boolSolution == 1 then
-	for step = 1, params.numTimeSteps do
+	for step = step+1, params.numTimeSteps do
 
 		print("++++++ TIMESTEP " .. step .. " BEGIN ++++++")
 		tBefore_step = os.clock()
@@ -658,7 +721,7 @@ if boolSolution == 1 then
 		EndTime = time + params.DT
 		if params.timeMethod == "limex" then
 		
-			Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, boolSolution  = myProblem:SolveNonlinearProblemLimex(u, limex, NLSolver, step, StartTime, EndTime)
+			Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, boolSolution  = myProblem:SolveNonlinearProblemLimex(u, limex, NLSolver, step, StartTime, EndTime, NewtonLimexSteps)
 
 		else
 			--[[if doo then
@@ -682,10 +745,13 @@ if boolSolution == 1 then
 		if boolSolution == 1 then
 		
 			if (step % params.outputFactor == 0 ) then
-				out:print_subsets(vtk_file_name, u,allSubsets,step,time)
+				local vtkStep = math.floor(step / params.outputFactor)
+				out:print_subsets(vtk_file_name, u,allSubsets,vtkStep,time)
 				print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
 				print(" ")
 			end
+			
+			myProblem:SaveCheckPoint(u,folder_vtk)
 			
 			print("++++++ TIMESTEP " .. step .. "  END ++++++")
 			print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
@@ -709,16 +775,23 @@ if boolSolution == 1 then
 			total_linsolver_calls_step = total_linsolver_calls_step + linsolver_calls_step
 			total_linsolver_steps_step = total_linsolver_steps_step + linsolver_steps_step
 					
-			Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
-			Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
+
 			
-			if rank == 0 then
-				myProblem:WriteValues( folder, step, time, Value_inner1, Value_inner2, tAfter_step - tBefore_step, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
+			
+			
+			if (params.writeIntegral) then
+				Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
+				Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
+				time_work_total = time_work_total + tAfter_step - tBefore_step
+				if(rank==0) then
+					myProblem:WriteValues( folder_vtk, step, time, Value_inner1, Value_inner2, tAfter_step - tBefore_step, time_work_total, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
+				end
 			end
-			
+						
 		else
 			print("++++++ TIMESTEP " .. step .. "  FAILED ++++++")
-			out:print_subsets(vtk_file_name, u,allSubsets,step,time)
+			local vtkStep = math.floor(step / params.outputFactor)
+			out:print_subsets(vtk_file_name, u,allSubsets,vtkStep,time)
 			print ("Failed Output file" .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
 			print("++++++ TIMESTEP " .. step .. "  FAILED ++++++")
 			print(" ")
@@ -728,7 +801,8 @@ if boolSolution == 1 then
 		
 	end
 end
-tAfter = os.clock()
+
+
 
 if boolSolution == 1 then
 	------------------------------------------------------------------------------------------
@@ -738,8 +812,8 @@ if boolSolution == 1 then
 	print("-			-")
 	print("-------------------------------------------------------------------------------")
 	print("Steady state Computation took " .. time_work_steady .. " seconds.")
-	print("Temporal Computation took " .. tAfter-tBefore .. " seconds.")
-	print("Total Computation took " .. time_work_steady+tAfter-tBefore .. " seconds.")
+	print("Temporal Computation took " .. time_work_total-time_work_steady .. " seconds.")
+	print("Total Computation took " .. time_work_steady .. " seconds.")
 	print("-------------------------------------------------------------------------------")
 	print("")
 	print("")
@@ -747,8 +821,12 @@ if boolSolution == 1 then
 	print("done.")
 
 
-	if rank == 0 then
-		myProblem:WriteValues( folder, params.numTimeSteps, time, Value_inner1, Value_inner2, time_work_steady+tAfter-tBefore, total_Newton_Steps, total_Newton_Steps_fail, total_linsolver_calls_step, total_linsolver_steps_step,true)
+	if (params.writeIntegral) then
+		Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
+		Value_inner2 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner2",0.0)
+		if(rank == 0) then
+			myProblem:WriteValues( folder_vtk, params.numTimeSteps, time, Value_inner1, Value_inner2, time_work_total, time_work_total, total_Newton_Steps, total_Newton_Steps_fail, total_linsolver_calls_step, total_linsolver_steps_step,true)
+		end
 	end
 end
 
@@ -760,10 +838,13 @@ if (params.NewtonDebug and rank == 0 and SpaceSize > 1) then
 	
 end
 
-local Tablename = folder_name .. "/Table_out_" .. numProc ..".csv"
+--[[local Tablename = folder_name .. "/Table_out_" .. numProc ..".csv"
 lineWriter = LineWriter()
 Headers = " Sim, Vel, H0, W0, Solved\n"
 lineWriter:write_line(Tablename,simCase, Headers, params.inflow, H_0, W0, boolSolution)
+]]
+
+myProblem:RunParaViewContour( rank, folder_vtk)
 
 --SynchronizeProcesses()
 --SpaceTimeComm:unsplit()

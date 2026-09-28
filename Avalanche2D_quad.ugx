@@ -10,11 +10,11 @@
 			<faces>0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15</faces>
 		</subset>
 		<subset name="Left" color="1 0 0 1" state="393216">
-			<vertices>7 10 14 18 4</vertices>
+			<vertices>4 7 10 14 18</vertices>
 			<edges>10 11 18 19</edges>
 		</subset>
 		<subset name="Right" color="0 1 0 1" state="393216">
-			<vertices>2 6 12 16 0</vertices>
+			<vertices>0 2 6 12 16</vertices>
 			<edges>6 7 14 15</edges>
 		</subset>
 		<subset name="Top" color="0 0 1 1" state="393216">
