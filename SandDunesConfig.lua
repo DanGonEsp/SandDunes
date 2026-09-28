@@ -75,6 +75,7 @@ myProblem.Init = function(self, o)
 	self.LinRedDefectLim = o.LinRedDefectLim
 	self.max_linear_steps_Lim = o.max_linear_steps_Lim
 	self.max_linear_steps_Imp = o.max_linear_steps_Imp
+	self.rap = o.rap
 	self.damping_mg = o.damping_mg
 	self.value_beta = o.value_beta
 	self.pre_smooth = o.pre_smooth
@@ -155,6 +156,8 @@ myProblem.Init = function(self, o)
 	self.FricMu_2 = o.FricMu_2
 	self.I_0 = o.I_0
 	self.gravity = o.gravity
+	self.roughness_length = o.roughness_length
+
 	
 	
 	self.boolSolverDesc = false
@@ -367,6 +370,7 @@ myProblem.PrintingSettings = function (self)
 	-----------------------------------------------------------------------
 	print (" Linear Solver parameters:")
 	print ("	damping_mg		= " .. self.damping_mg)
+	print ("	RAP			= " .. tostring (self.rap))
 	print ("	beta			= " .. self.value_beta)
 	print ("	AbsDefImp		= " .. self.LinAbsDefectImp)
 	print ("	RedDefImp		= " .. self.LinRedDefectImp)
@@ -676,9 +680,9 @@ myProblem.Discretization = function (self,Inner_total)
 
 
 	NavierStokesDisc:set_density(self.Density,true)
-	if self.timeMethod == "limex" and self.boolMassTerm and not(self.bStokes) then
-		NavierStokesDisc:set_limex_correction(true)
-	end
+	--[[if self.timeMethod == "limex" and self.boolMassTerm and not(self.bStokes) then
+		NavierStokesDisc:set_limex_correction(false)
+	end]]
 
 		
 	if self.boolRelativeVel then
@@ -763,8 +767,8 @@ myProblem.Smoother = function (self,smoother_name)
 		--ilu:set_sort(true)
 		--ilu:set_sort_eps(1.e-50)
 		--ilu:set_inversion_eps(1.e-8)
-		ilu:enable_consistent_interfaces(true)
-		ilu:enable_overlap(false)
+		ilu:enable_consistent_interfaces(false)
+		ilu:enable_overlap(true)
 		smoother = ilu
 	elseif smoother_name == "jac" then
 		local jac = Jacobi (0.7);
@@ -809,7 +813,7 @@ myProblem.Preconditioner = function (self,precond_name)
 		gmg:set_cycle_type(1)
 		gmg:set_num_presmooth(self.pre_smooth)
 		gmg:set_num_postsmooth(self.post_smooth)
-		gmg:set_rap( true)
+		gmg:set_rap( self.rap)
 		gmg:set_smooth_on_surface_rim(false)
 
 		-- gmg:set_damp(MinimalResiduumDamping())
@@ -951,7 +955,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 		TransientNewtonUpdater = NewtonUpdaterProjection()
 		TransientNewtonUpdater:set_projection_fct(self.dim+1)
 		TransientNewtonUpdater:set_max_threshold(1.1)
-		TransientNewtonUpdater:set_min_threshold(-1.1)
+		TransientNewtonUpdater:set_min_threshold(-1e-5)
 		NLSolver:setNewtonUpdater(TransientNewtonUpdater)
 	end
 	
