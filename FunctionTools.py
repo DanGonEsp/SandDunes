@@ -738,13 +738,21 @@ def plot_contour(folder, dim, data_name, num_contours):
     ax.set_ylabel("Y",fontsize=14)
     ax.set_aspect("equal")
     #ax.set_xlim(11.0, 27)
-    ax.set_ylim(bottom=0.0)
+    ax.set_xlim(left=-0.001)
+    ax.set_ylim(bottom=-0.02)
     ax.xaxis.set_major_locator(mpl.ticker.MultipleLocator(0.2))
     ax.yaxis.set_major_locator(mpl.ticker.MultipleLocator(0.2))
     ax.tick_params(axis="both", labelsize=18)
-    ax.plot([0.3, 1.0], [0.66, 0.66], color="red", linewidth=2.0, zorder=10, solid_capstyle="butt", label=r"$\Gamma_{in}$")
-    ax.plot([1.0, 1.0], [0.0, 0.68], color="black", linewidth=7.0, zorder=10, solid_capstyle="butt")
+    ax.plot([0.0, 0.0], [0.0, 0.66], color="black", linewidth=2.0, linestyle = "--",zorder=10, solid_capstyle="butt")#LEFT
+    ax.plot([0.0, 0.3], [0.66, 0.66], color="black", linewidth=2.0, linestyle = "--",zorder=10, solid_capstyle="butt")#TOP
+    ax.plot([0.3, 1.0], [0.66, 0.66], color="red", linewidth=2.0, zorder=10, solid_capstyle="butt", label=r"$\Gamma_{in}$")#TOP SOURCE
+    ax.plot([1.01, 1.008], [-0.018, 0.68], color="black", linewidth=7.0, zorder=10, solid_capstyle="butt")#Right
+    ax.plot([0.0, 1.0078], [-0.01, -0.01], color="black", linewidth=7.0, zorder=10, solid_capstyle="butt")#BOTTOM
+
     ax.spines["top"].set_visible(False)
+    ax.spines["bottom"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_visible(False)
     
     #ax.legend()
     
