@@ -278,7 +278,8 @@ SynchronizeProcesses()
 -- Initialize UG4
 ------------------------------------------------------------------------------------------
 
-InitUG (params.dim, AlgebraType("CPU", params.dim+2))
+--InitUG (params.dim, AlgebraType("CPU", params.dim+2))
+InitUG (params.dim, AlgebraType("CPU", 1))
 
 
 
