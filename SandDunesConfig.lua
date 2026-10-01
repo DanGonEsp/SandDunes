@@ -6,6 +6,11 @@ local myProblem = {}
 myProblem.Init = function(self, o)
 
 		-- Numerical parameters of the discretization
+		
+	self.problem = o.problem
+	self.simCase = o.simCase
+	self.simCaseBnd = o.simCaseBnd
+	
 	self.dim = o.dim
 	self.dir_name = o.dir_name
 	self.file_name = o.file_name
@@ -13,8 +18,6 @@ myProblem.Init = function(self, o)
 	self.elem_type = o.elem_type
 	self.numRefs = o.numRefs
 	self.numPreRefs = o.numPreRefs
-	
-	self.simCase = o.simCase
 	
 	self.timeMethod  = o.timeMethod
 	self.DT = o.DT
@@ -97,7 +100,7 @@ myProblem.Init = function(self, o)
 	self.boolSlipDiff = o.boolSlipDiff
 	self.boolSlipVel = o.boolSlipVel
 	self.boolpress_jump = o.boolpress_jump
-	self.boolNormal = o.boolNormal
+	self.boolAveNormal = o.boolAveNormal
 	self.boolFixVel = o.boolFixVel
 	self.boolFixVol = o.boolFixVol
 	self.boolMassTerm = o.boolMassTerm
@@ -168,6 +171,77 @@ myProblem.Init = function(self, o)
 	self.gridName = o.gridName
   
   
+end
+--------------------------------------------------------------------------------
+-- DEFAULT Parameters
+--------------------------------------------------------------------------------
+myProblem.GetCaseDefaults = function(self, problem)
+    if problem == "flow" then
+        return {
+            numRefs = 3,
+            numPreRefs = 1,
+            alphaVel = 1.0,
+            alphaPress = 0.5e-10,
+            LinRedDefectImp = 1e-3,
+            LinAbsDefectLim = 1e-5,
+            LinRedDefectLim = 1e-5,
+            boolAveDiff = true,
+            boolSlipDiff = true,
+            boolSlipVel = false,
+            boolFixVel = false,
+        }
+    elseif problem == "avalanche" then
+        return {
+            numRefs = 4,
+            numPreRefs = 3,
+            alphaVel = 1e-15,
+            alphaPress = 0.5e-15,
+            LinRedDefectImp = 1e-5,
+            LinAbsDefectLim = 1e-12,
+            LinRedDefectLim = 1e-12,
+            boolAveDiff = false,
+            boolSlipDiff = false,
+            boolSlipVel = true,
+            boolFixVel = true,
+        }
+    end
+
+    error("Unknown problem: " .. tostring(problem))
+end
+--------------------------------------------------------------------------------
+-- GEOMETRY
+--------------------------------------------------------------------------------
+myProblem.GetGeometry = function(self, params)
+    if params.dim ~= 2 and params.dim ~= 3 then error("Only dimensions 2 and 3 are supported") end
+    if params.elem_type ~= "tri" and params.elem_type ~= "quad" then error("Unknown element type: " .. tostring(params.elem_type)) end
+
+    local geometry = {}
+
+    if params.problem == "flow" then
+        geometry.gridName = "Dune" .. params.dim .. "D_" .. params.elem_type .. "_double.ugx"
+        geometry.innerSubsets = {"Inner", "Inner2"}
+        geometry.allSubsets = "Inner,Inner2,Left,Right,Top,Bottom"
+        geometry.turbulenceZeroSubsets = "Left,Right,Top,Bottom"
+
+        if params.dim == 3 then
+            geometry.allSubsets = geometry.allSubsets .. ",Back,Front"
+        end
+    elseif params.problem == "avalanche" then
+        geometry.gridName = "Avalanche" .. params.dim .. "D_" .. params.elem_type .. ".ugx"
+        geometry.innerSubsets = {"Inner"}
+
+        if params.dim == 2 then
+            geometry.allSubsets = "Inner,Left,Right,Top,Bottom"
+            geometry.turbulenceZeroSubsets = "Left,Right,Top,Bottom"
+        else
+            geometry.allSubsets = "Inner,Left1,Left2,Right,Top,Bottom,Front1,Front2,Back1,Back2,Back3"
+            geometry.turbulenceZeroSubsets = "Left1,Left2,Right,Top,Bottom,Front1,Front2,Back1,Back2,Back3"
+        end
+    else
+        error("Unknown problem: " .. tostring(params.problem))
+    end
+
+    return geometry
 end
 --------------------------------------------------------------------------------
 -- File Names
@@ -499,6 +573,66 @@ myProblem.InterfaceParameters = function (self)
 	return InterfaceValues
 end
 
+
+--------------------------------------------------------------------------------
+-- LUA Functions
+--------------------------------------------------------------------------------
+myProblem.RegisterCallbacks = function(self)
+    if self.problem == "avalanche" then
+        if self.simCaseBnd ~= 1 and self.simCaseBnd ~= 2 then error("Unknown avalanche boundary case") end
+        if self.dim == 3 and self.simCaseBnd == 2 then error("The supplied Avalanche.lua has no initial concentration function for 3D case 2") end
+    end
+
+    local function inletSpeed(height)
+        if self.problem == "avalanche" then return 0.0 end
+        return self.inflow * math.log(1 + height / self.roughness_length) / math.log(1 + 14.1856 / self.roughness_length)
+    end
+
+    local function initialC2d(x, y)
+        if self.problem == "flow" then
+            local dx = math.abs((x - 20.0) / 3.0)
+            local height = self.H_0 * math.exp(-(dx^4)) - 0.01
+            if y > height then return 0.0 end
+            return self.c_init
+        end
+
+        if (x > 0.2 and x < 0.4) or x > 0.8 then return 1.5e-3 end
+        return 0.0
+    end
+
+    local function initialC3d(x, y, z)
+        if self.problem == "avalanche" then return 0.0 end
+        local dx = math.abs((x - 20.0) / 3.0)
+        local dy = math.abs(y / 3.0)
+        local height = self.H_0 * math.exp(-(dx^4 + dy^4)) - 0.01
+        if z > height then return 0.0 end
+        return self.c_init
+    end
+
+    local function topFlux2d(x, y)
+        if self.simCaseBnd == 1 then
+            if x > 0.3 and x < 2.0 then return -1e-5 end
+        else
+            if (x > 0.2 and x < 0.4) or x > 0.8 then return -1e-5 end
+        end
+        return 0.0
+    end
+
+    local function topFlux3d(x, y, z)
+        if x > -1.0 and x < 2.0 then return -1e-5 end
+        return 0.0
+    end
+
+    if self.dim == 2 then
+        _G.SandInflow = function(x, y, t) return inletSpeed(y), 0.0 end
+        _G.SandInitialC = initialC2d
+        _G.SandTopFlux = topFlux2d
+    else
+        _G.SandInflow = function(x, y, z, t) return inletSpeed(z), 0.0, 0.0 end
+        _G.SandInitialC = initialC3d
+        _G.SandTopFlux = topFlux3d
+    end
+end
 --------------------------------------------------------------------------------
 -- Variables
 --------------------------------------------------------------------------------
@@ -616,10 +750,15 @@ myProblem.Clousures = function (self,approxSpace,u,walls)
 	
 	local ss_value = math.atan(self.FricMu_2)*180/3.1415926
 	
-	local Normal = DuneNormal(approxSpace,u)
-	Normal:set_theta(ss_value)
-	Normal:set_gradient_limit(self.grad_limit)
-	Normal:set_phase_parameters(InterfaceValues)
+	local Normal = nil
+	if self.boolAveNormal then
+		Normal = DuneNormal(approxSpace,u)
+		Normal:set_theta(ss_value)
+		Normal:set_gradient_limit(self.grad_limit)
+		Normal:set_phase_parameters(InterfaceValues)
+	else
+		Normal = InterfaceNormalLinker()
+	end
 	
 	self.Normal = Normal
 	
@@ -645,8 +784,8 @@ myProblem.Clousures = function (self,approxSpace,u,walls)
 			SlipVel:set_theta(ss_value)
 			SlipVel:set_vel(self.SlipVelValue)
 			SlipVel:set_slope_limit(self.slope_limit)
-			SlipVel:set_phase_parameters(InterfaceValues)
 			SlipVel:set_normal(Normal)
+			SlipVel:set_phase_parameters(InterfaceValues)
 		end
 	end
 	
@@ -658,7 +797,15 @@ myProblem.Clousures = function (self,approxSpace,u,walls)
 
 
 end
-
+--------------------------------------------------------------------------------
+-- ConnectClosures
+--------------------------------------------------------------------------------
+myProblem.ConnectClosures = function(self, NavierStokesDisc)
+    if not self.bStokes then self.Density:set_volume_fraction(NavierStokesDisc:volume_fraction()) end
+    self.Diffusion:set_velocity_gradient(NavierStokesDisc:velocity_grad())
+    self.KinMixViscosity:set_import_2(NavierStokesDisc:mix_viscosity())
+    if not self.boolAveNormal then self.Normal:set_volume_grad(NavierStokesDisc:volume_fraction_grad()) end
+end
 --------------------------------------------------------------------------------
 -- Discretization
 --------------------------------------------------------------------------------
@@ -713,6 +860,76 @@ myProblem.Discretization = function (self,Inner_total)
 	
 	self.NavierStokesDisc = NavierStokesDisc
 	return NavierStokesDisc
+end
+--------------------------------------------------------------------------------
+-- BoundaryConditions
+--------------------------------------------------------------------------------
+myProblem.CreateBoundaryConditions = function(self, NavierStokesDisc, geometry)
+    local boundaries = {}
+    local inlet = NavierStokesInflowFV1M(NavierStokesDisc)
+
+    if self.problem == "flow" then
+        inlet:add("SandInflow", "SandInflow", "Left,Top")
+        if self.dim == 3 then inlet:add("SandInflow", "SandInflow", "Back,Front") end
+    else
+        if self.dim == 2 then
+            inlet:add("SandInflow", "SandInflow", "Left,Top,Right")
+        else
+            inlet:add("SandInflow", "SandInflow", geometry.turbulenceZeroSubsets)
+        end
+    end
+
+    table.insert(boundaries, inlet)
+
+    if self.problem == "flow" then
+        local outlet = NavierStokesNoNormalStressOutflowFV1M(NavierStokesDisc)
+        outlet:add("Right")
+        outlet:set_phase_parameters(self.InterfaceValues)
+        table.insert(boundaries, outlet)
+    end
+
+    local wall = NavierStokesWall(NavierStokesDisc)
+    wall:add("Bottom")
+    table.insert(boundaries, wall)
+
+    local dirichlet = DirichletBoundary()
+
+    if self.problem == "flow" then
+        dirichlet:add(0.0, "c", "Left,Top")
+        table.insert(boundaries, dirichlet)
+    else
+        local neumann = NeumannBoundaryFV1("c")
+        neumann:add("SandTopFlux", "Top", "Inner")
+        neumann:add(0.0, "Bottom", "Inner")
+
+        if self.dim == 2 then
+            dirichlet:add(0.0, "c", "Left")
+
+            if self.simCaseBnd == 1 then
+                neumann:add(0.0, "Right", "Inner")
+            elseif self.simCaseBnd == 2 then
+                dirichlet:add(0.0, "c", "Right")
+            else
+                error("Unknown avalanche boundary case")
+            end
+        else
+            dirichlet:add(1.0, "c", "Bottom")
+
+            if self.simCaseBnd == 1 then
+                dirichlet:add(0.0, "c", "Left1,Left2,Front1,Front2,Right,Back1,Back2,Back3")
+            elseif self.simCaseBnd == 2 then
+                dirichlet:add(0.0, "c", "Left2,Front1,Front2,Right,Back1,Back2,Back3")
+                neumann:add(0.0, "Left1,Back1", "Inner")
+            else
+                error("Unknown avalanche boundary case")
+            end
+        end
+
+        table.insert(boundaries, dirichlet)
+        table.insert(boundaries, neumann)
+    end
+
+    return boundaries
 end
 
 --------------------------------------------------------------------------------
@@ -805,8 +1022,8 @@ myProblem.Preconditioner = function (self,precond_name)
 		local baseSolver = LU()
 		local baseSolver = AgglomeratingSolver(SuperLU());
 		
-		local gmg = GeometricMultiGrid(approxSpace)
-		gmg:set_discretization(domainDisc)
+		local gmg = GeometricMultiGrid(self.approxSpace)
+		gmg:set_discretization(self.domainDisc)
 		gmg:set_base_level(self.numPreRefs)
 		gmg:set_base_solver(baseSolver)
 		gmg:set_smoother(smoother)
@@ -855,6 +1072,10 @@ myProblem.LinearSolver = function (self,LinSolver_name,LinearConvCheck,precond_n
 	return LinearSolver
 end
 myProblem.CreateSolver = function (self, domainDisc, approxSpace)
+
+	self.domainDisc = domainDisc
+	self.approxSpace = approxSpace
+	local op = nil
 	
 	--------------
 	-- LineSearch
@@ -894,7 +1115,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	-----------------
 	-- Linear Solver
 	-----------------
-	print("Creatinf linear solver")
+	print("Creating linear solver")
 	local LinearSolverLim = self:LinearSolver("bicgStab",LinearConvCheckLim,self.precondLim)
 	local LinearSolverImp = self:LinearSolver("bicgStab",LinearConvCheckImp,"gmg")
 	
@@ -926,7 +1147,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 		NLSolver:set_linear_solver(LinearSolverLim)
 		NLSolver:set_convergence_check(LimexConvCheck)
 		NLSolver:auto_update(false)
-		limex = myProblem:LimexObject( domainDisc, NLSolver)
+		limex = self:LimexObject( domainDisc, NLSolver)
 	else
 		NLSolver:set_linear_solver(LinearSolverImp)
 		NLSolver:set_convergence_check(NewtonConvCheck)
@@ -936,7 +1157,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 		op = AssembledOperator(self.timeDisc)
 		op:init()
 		NLSolver:init(op)
-		if NLSolver:prepare(u) == false then
+		if NLSolver:prepare(self.u) == false then
 			print ("Newton solver prepare failed.") return op, NLSolver, NewtonSolverSteady, limex, 0
 		end
 	end
@@ -952,8 +1173,14 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	
 	TransientNewtonUpdater = nil
 	if (self.NewtonUpdater and self.timeMethod == "euler")then
+	
+		local projectionMask = GridFunction(approxSpace)
+		projectionMask:set(0.0)
+		Interpolate(1.0, projectionMask, "c")
+		
 		TransientNewtonUpdater = NewtonUpdaterProjection()
 		TransientNewtonUpdater:set_projection_fct(self.dim+1)
+		TransientNewtonUpdater:set_projection_mask(projectionMask)
 		TransientNewtonUpdater:set_max_threshold(1.1)
 		TransientNewtonUpdater:set_min_threshold(-1e-5)
 		NLSolver:setNewtonUpdater(TransientNewtonUpdater)
@@ -967,7 +1194,29 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	print("Solver Setting DONE")
 	return op, NLSolver, NewtonSolverSteady, limex
 end
+--------------------------------------------------------------------------------
+-- InitializeSolution
+--------------------------------------------------------------------------------
+myProblem.InitializeSolution = function(self, u, folder)
+    local time = 0.0
+    local step = 0
+    local time_work_total = 0.0
+    local interpolate = true
 
+    if self.boolLoadCheckPoint then
+        time, step, time_work_total, interpolate = self:LoadCheckPoint(u, folder)
+    end
+
+    if interpolate then
+        Interpolate(0.0, u, "u")
+        Interpolate(0.0, u, "v")
+        if self.dim == 3 then Interpolate(0.0, u, "w") end
+        Interpolate(0.0, u, "p")
+        Interpolate("SandInitialC", u, "c")
+    end
+
+    return time, step, time_work_total
+end
 
 --------------------------------------------------------------------------------
 -- OutputParameters
@@ -1101,6 +1350,16 @@ myProblem.WriteValues = function (self, folder, step, time, Value_inner1, Value_
 	end
 end
 
+--------------------------------------------------------------------------------
+-- Integrals
+--------------------------------------------------------------------------------
+myProblem.ComputeIntegrals = function(self, u, innerSubsets)
+    local field = self.NavierStokesDisc:volume_fraction()
+    local first = Integral(field, u, innerSubsets[1], 0.0)
+    local second = 0.0
+    if innerSubsets[2] then second = Integral(field, u, innerSubsets[2], 0.0) end
+    return first, second
+end
 
 --------------------------------------------------------------------------------
 -- SteadyState Solution

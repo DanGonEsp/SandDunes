@@ -157,7 +157,7 @@ params =
 	boolSlipDiff = util.GetParamBool("-boolSlipDiff", true),
 	boolSlipVel = util.GetParamBool("-boolSlipVel", false),
 	boolpress_jump= util.GetParamBool("-boolpress_jump", false),
-	boolNormal = util.GetParamBool("-boolNormal", false),
+	boolAveNormal = util.GetParamBool("-boolAveNormal", false),
 	boolFixVel = util.GetParamBool("-boolFixVel", false),
 	boolFixVol = util.GetParamBool("-boolFixVol", false),
 	boolMassTerm = util.GetParamBool("-boolMassTerm", true),
@@ -200,7 +200,7 @@ params =
 	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein, 4 Relax"),
 	density_model  = util.GetParam("-density_model", "linear", "constant, linear"),
 	drag_mod = util.GetParamNumber("-drag_model", 2, "Opt: 0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel"),
-	riemman = util.GetParamNumber("-riemman", 2, "Opt: 0 Upwind, 1 Godunov, 2 Rusanov, 3 Roe"),
+	riemman = util.GetParamNumber("-riemman", 1, "Opt: 0 Godunov, 1 Rusanov, 2 Roe"),
 	--Model 0 pow(0.63+4.8/sqrt(RE),2.0);
 
 	FR = 0.05,
@@ -498,6 +498,10 @@ myProblem.Diffusion:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 
 myProblem.KinMixViscosity:set_import_2(NavierStokesDisc:mix_viscosity())
 
+if (not(boolAveNormal)) then
+	myProblem.Normal:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
+end
+
 ---------------------------------------------------------------------------------------
 -- Global Discretization
 ---------------------------------------------------------------------------------------
@@ -576,7 +580,9 @@ else if params.boolSlipVel then
 		myProblem.SlipVel:update()
 	end
 end
-myProblem.Normal:update()
+if (boolAveNormal) then
+	myProblem.Normal:update()
+end
 
 ------------------------------------------------------------------------------------------
 -- Steady State Solution
@@ -593,7 +599,9 @@ if params.doSteadyState then
 	
 	NewtonSolverSteady:add_inner_step_update(myProblem.gamma)
 	NewtonSolverSteady:add_step_update(myProblem.RelVel)
-	NewtonSolverSteady:add_step_update(myProblem.Normal)
+	if (boolAveNormal) then
+		NewtonSolverSteady:add_step_update(myProblem.Normal)
+	end
 	if params.turbViscMethod=="no" then
 		NewtonSolverSteady:add_step_update(myProblem.KinTurbulentViscosity)
 	else
@@ -642,7 +650,9 @@ end
 
 
 NLSolver:add_step_update(myProblem.RelVel)
-NLSolver:add_step_update(myProblem.Normal)
+if (boolAveNormal) then
+	NLSolver:add_step_update(myProblem.Normal)
+end
 
 if params.timeMethod == "limex" then
 	NLSolver:add_step_update(myProblem.gamma)
@@ -653,7 +663,9 @@ if params.timeMethod == "limex" then
 	end
 else
 	NLSolver:add_inner_step_update(myProblem.gamma)
-	NLSolver:add_inner_step_update(myProblem.Normal)
+	if (boolAveNormal) then
+		NLSolver:add_inner_step_update(myProblem.Normal)
+	end
 	if params.boolSlipDiff then
 		NLSolver:add_inner_step_update(myProblem.SlipDiff)
 	elseif params.boolSlipVel then

@@ -13,10 +13,20 @@ ug_load_script("util/conv_rates_kinetic.lua")
 RequiredPlugins({"Limex", "NavierStokes"})
 
 local myProblem=require("SandDunesConfig")
+------------------------------------------------------------------------------------------
+-- Problem
+------------------------------------------------------------------------------------------
+
+local problem = util.GetParam("-problem", "avalanche", "flow or avalanche")
+local problemTag
+if problem == "flow" then problemTag = "MultiphaseFlow" else problemTag = "Avanche" end
+if problem ~= "flow" and problem ~= "avalanche" then error("Specify -problem flow or -problem avalanche") end
+local defaults = myProblem:GetCaseDefaults(problem)
 
 ------------------------------------------------------------------------------------------
 -- Split communicator
 ------------------------------------------------------------------------------------------
+
 local numProc         = util.GetParamNumber("-numProc", 1, "Number of temporal processes")
 local simCase	= util.GetParamNumber("-simCase", 1, "Simulation Case in Table in")-1
 local simCaseBnd	= util.GetParamNumber("-simCaseBnd", 1, "Simulation Case (Boundary Conditions)")
@@ -43,7 +53,9 @@ end
 -- Input parameter table
 ------------------------------------------------------------------------------------------
 local csvfile = require "simplecsv"
-local InValues, num_rows, num_cols = csvfile.read('./AvalancheTable_in.csv') -- read file csv1.txt to matrix m
+local inputTable
+if problem == "flow" then inputTable = "./FlowTable_in.csv" else inputTable = "./AvalancheTable_in.csv" end
+local InValues, num_rows, num_cols = csvfile.read(inputTable) -- read file csv1.txt to matrix m
 if( TemporalSize > num_rows-1) then print ("TemporalSize larger than rows in input parametrs."); exit(); end
 if( simCase+1 > num_rows-1) then print ("Simulation case larger than rows in input parametrs."); exit(); end
 
@@ -66,18 +78,20 @@ local fixedNum = string.format("%04d", simCase+1)
 ------------------------------------------------------------------------------------------
 params =
 {
+			-- Problem configuration
+	problem = problem,
+	simCase = simCase,
+	simCaseBnd = simCaseBnd,
+	
+	
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
 	dir_name = util.GetParam("-dir_name", ""),
 	file_name = util.GetParam("-file_name", "Solution"),
-	folder_name = util.GetParam("-folder_name", "Solution") .."_".. fixedNum .."_".. "Avanche".. simCaseBnd,
+	folder_name = util.GetParam("-folder_name", "Solution") .."_".. fixedNum .."_".. problemTag.. simCaseBnd,
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
-	numRefs     = util.GetParamNumber("-numRefs", 4, "number of grid refinements"),
-	numPreRefs     = util.GetParamNumber("-numPreRefs", 3, "number of prerefinements (parallel)"),
-	
-	simCase = simCase,
-	simCaseBnd = simCaseBnd,
-	
+	numRefs = util.GetParamNumber("-numRefs", defaults.numRefs, "number of grid refinements"),
+	numPreRefs = util.GetParamNumber("-numPreRefs", defaults.numPreRefs, "number of prerefinements (parallel)"),
 	
 	--Output Data
 	boolData = util.GetParamBool("-boolData", false),
@@ -101,8 +115,8 @@ params =
 	VelErrorNorm = util.GetParam("-VelErrorNorm","L2","Norm for Pressure error type H1 , L2"),
 	PressErrorNorm = util.GetParam("-limexNorm","H1","Norm for Pressure error type H1 , L2"),
 	VolErrorNorm = util.GetParam("-VolErrorNorm","L2","Norm for Pressure error type H1 , L2"),
-	alphaVel  = util.GetParamNumber("-alphaVel", 1.0e-15, "Error estimator scale factor for Velocity"),
-	alphaPress = util.GetParamNumber("-alphaPress", 0.5e-15, "Error estimator scale factor for Pressure"),
+	alphaVel = util.GetParamNumber("-alphaVel", defaults.alphaVel, "Error estimator scale factor for Velocity"),
+	alphaPress = util.GetParamNumber("-alphaPress", defaults.alphaPress, "Error estimator scale factor for Pressure"),
 	alphaVol = util.GetParamNumber("-alphaVol", 100, "Error estimator scale factor for Volume fraction"),
 	
 	incr_factor     = util.GetParamNumber("-incr_factor", 1.5),
@@ -133,9 +147,9 @@ params =
 	value_beta = util.GetParamNumber("-value_beta", 0.0 ),
 	--value_beta = util.GetParamNumber("-value_beta", -0.14 ),
 	LinAbsDefectImp = util.GetParamNumber("-LinAbsDefectImp", 1e-012),
-	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", 1e-05),
-	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", 1e-12),
-	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", 1e-12),
+	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", defaults.LinRedDefectImp),
+	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", defaults.LinAbsDefectLim),
+	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", defaults.LinRedDefectLim),
 	max_linear_steps_Lim=util.GetParamNumber("-max_linear_steps_lim", 1000),
 	max_linear_steps_Imp=util.GetParamNumber("-max_linear_steps_imp", 1000),
 	precondLim = util.GetParam("-precondLim","gmg","ilu,gmg"),
@@ -153,12 +167,12 @@ params =
 	boolRelativeVel = util.GetParamBool("-boolRelativeVel", true),
 	boolGradientPsSource = util.GetParamBool("-boolGradientPsSource", false),
 	boolViscPs = util.GetParamBool("-boolViscPs", true),
-	boolAveDiff = util.GetParamBool("-boolAveDiff", false),
-	boolSlipDiff = util.GetParamBool("-boolSlipDiff", false),
-	boolSlipVel = util.GetParamBool("-boolSlipVel", true),
+	boolAveDiff = util.GetParamBool("-boolAveDiff", defaults.boolAveDiff),
+	boolSlipDiff = util.GetParamBool("-boolSlipDiff", defaults.boolSlipDiff),
+	boolSlipVel = util.GetParamBool("-boolSlipVel", defaults.boolSlipVel),
 	boolpress_jump= util.GetParamBool("-boolpress_jump", false),
 	boolAveNormal = util.GetParamBool("-boolAveNormal", false),
-	boolFixVel = util.GetParamBool("-boolFixVel", true),
+	boolFixVel = util.GetParamBool("-boolFixVel", defaults.boolFixVel),
 	boolFixVol = util.GetParamBool("-boolFixVol", false),
 	boolMassTerm = util.GetParamBool("-boolMassTerm", true),
 	boolDensityMean = util.GetParamBool("-boolDensityMean", false),
@@ -196,7 +210,7 @@ params =
 	alpha_min        = util.GetParamNumber("-min alpha_min", 0.57, "max volume fraction"),
 	packing_factor   = util.GetParamNumber("-packing_factor", 0.6, "Packingfactor"),
 	grad_limit = util.GetParamNumber("-grad_limit", 0.05, "grad limit in Normal vector"),
-	slope_limit = util.GetParamNumber("-slope_limit", 5e-02, "regularization factor in slip and diff velocity"),
+	slope_limit = util.GetParamNumber("-slope_limit", 2e-02, "regularization factor in slip and diff velocity"),
 	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein, 4 Relax"),
 	density_model  = util.GetParam("-density_model", "linear", "constant, linear"),
 	drag_mod = util.GetParamNumber("-drag_model", 2, "Opt: 0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel"),
@@ -226,37 +240,15 @@ params.DTLimex = params.DT
 c_init = params.c_init
 params.interface_value  = params.alpha_min/params.packing_factor
 
-------------------------------------------------------------------------------------------
--- GridName
-------------------------------------------------------------------------------------------
-
--- Geometry parameters
-
-if not(params.elem_type == "tri" or params.elem_type == "quad") then
-	print ("---------------------------------------------------------------------------------------------  ERROR");
-	print ("---------------------------------------------------------------------------------------------  ERROR");
-	print ("Geometry not found for elemen type = " ..  params.elem_type); exit();
-end
-
-params.gridName	= util.GetParam ("-geom","Avalanche"..params.dim.."D_"..params.elem_type..".ugx")
-
 
 ------------------------------------------------------------------------------------------
--- Domain Subsets
+-- Geometry Parameters  - GridName -  Domain Subsets
 ------------------------------------------------------------------------------------------
 
--- Subsets used in the problem
-allSubsets = nil
-walls = nil
-if params.dim == 2 then
-	allSubsets = "Inner, Left, Right,Top, Bottom"
-	walls = "Left, Right,Top, Bottom"
-elseif params.dim == 3 then
-	allSubsets = "Inner, Left1, Left2, Right,Top, Bottom, Front1,Front2, Back1, Back2, Back3"
-	walls = "Left1, Left2, Right,Top, Bottom, Front1,Front2, Back1, Back2, Back3"
-end
-Inner_total={"Inner"}
-
+local geometry = myProblem:GetGeometry(params)
+local requestedGrid = util.GetParam("-geom", "")
+if requestedGrid ~= "" then geometry.gridName = requestedGrid end
+params.gridName = geometry.gridName
 
 
 --------------------------------------------------------------------------------
@@ -282,13 +274,11 @@ SynchronizeProcesses()
 InitUG (params.dim, AlgebraType("CPU", 1))
 
 
-
 ------------------------------------------------------------------------------------------
 -- LOG File
 ------------------------------------------------------------------------------------------
 
 myProblem:LogFiles(rank_t,folder_vtk .. "/LogFile")
-
 
 ------------------------------------------------------------------------------------------
 -- Printing Values
@@ -302,148 +292,13 @@ myProblem:PrintingSettings()
 -- load, refine and distribute the grid  (Approximation Space)
 ------------------------------------------------------------------------------------------
 
-	approxSpace,u = myProblem:ApproximationSpace(allSubsets)
-
+	approxSpace,u = myProblem:ApproximationSpace(geometry.allSubsets)
+	
 ------------------------------------------------------------------------------------------
 -- Lua Functions
 ------------------------------------------------------------------------------------------
 
-
----------------------------------------------------------------------- Initial Velocity
---[[function StartValueX(x,y)
-	hh=14.1856
-	nn=2.5
-	cc=math.pow(y/hh,5)
-	return params.inflow*(math.min(1.0, math.pow(y/hh,1/nn))*(1-cc) +(cc)* (2*hh - y) * (y ) / (hh * hh))
-end]]
-function LOGPROF(psi)
-	hh=14.1856
-	return params.inflow* (2*hh - psi) * (psi ) / (hh * hh)
-end
-
-function StartValueX3d(x,y,z)
-	return 0.0
-end
-function StartValueY3d(x,y,z)
-	return 0.0
-end
-function StartValueZ3d(x,y,z)
-	return 0.0
-end
-
-function StartValueX2d(x,y)
-	return 0.0
-end
-function StartValueY2d(x,y)
-	return 0.0
-end
-
-
----------------------------------------------------------------------- Initial Pressure
-Pstd=0.0
-function StartValueP2d(x,y)
-	return  0.0
-end
-function StartValueP3d(x,y,z)
-	return  0.0
-end
-
----------------------------------------------------------------------- Initial VolumeFraction
-
-
-
-function VolumeFraction_1_2d(x,y)
-	local a= 0.2
-	local b = 0.4
-	local c = 0.8
-	
-	local q = 1.5e-03
-	if (x>a and x<b) or (x>c) then
-		return q
-	else
-		return 0.0
-	end
-end
-function VolumeFraction_2_2d(x,y)
-	local a= 0.2
-	local b = 0.4
-	local c = 0.8
-	
-	local q = 1.5e-03
-	if (x>a and x<b) or (x>c) then
-		return q
-	else
-		return 0.0
-	end
-end
-function VolumeFraction_1_3d(x,y,z)
-	return 0.0
-end
-
-
----------------------------------------------------------------------- Boundary Condition
------------------------------------------------------------ Inlet
-
-function InflowVel2d(x, y, t)
-	return StartValueX2d(x,y),StartValueY2d(x,y)
-end
-function MassInflowVel2d(x, y, t)
-	local rho = 1.0--params.rho_a
-	return  rho * StartValueX2d(x,y), rho * StartValueY2d(x,y)
-end
-
-function InflowVel3d(x, y, z, t)
-	return StartValueX3d(x,y,z),StartValueY3d(x,y,z),StartValueZ3d(x,y,z)
-end
-function MassInflowVel3d(x, y, z, t)
-	local rho = 1.0--params.rho_a
-	return  rho * StartValueX3d(x,y,z), rho * StartValueY3d(x,y,z), rho * StartValueZ3d(x,y,z)
-end
-
-
------------------------------------------------------------ Top
-local q = -1e-05
-function TopFlux12d(x,y)
-	local a= 0.3
-	local b = 2
-	
-	if x>a and x<b then
-		return q
-	else
-		return 0.0
-	end
-end
-function TopFlux22d(x,y)
-	local a= 0.2
-	local b = 0.4
-	local c = 0.8
-	
-	if (x>a and x<b) or (x>c) then
-		return q
-	else
-		return 0.0
-	end
-end
-
-function TopFlux13d(x,y,z)
-	local a= -1
-	local b = 2
-	if x>a and x<b then
-		return q
-	else
-		return 0.0
-	end
-end
-function TopFlux23d(x,y,z)
-	local a= -1
-	local b = 2
-	if x>a and x<b then
-		return q
-	else
-		return 0.0
-	end
-end
-
+myProblem:RegisterCallbacks()
 
 -------------------------------------------------------------------------- Parameters List
 ------------------------------------------------------------------------------------------
@@ -459,7 +314,7 @@ InterfaceValues = myProblem:InterfaceParameters()
 ------------------------------------------------------------------------------------------
 
 
-myProblem:Clousures(approxSpace,u,walls)
+myProblem:Clousures(approxSpace,u,geometry.turbulenceZeroSubsets)
 
 
 ------------------------------------------------------------------------------------------
@@ -467,7 +322,7 @@ myProblem:Clousures(approxSpace,u,walls)
 ------------------------------------------------------------------------------------------
 
 
-NavierStokesDisc = myProblem:Discretization(Inner_total)
+NavierStokesDisc = myProblem:Discretization(geometry.innerSubsets)
 
 
 ------------------------------------------------------------------------------------------
@@ -475,92 +330,22 @@ NavierStokesDisc = myProblem:Discretization(Inner_total)
 ------------------------------------------------------------------------------------------
 
 
-InletDisc = NavierStokesInflowFV1M (NavierStokesDisc)
-if params.dim == 2 then
-	InletDisc:add ("InflowVel"..params.dim.."d", "InflowVel"..params.dim.."d","Left,Top,Right")
-elseif params.dim == 3 then
-	InletDisc:add ("InflowVel"..params.dim.."d", "InflowVel"..params.dim.."d",walls)
-	--InletDisc:add ("InflowVel3d", "InflowVel3d","Back,Front")
-end
-
-
-
--- boundary condition at the impermeable walls
-WallDisc = NavierStokesWall (NavierStokesDisc)
-WallDisc:add ("Bottom")
-
-local DirichletBnd = DirichletBoundary()
-local NeumannBnd = NeumannBoundaryFV1("c")
-NeumannBnd:add("TopFlux"..simCaseBnd..params.dim.."d","Top", "Inner")
-NeumannBnd:add(0.0,"Bottom","Inner")
-if params.dim == 2 then
-	if simCaseBnd == 1 then
-		DirichletBnd:add(0.0, "c", "Left")
-		NeumannBnd:add(0.0,"Right", "Inner")
-
-	elseif simCaseBnd == 2 then
-		DirichletBnd:add(0.0, "c", "Left")
-		DirichletBnd:add(0.0, "c", "Right")
-		
-	else
-		print ("simCaseBnd Not defined"); exit();
-	end
-elseif params.dim == 3 then
-
-	DirichletBnd:add(1.0, "c", "Bottom")
-	if simCaseBnd == 1 then
-		DirichletBnd:add(0.0, "c", "Left1,Left2,Front1,Front2,Right,Back1,Back2,Back3")
-
-	else
-		DirichletBnd:add(0.0, "c", "Left2,Front1,Front2,Right,Back1,Back2,Back3")
-		NeumannBnd:add(0.0,"Left1,Back1", "Inner")
-	end
-
-end
-
-
---flowBnd:add(0.0, "v", "Right")
---flowBnd:add(0.0, "p", "Right")
---flowBnd:add(ConstValue, "c", "Top")
---flowBnd:add(ConstValue, "c", "Left")
---flowBnd:add(1.0, "c", "Bottom")
+local boundaries = myProblem:CreateBoundaryConditions(NavierStokesDisc, geometry)
 
 
 ---------------------------------------------------------------------------------------
 -- Parameters Inputs
 ---------------------------------------------------------------------------------------
-if not(params.bStokes) then
-	myProblem.Density:set_volume_fraction(NavierStokesDisc:volume_fraction())
-end
 
-myProblem.Diffusion:set_velocity_gradient(NavierStokesDisc:velocity_grad())
-
---myProblem.DensityRelVel:set_viscosity(NavierStokesDisc:einstein_viscosity())
-
-myProblem.KinMixViscosity:set_import_2(NavierStokesDisc:mix_viscosity())
-
-if not(params.boolAveNormal) then
-	myProblem.Normal:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
-end
+myProblem:ConnectClosures(NavierStokesDisc)
 
 ---------------------------------------------------------------------------------------
 -- Global Discretization
 ---------------------------------------------------------------------------------------
 
--- the global discretization
-domainDisc = DomainDiscretization (approxSpace)
-domainDisc:add (NavierStokesDisc)
-domainDisc:add (InletDisc)
-domainDisc:add (WallDisc)
-domainDisc:add(DirichletBnd)
-domainDisc:add(NeumannBnd)
-
-
-
---domainDisc:add(TransportEq)
---domainDisc:add(OutflowBND)
-
-print("Domain Discretization: DONE")
+local domainDisc = DomainDiscretization(approxSpace)
+domainDisc:add(NavierStokesDisc)
+for _, boundary in ipairs(boundaries) do domainDisc:add(boundary) end
 
 ---------------------------------------------------------------------------------------
 -- Time Discretization
@@ -575,26 +360,8 @@ local timeDisc = myProblem:TimeDiscretization(domainDisc)
 -- Interpolate initial values
 ------------------------------------------------------------------------------------------
 print("Initializing Values")
--- start
-time = 0
-step = 0
-local time_work_total = 0.0
-local interpolate = true
-if(params.boolLoadCheckPoint) then
-	time, step, time_work_total, interpolate = myProblem:LoadCheckPoint(u,folder_vtk)
-end
 
-if interpolate then
-	--Interpolate(StartValueX, u, "u")
-	Interpolate(0.0, u, "u")
-	Interpolate("StartValueY"..params.dim.."d", u, "v")
-	if params.dim == 3 then
-		Interpolate("StartValueZ"..params.dim.."d", u, "v")
-	end
-	Interpolate("StartValueP"..params.dim.."d", u, "p")
-	Interpolate("VolumeFraction_"..simCaseBnd.."_"..params.dim.."d", u, "c")
-	print("Initial Conditions: Done")
-end
+local time, step, time_work_total = myProblem:InitializeSolution(u, folder_vtk)
 
 ------------------------------------------------------------------------------------------
 -- Set up the solver
@@ -614,7 +381,6 @@ out = myProblem:OutputParameters()
 
 
 
-
 myProblem.KinTurbulentViscosity:update()
 myProblem.gamma:update()
 myProblem.RelVel:update()
@@ -624,7 +390,7 @@ else if params.boolSlipVel then
 		myProblem.SlipVel:update()
 	end
 end
-if (params.boolAveNormal) then
+if params.boolAveNormal then
 	myProblem.Normal:update()
 end
 
@@ -643,7 +409,7 @@ if params.doSteadyState then
 	
 	NewtonSolverSteady:add_inner_step_update(myProblem.gamma)
 	NewtonSolverSteady:add_step_update(myProblem.RelVel)
-	if (params.boolAveNormal) then
+	if params.boolAveNormal then
 		NewtonSolverSteady:add_step_update(myProblem.Normal)
 	end
 	if params.turbViscMethod=="no" then
@@ -694,7 +460,7 @@ end
 
 
 NLSolver:add_step_update(myProblem.RelVel)
-if (params.boolAveNormal) then
+if (boolAveNormal) then
 	NLSolver:add_step_update(myProblem.Normal)
 end
 
@@ -707,7 +473,7 @@ if params.timeMethod == "limex" then
 	end
 else
 	NLSolver:add_inner_step_update(myProblem.gamma)
-	if (params.boolAveNormal) then
+	if (boolAveNormal) then
 		NLSolver:add_inner_step_update(myProblem.Normal)
 	end
 	if params.boolSlipDiff then
@@ -717,7 +483,7 @@ else
 	end
 	
 end
-	
+
 
 ------------------------------------------------------------------------------------------
 -- Printing Initial Conditions
@@ -728,7 +494,7 @@ if boolSolution == 1 then
 	if (step % params.outputFactor == 0 ) then
 		local vtkStep = math.floor(step / params.outputFactor)
 		print("Writing initial values")
-		out:print_subsets(vtk_file_name, u,allSubsets,vtkStep,time, true)
+		out:print_subsets(vtk_file_name, u,geometry.allSubsets,vtkStep,time, true)
 		print ("Output to file " .. vtk_file_name .. ".vtu  in time t =" .. time)
 		print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
 		print ("                                                            ")
@@ -737,8 +503,9 @@ if boolSolution == 1 then
 	
 	myProblem:SaveCheckPoint(u,folder_vtk)
 	if  (params.writeIntegral and step==0) then
-		Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
-		local Value_inner2 = 0.0
+	
+		local Value_inner1, Value_inner2 = myProblem:ComputeIntegrals(u, geometry.innerSubsets)
+		
 		if(rank == 0) then
 			myProblem:WriteValues( folder_vtk, step, time, Value_inner1, Value_inner2, time_work_steady, time_work_total, Newton_Steps, Newton_Steps_fail, linsolver_calls, linsolver_steps,false)
 		end
@@ -759,12 +526,11 @@ solTimeSeries:push(uOld, time)
 
 
 
-
-
 total_Newton_Steps = 0
 total_Newton_Steps_fail = 0
 total_linsolver_calls_step = 0
 total_linsolver_steps_step = 0
+tBefore = os.clock()
 
 --doo = true
 ------------------------------------------------------------------------------------------
@@ -794,7 +560,7 @@ if boolSolution == 1 then
 				fixer:add("c", "")
 				doo = false
 			end]]
-			Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step , boolSolution = myProblem:SolveNonlinearProblem( u, NLSolver, op, solTimeSeries, DT, step,StartTime,EndTime)
+			Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step , boolSolution = myProblem:SolveNonlinearProblem( u, NLSolver, op, solTimeSeries, params.DT, step,StartTime,EndTime)
 		end
 		time = EndTime
 		tAfter_step = os.clock()
@@ -804,7 +570,7 @@ if boolSolution == 1 then
 		
 			if (step % params.outputFactor == 0 ) then
 				local vtkStep = math.floor(step / params.outputFactor)
-				out:print_subsets(vtk_file_name, u,allSubsets,vtkStep,time)
+				out:print_subsets(vtk_file_name, u,geometry.allSubsets,vtkStep,time)
 				print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
 				print(" ")
 			end
@@ -832,23 +598,24 @@ if boolSolution == 1 then
 			total_Newton_Steps_fail = total_Newton_Steps_fail + Newton_Steps_fail
 			total_linsolver_calls_step = total_linsolver_calls_step + linsolver_calls_step
 			total_linsolver_steps_step = total_linsolver_steps_step + linsolver_steps_step
-			
 					
+
+			
 			
 			
 			if (params.writeIntegral) then
-				Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
-				Value_inner2 = 0.0
+			
+				local Value_inner1, Value_inner2 = myProblem:ComputeIntegrals(u, geometry.innerSubsets)
 				time_work_total = time_work_total + tAfter_step - tBefore_step
 				if(rank==0) then
 					myProblem:WriteValues( folder_vtk, step, time, Value_inner1, Value_inner2, tAfter_step - tBefore_step, time_work_total, Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step,false)
 				end
 			end
-			
+						
 		else
 			print("++++++ TIMESTEP " .. step .. "  FAILED ++++++")
 			local vtkStep = math.floor(step / params.outputFactor)
-			out:print_subsets(vtk_file_name, u,allSubsets,vtkStep,time)
+			out:print_subsets(vtk_file_name, u,geometry.allSubsets,vtkStep,time)
 			print ("Failed Output file" .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
 			print("++++++ TIMESTEP " .. step .. "  FAILED ++++++")
 			print(" ")
@@ -870,7 +637,7 @@ if boolSolution == 1 then
 	print("-------------------------------------------------------------------------------")
 	print("Steady state Computation took " .. time_work_steady .. " seconds.")
 	print("Temporal Computation took " .. time_work_total-time_work_steady .. " seconds.")
-	print("Total Computation took " .. time_work_steady .. " seconds.")
+	print("Total Computation took " .. time_work_total .. " seconds.")
 	print("-------------------------------------------------------------------------------")
 	print("")
 	print("")
@@ -879,8 +646,8 @@ if boolSolution == 1 then
 
 
 	if (params.writeIntegral) then
-		Value_inner1 = Integral(NavierStokesDisc:volume_fraction(), u,"Inner",0.0)
-		Value_inner2 = 0.0
+	
+		local Value_inner1, Value_inner2 = myProblem:ComputeIntegrals(u, geometry.innerSubsets)
 		if(rank == 0) then
 			myProblem:WriteValues( folder_vtk, params.numTimeSteps, time, Value_inner1, Value_inner2, time_work_total, time_work_total, total_Newton_Steps, total_Newton_Steps_fail, total_linsolver_calls_step, total_linsolver_steps_step,true)
 		end
@@ -890,7 +657,7 @@ end
 SynchronizeProcesses()
 if (params.NewtonDebug and rank == 0 and SpaceSize > 1) then
 
-	csvfile.MergeDebugPVD(params.debug_dir, params.file_name )
+	csvfile.MergeDebugPVD(myProblem.debug_dir, params.file_name)
 	print("NewtonDebug Done")
 	
 end
