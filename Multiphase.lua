@@ -17,7 +17,7 @@ local myProblem=require("SandDunesConfig")
 -- Problem
 ------------------------------------------------------------------------------------------
 
-local problem = util.GetParam("-problem", "avalanche", "flow or avalanche")
+local problem = util.GetParam("-problem", "flow", "flow or avalanche")
 local problemTag
 if problem == "flow" then problemTag = "MultiphaseFlow" else problemTag = "Avanche" end
 if problem ~= "flow" and problem ~= "avalanche" then error("Specify -problem flow or -problem avalanche") end
@@ -87,11 +87,12 @@ params =
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
 	dir_name = util.GetParam("-dir_name", ""),
-	file_name = util.GetParam("-file_name", "Solution"),
-	folder_name = util.GetParam("-folder_name", "Solution") .."_".. fixedNum .."_".. problemTag.. simCaseBnd,
+	file_name = util.GetParam("-file_name", defaults.Name),
+	folder_name = util.GetParam("-folder_name", defaults.Name) .."_".. fixedNum .."_".. problemTag.. simCaseBnd,
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
-	numRefs = util.GetParamNumber("-numRefs", defaults.numRefs, "number of grid refinements"),
-	numPreRefs = util.GetParamNumber("-numPreRefs", defaults.numPreRefs, "number of prerefinements (parallel)"),
+	numRefs = util.GetParamNumber("-numRefs",3, "number of grid refinements"),
+	numPreRefs = util.GetParamNumber("-numPreRefs", 2, "number of prerefinements (parallel)"),
+	algebraBlockSize = util.GetParamNumber("-algebraBlockSize", 1, "algebraBlockSize"),
 	
 	--Output Data
 	boolData = util.GetParamBool("-boolData", false),
@@ -103,7 +104,7 @@ params =
 	
 	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", false),
-	DT= util.GetParamNumber("-DT", 1000.0, "DT[seconds]"),
+	DT= util.GetParamNumber("-DT", 100.0, "DT[seconds]"),
 	DTmin= util.GetParamNumber("-DTmin", 1e-04, "min  DT"),
 	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 100, "time steps"),
 	
@@ -126,10 +127,10 @@ params =
 	maxConvRate = util.GetParamNumber("-maxConvRate", 0.9),
 	minConvRate = util.GetParamNumber("-minConvRate", 0.5),
 	
-	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 100),
+	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 50),
 	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 700),
-	SteadyAbsDefect = util.GetParamNumber("-AbsDefect", 1e-010),
-	SteadyRedDefect = util.GetParamNumber("-RedDefect", 1e-08),
+	SteadyAbsDefect = util.GetParamNumber("-AbsDefect", 1e-05),
+	SteadyRedDefect = util.GetParamNumber("-RedDefect", 1e-05),
 	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05),
 	RedDefect = util.GetParamNumber("-RedDefect", 1e-05),
 	NewtonDebug = util.GetParamBool("-NewtonDebug", false),
@@ -143,35 +144,37 @@ params =
 
 	------------------------------------------------------------------------------------- LINEAR SOLVER
 	damping_mg = util.GetParamNumber("-damping_mg", 1.0),
-	rap = util.GetParamBool("-rap", false),
-	value_beta = util.GetParamNumber("-value_beta", 0.0 ),
+	rap = util.GetParamBool("-rap", true),
+	value_beta = util.GetParamNumber("-value_beta", -0.0 ),
 	--value_beta = util.GetParamNumber("-value_beta", -0.14 ),
 	LinAbsDefectImp = util.GetParamNumber("-LinAbsDefectImp", 1e-012),
 	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", defaults.LinRedDefectImp),
 	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", defaults.LinAbsDefectLim),
 	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", defaults.LinRedDefectLim),
-	max_linear_steps_Lim=util.GetParamNumber("-max_linear_steps_lim", 1000),
-	max_linear_steps_Imp=util.GetParamNumber("-max_linear_steps_imp", 1000),
+	max_linear_steps_Lim=util.GetParamNumber("-max_linear_steps_lim", 100),
+	max_linear_steps_Imp=util.GetParamNumber("-max_linear_steps_imp", 400),
 	precondLim = util.GetParam("-precondLim","gmg","ilu,gmg"),
+	precondImp = util.GetParam("-precondImp","gmg","ilu,gmg"),
 	smoother = util.GetParam("-smoother","ilu","ilu,ilut"),
-	pre_smooth   = util.GetParamNumber("-pre_smooth", 3, "PreSmooth steps"),
-	post_smooth = util.GetParamNumber("-post_smooth", 3, "PostSmooth steps"),
+	pre_smooth   = util.GetParamNumber("-pre_smooth", defaults.pre_smooth, "PreSmooth steps"),
+	post_smooth = util.GetParamNumber("-post_smooth", defaults.post_smooth, "PostSmooth steps"),
 	eps_ilut = util.GetParamNumber("-eps_ilut", 1e-02),
 
 
 	
 			-- Physical phenomenon of simulation
-	doSteadyState = util.GetParamBool("-doSteadyState", false),
+	doSteadyState = util.GetParamBool("-doSteadyState", true),
 	boolSource = util.GetParamBool("-boolSource", false),
 	consistentRho_in_source = util.GetParamBool("-consistentRho_in_source", true),
 	boolRelativeVel = util.GetParamBool("-boolRelativeVel", true),
 	boolGradientPsSource = util.GetParamBool("-boolGradientPsSource", false),
 	boolViscPs = util.GetParamBool("-boolViscPs", true),
 	boolAveDiff = util.GetParamBool("-boolAveDiff", defaults.boolAveDiff),
+	boolSaltationFlux = util.GetParamBool("-boolSaltationFlux", false, "SaltationFlux"),
 	boolSlipDiff = util.GetParamBool("-boolSlipDiff", defaults.boolSlipDiff),
 	boolSlipVel = util.GetParamBool("-boolSlipVel", defaults.boolSlipVel),
 	boolpress_jump= util.GetParamBool("-boolpress_jump", false),
-	boolAveNormal = util.GetParamBool("-boolAveNormal", false),
+	boolAveNormal = util.GetParamBool("-boolAveNormal", true),
 	boolFixVel = util.GetParamBool("-boolFixVel", defaults.boolFixVel),
 	boolFixVol = util.GetParamBool("-boolFixVol", false),
 	boolMassTerm = util.GetParamBool("-boolMassTerm", true),
@@ -194,9 +197,9 @@ params =
 	div_correction = util.GetParamBool("-DivCorrection", false ,"Divergence correction for Newton's inner steps'"),
 	boolIPVelocity = util.GetParamBool("-boolIPVelocity", true),
 	boolTransportJac = util.GetParamBool("-boolTransportJac", true),
-	turbViscMethod = util.GetParam("-turbViscMethod","no","TurbVismodel type no , dyn or sma"),
+	turbViscMethod = util.GetParam("-turbViscMethod","sma","TurbVismodel type no , dyn or sma"),
 	modellconstant = util.GetParamNumber("-c",0.5),
-	update_turb = util.GetParamNumber("-update_turb", 5, "Update Turbulent Viscosity every .. ... iterations"),
+	
 
 	--Material Properties
 	nu_a     = util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity"),
@@ -235,7 +238,7 @@ params =
 params.startTime  = 0.0
 params.endTime    = params.DT * params.numTimeSteps
 params.DTmax = params.DT
-params.DTLimex = params.DT
+params.DTLimex = defaults.factor_dt*params.DT
 
 c_init = params.c_init
 params.interface_value  = params.alpha_min/params.packing_factor
@@ -270,8 +273,11 @@ SynchronizeProcesses()
 -- Initialize UG4
 ------------------------------------------------------------------------------------------
 
---InitUG (params.dim, AlgebraType("CPU", params.dim+2))
-InitUG (params.dim, AlgebraType("CPU", 1))
+if params.algebraBlockSize ~= 1 and params.algebraBlockSize ~= params.dim + 2 then
+    print("ERROR: algebraBlockSize must be 0 or " .. (params.dim + 2) .. ". Received: " .. tostring(params.algebraBlockSize))
+    exit()
+end
+InitUG (params.dim, AlgebraType("CPU", params.algebraBlockSize))
 
 
 ------------------------------------------------------------------------------------------
@@ -452,7 +458,7 @@ end
 -- Updating attachments
 ------------------------------------------------------------------------------------------
 
-if params.turbViscMethod=="no" then
+if params.turbViscMethod=="no" or params.timeMethod == "limex" then
 	NLSolver:add_step_update(myProblem.KinTurbulentViscosity)
 else
 	NLSolver:add_inner_step_update(myProblem.KinTurbulentViscosity)
@@ -460,6 +466,7 @@ end
 
 
 NLSolver:add_step_update(myProblem.RelVel)
+
 if (boolAveNormal) then
 	NLSolver:add_step_update(myProblem.Normal)
 end
@@ -471,9 +478,13 @@ if params.timeMethod == "limex" then
 	elseif params.boolSlipVel then
 		NLSolver:add_step_update(myProblem.SlipVel)
 	end
+	
+	if (params.boolAveNormal) then
+		NLSolver:add_step_update(myProblem.Normal)
+	end
 else
 	NLSolver:add_inner_step_update(myProblem.gamma)
-	if (boolAveNormal) then
+	if (params.boolAveNormal) then
 		NLSolver:add_inner_step_update(myProblem.Normal)
 	end
 	if params.boolSlipDiff then
@@ -481,7 +492,7 @@ else
 	elseif params.boolSlipVel then
 		NLSolver:add_inner_step_update(myProblem.SlipVel)
 	end
-	
+		
 end
 
 

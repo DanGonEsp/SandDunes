@@ -74,6 +74,7 @@ params =
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 4, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 3, "number of prerefinements (parallel)"),
+	algebraBlockSize = util.GetParamNumber("-algebraBlockSize", 1, "algebraBlockSize"),
 	
 	simCase = simCase,
 	simCaseBnd = simCaseBnd,
@@ -129,7 +130,7 @@ params =
 
 	------------------------------------------------------------------------------------- LINEAR SOLVER
 	damping_mg = util.GetParamNumber("-damping_mg", 1.0),
-	rap = util.GetParamBool("-rap", false),
+	rap = util.GetParamBool("-rap", true),
 	value_beta = util.GetParamNumber("-value_beta", 0.0 ),
 	--value_beta = util.GetParamNumber("-value_beta", -0.14 ),
 	LinAbsDefectImp = util.GetParamNumber("-LinAbsDefectImp", 1e-012),
@@ -278,8 +279,11 @@ SynchronizeProcesses()
 -- Initialize UG4
 ------------------------------------------------------------------------------------------
 
---InitUG (params.dim, AlgebraType("CPU", params.dim+2))
-InitUG (params.dim, AlgebraType("CPU", 1))
+if params.algebraBlockSize ~= 1 and params.algebraBlockSize ~= params.dim + 2 then
+    print("ERROR: algebraBlockSize must be 0 or " .. (params.dim + 2) .. ". Received: " .. tostring(params.algebraBlockSize))
+    exit()
+end
+InitUG (params.dim, AlgebraType("CPU", params.algebraBlockSize))
 
 
 

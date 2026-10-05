@@ -74,6 +74,7 @@ params =
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
 	numRefs     = util.GetParamNumber("-numRefs", 3, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)"),
+	algebraBlockSize = util.GetParamNumber("-algebraBlockSize", 1, "algebraBlockSize"),
 	
 	simCase = simCase,
 	simCaseBnd = simCaseBnd,
@@ -85,7 +86,7 @@ params =
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	writeIntegral = util.GetParamBool("-writeIntegral", true),
 	boolLoadCheckPoint = util.GetParamBool("-boolLoadCheckPoint", true),
-	boolSaveCheckPoint = util.GetParamBool("-boolSaveCheckPoint", false),
+	boolSaveCheckPoint = util.GetParamBool("-boolSaveCheckPoint", true),
 	
 	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", false),
@@ -130,7 +131,7 @@ params =
 	------------------------------------------------------------------------------------- LINEAR SOLVER
 	damping_mg = util.GetParamNumber("-damping_mg", 1.0),
 	rap = util.GetParamBool("-rap", false),
-	value_beta = util.GetParamNumber("-value_beta", 0.0 ),
+	value_beta = util.GetParamNumber("-value_beta", -0.1 ),
 	--value_beta = util.GetParamNumber("-value_beta", -0.14 ),
 	LinAbsDefectImp = util.GetParamNumber("-LinAbsDefectImp", 1e-012),
 	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", 1e-03),
@@ -147,7 +148,7 @@ params =
 
 	
 			-- Physical phenomenon of simulation
-	doSteadyState = util.GetParamBool("-doSteadyState", false),
+	doSteadyState = util.GetParamBool("-doSteadyState", true),
 	boolSource = util.GetParamBool("-boolSource", false),
 	consistentRho_in_source = util.GetParamBool("-consistentRho_in_source", true),
 	boolRelativeVel = util.GetParamBool("-boolRelativeVel", true),
@@ -182,7 +183,7 @@ params =
 	boolTransportJac = util.GetParamBool("-boolTransportJac", true),
 	turbViscMethod = util.GetParam("-turbViscMethod","no","TurbVismodel type no , dyn or sma"),
 	modellconstant = util.GetParamNumber("-c",0.5),
-	update_turb = util.GetParamNumber("-update_turb", 5, "Update Turbulent Viscosity every .. ... iterations"),
+
 
 	--Material Properties
 	nu_a     = util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity"),
@@ -190,7 +191,7 @@ params =
 	rho_s     = util.GetParamNumber("-rho_s", 2500, "Sand Density"),
 	dp     = util.GetParamNumber("-diameter", 1e-03, "Particle Diameter"),
 	nu_s     = util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity"),
-	c_init        = util.GetParamNumber("-c_init", 1.0, "max volume fraction"),
+	c_init        = util.GetParamNumber("-c_init", 0.0, "max volume fraction"),
 
 	alpha_max        = util.GetParamNumber("-alpha_max", 0.635, "max volume fraction"),
 	alpha_min        = util.GetParamNumber("-min alpha_min", 0.57, "max volume fraction"),
@@ -276,8 +277,11 @@ SynchronizeProcesses()
 -- Initialize UG4
 ------------------------------------------------------------------------------------------
 
---InitUG (params.dim, AlgebraType("CPU", params.dim+2))
-InitUG (params.dim, AlgebraType("CPU", 1))
+if params.algebraBlockSize ~= 1 and params.algebraBlockSize ~= params.dim + 2 then
+    print("ERROR: algebraBlockSize must be 0 or " .. (params.dim + 2) .. ". Received: " .. tostring(params.algebraBlockSize))
+    exit()
+end
+InitUG (params.dim, AlgebraType("CPU", params.algebraBlockSize))
 
 
 ------------------------------------------------------------------------------------------
@@ -312,15 +316,15 @@ myProblem:PrintingSettings()
 	cc=math.pow(y/hh,5)
 	return params.inflow*(math.min(1.0, math.pow(y/hh,1/nn))*(1-cc) +(cc)* (2*hh - y) * (y ) / (hh * hh))
 end]]
---[[function LOGPROF(psi)
+function LOGPROF(psi)
 	hh=14.1856
 	return params.inflow* (2*hh - psi) * (psi ) / (hh * hh)
-end]]
-function LOGPROF(psi)
+end
+--[[function LOGPROF(psi)
 	local H = 14.1856
 	local z0 = params.roughness_length
 	return params.inflow * math.log(1 + psi / z0) / math.log(1 + H / z0)
-end
+end]]
 
 function StartValueX3d(x,y,z)
 	return LOGPROF(z)

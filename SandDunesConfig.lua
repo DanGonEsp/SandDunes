@@ -18,6 +18,7 @@ myProblem.Init = function(self, o)
 	self.elem_type = o.elem_type
 	self.numRefs = o.numRefs
 	self.numPreRefs = o.numPreRefs
+	self.algebraBlockSize = o.algebraBlockSize
 	
 	self.timeMethod  = o.timeMethod
 	self.DT = o.DT
@@ -72,6 +73,7 @@ myProblem.Init = function(self, o)
 	self.RedDefect = o.RedDefect
 
 	self.precondLim = o.precondLim
+	self.precondImp = o.precondImp
 	self.LinAbsDefectImp = o.LinAbsDefectImp
 	self.LinRedDefectImp = o.LinRedDefectImp
 	self.LinAbsDefectLim = o.LinAbsDefectLim
@@ -97,6 +99,7 @@ myProblem.Init = function(self, o)
 	self.boolGradientPsSource = o.boolGradientPsSource
 	self.boolViscPs = o.boolViscPs
 	self.boolAveDiff = o.boolAveDiff
+	self.boolSaltationFlux = o.boolSaltationFlux
 	self.boolSlipDiff = o.boolSlipDiff
 	self.boolSlipVel = o.boolSlipVel
 	self.boolpress_jump = o.boolpress_jump
@@ -125,7 +128,6 @@ myProblem.Init = function(self, o)
 	self.boolTransportJac = o.boolTransportJac
 	self.turbViscMethod = o.turbViscMethod
 	self.modellconstant = o.modellconstant
-	self.update_turb = o.update_turb
 
 	
 	--Material Properties
@@ -178,6 +180,7 @@ end
 myProblem.GetCaseDefaults = function(self, problem)
     if problem == "flow" then
         return {
+        	Name = "Dune",
             numRefs = 3,
             numPreRefs = 1,
             alphaVel = 1.0,
@@ -189,9 +192,13 @@ myProblem.GetCaseDefaults = function(self, problem)
             boolSlipDiff = true,
             boolSlipVel = false,
             boolFixVel = false,
+			pre_smooth = 1,
+			post_smooth = 2,
+			factor_dt = 1e-04,
         }
     elseif problem == "avalanche" then
         return {
+			Name = "Solution",
             numRefs = 4,
             numPreRefs = 3,
             alphaVel = 1e-15,
@@ -203,6 +210,9 @@ myProblem.GetCaseDefaults = function(self, problem)
             boolSlipDiff = false,
             boolSlipVel = true,
             boolFixVel = true,
+			pre_smooth = 1,
+			post_smooth = 2,
+			factor_dt = 1,
         }
     end
 
@@ -251,12 +261,10 @@ myProblem.FileNames = function (self,rank,SpaceSize)
 
 	riemman_name = nil
 	if self.riemman == 0 then
-		riemman_name = "Upwind"
-	elseif self.riemman == 1 then
 		riemman_name = "Godunov"
-	elseif self.riemman == 2 then
+	elseif self.riemman == 1 then
 		riemman_name = "Rusanov"
-	elseif self.riemman == 3 then
+	elseif self.riemman == 2 then
 		riemman_name = "Roe"
 	else
 		print ("Numerical Flux Scheme for NonLinear Scalar conservation Law not defined"); exit();
@@ -408,6 +416,7 @@ myProblem.PrintingSettings = function (self)
 	-----------------------------------------------------------------------
 	print (" Sand Dune Dynamics     " .. os.date("%A, %B %d, %Y at %I:%M %p"))
 	print (" Geometry: " .. self.gridName ..", dim = " .. self.dim)
+	print("Algebra Block Size = " .. tostring(self.algebraBlockSize))
 	print (" Physical parameter:")
 	print ("	Table case		= " .. self.simCase + 1)
 	print ("	inflow			= " .. self.inflow)
@@ -420,6 +429,7 @@ myProblem.PrintingSettings = function (self)
 	print ("	Ps gradient     	= " .. tostring (self.boolGradientPsSource))
 	print ("	Ps in visc      	= " .. tostring (self.boolViscPs))
 	print ("	Diffusion       	= " .. tostring (self.boolAveDiff))
+	print ("	SaltationFLux       	= " .. tostring (self.boolSaltationFlux))
 	print ("	SlipDiff         	= " .. tostring (self.boolSlipDiff))
 	print ("	SlipVel         	= " .. tostring (self.boolSlipVel))
 	print ("	MassMean         	= " .. tostring (self.boolDensityMean))
@@ -452,7 +462,8 @@ myProblem.PrintingSettings = function (self)
 	print ("	RedDefLim		= " .. self.LinRedDefectLim)
 	print ("	MaxStepsLim		= " .. tostring (self.max_linear_steps_Lim))
 	print ("	MaxStepsImp		= " .. tostring (self.max_linear_steps_Imp))
-	print ("	Preconditioner		= " .. tostring (self.precondLim))
+	print ("	PreconditionerLim		= " .. tostring (self.precondLim))
+	print ("	PreconditionerImp		= " .. tostring (self.precondImp))
 	print ("	Smoother		= " .. tostring (self.smoother))
 	print ("	Pre Smooth		= " .. tostring (self.pre_smooth))
 	print ("	Post Smooth		= " .. tostring (self.post_smooth))
@@ -512,7 +523,7 @@ myProblem.ApproximationSpace = function (self,allSubsets)
 	approxSpace:init_top_surface()
 	approxSpace:print_statistic()
 
-	OrderLex (approxSpace, "y")
+	OrderLex (approxSpace, "x")
 	--OrderCuthillMcKee(approxSpace,true)
 
 	util.solver.defaults.approxSpace = approxSpace
@@ -584,13 +595,15 @@ myProblem.RegisterCallbacks = function(self)
     end
 
     local function inletSpeed(height)
+		hh=14.1856
         if self.problem == "avalanche" then return 0.0 end
-        return self.inflow * math.log(1 + height / self.roughness_length) / math.log(1 + 14.1856 / self.roughness_length)
+        --return self.inflow * math.log(1 + height / self.roughness_length) / math.log(1 + hh / self.roughness_length)
+		return self.inflow* (2*hh - height) * (height ) / (hh * hh)
     end
 
     local function initialC2d(x, y)
         if self.problem == "flow" then
-            local dx = math.abs((x - 20.0) / 3.0)
+            local dx = math.abs((x - 20.0) / 6.0)
             local height = self.H_0 * math.exp(-(dx^4)) - 0.01
             if y > height then return 0.0 end
             return self.c_init
@@ -762,6 +775,17 @@ myProblem.Clousures = function (self,approxSpace,u,walls)
 	
 	self.Normal = Normal
 	
+	
+	---------------------------------------------------------------------- SaltationFlux
+	local SaltFlux = SaltationFluxLinker2d()
+	SaltFlux:set_phase_parameters(InterfaceValues)
+	SaltFlux:set_saltation_coefficient(5.5)
+	SaltFlux:set_threshold_friction_velocity(0.22)
+	SaltFlux:set_normal_epsilon(1e-8)
+	SaltFlux:set_delta_epsilon(1e-8)
+
+	self.SaltFlux = SaltFlux
+	
 	---------------------------------------------------------------------- Vel-Diffusion (Avalanching)
 	
 	
@@ -805,6 +829,9 @@ myProblem.ConnectClosures = function(self, NavierStokesDisc)
     self.Diffusion:set_velocity_gradient(NavierStokesDisc:velocity_grad())
     self.KinMixViscosity:set_import_2(NavierStokesDisc:mix_viscosity())
     if not self.boolAveNormal then self.Normal:set_volume_grad(NavierStokesDisc:volume_fraction_grad()) end
+    
+	self.SaltFlux:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
+	self.SaltFlux:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 end
 --------------------------------------------------------------------------------
 -- Discretization
@@ -824,9 +851,15 @@ myProblem.Discretization = function (self,Inner_total)
 	NavierStokesDisc:set_transport_jac(self.boolTransportJac)
 	NavierStokesDisc:set_mass_term(self.boolMassTerm)
 	NavierStokesDisc:set_mass_mean(self.boolDensityMean)
-
-
+	
+	
 	NavierStokesDisc:set_density(self.Density,true)
+	NavierStokesDisc:set_kinematic_viscosity (self.EfectiveKinViscosity)
+	NavierStokesDisc:set_average_gamma(self.gamma)
+	if self.boolSaltationFlux then
+		NavierStokesDisc:set_saltation_flux(self.SaltFlux)
+	end
+	
 	--[[if self.timeMethod == "limex" and self.boolMassTerm and not(self.bStokes) then
 		NavierStokesDisc:set_limex_correction(false)
 	end]]
@@ -850,10 +883,7 @@ myProblem.Discretization = function (self,Inner_total)
 	if(self.boolpress_jump) then
 		NavierStokesDisc:set_pressure_jump ( self.diffLength)
 	end
-
-	NavierStokesDisc:set_kinematic_viscosity (self.EfectiveKinViscosity)
-
-	NavierStokesDisc:set_average_gamma(self.gamma)
+	
 	NavierStokesDisc:set_phase_parameters(self.InterfaceValues)
 	
 	print("Space Discretization DONE")
@@ -980,12 +1010,12 @@ myProblem.Smoother = function (self,smoother_name)
 		local ilu = ILU()
 		ilu:set_beta(self.value_beta)
 		ilu:set_damp(self.damping_mg)
-		--ilu:set_ordering_algorithm(TopologicalOrdering())
-		--ilu:set_sort(true)
+		ilu:set_ordering_algorithm(TopologicalOrdering())
+		ilu:set_sort(true)
 		--ilu:set_sort_eps(1.e-50)
-		--ilu:set_inversion_eps(1.e-8)
-		ilu:enable_consistent_interfaces(false)
-		ilu:enable_overlap(true)
+		ilu:set_inversion_eps(1.e-12)
+		ilu:enable_consistent_interfaces(true)
+		ilu:enable_overlap(false)
 		smoother = ilu
 	elseif smoother_name == "jac" then
 		local jac = Jacobi (0.7);
@@ -1052,7 +1082,7 @@ myProblem.LinearSolver = function (self,LinSolver_name,LinearConvCheck,precond_n
 
 	if LinSolver_name == "gmres" then
 		-- create Linear Solver
-		LinearSolver = GMRES(20)
+		LinearSolver = GMRES(50)
 		LinearSolver:set_preconditioner(preconditioner)
 	elseif LinSolver_name == "bicgStab" then
 		LinearSolver = BiCGStab()
@@ -1103,8 +1133,23 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	----------------------
 	-- NoLinear COnvCheck
 	----------------------
-	local NewtonSteadyConvCheck=ConvCheck(self.max_newton_steps_steady_state, self.SteadyAbsDefect, self.SteadyRedDefect, true)
-	local NewtonConvCheck=ConvCheck(self.max_newton_steps_transient, self.AbsDefect, self.RedDefect, true)
+	
+	local NewtonSteadyConvCheck = CompositeConvCheck(approxSpace)
+	NewtonSteadyConvCheck:set_maximum_steps(self.max_newton_steps_steady_state)
+	NewtonSteadyConvCheck:set_group_check({"u", "v"}, self.SteadyAbsDefect, self.SteadyRedDefect)
+	NewtonSteadyConvCheck:set_component_check("p", self.SteadyAbsDefect, self.SteadyRedDefect)
+	NewtonSteadyConvCheck:set_component_check("c", self.SteadyAbsDefect, self.SteadyRedDefect)
+	NewtonSteadyConvCheck:disable_rest_check()
+	NewtonSteadyConvCheck:set_verbose(true)
+	
+	local NewtonConvCheck = CompositeConvCheck(approxSpace)
+	NewtonConvCheck:set_maximum_steps(self.max_newton_steps_transient)
+	NewtonConvCheck:set_group_check({"u", "v"}, self.AbsDefect, self.RedDefect)
+	NewtonConvCheck:set_component_check("p", self.AbsDefect, self.RedDefect)
+	NewtonConvCheck:set_component_check("c", self.AbsDefect, self.RedDefect)
+	NewtonConvCheck:disable_rest_check()
+	NewtonConvCheck:set_verbose(true)
+	
 	local LinearConvCheckImp=ConvCheck(self.max_linear_steps_Imp, self.LinAbsDefectImp, self.LinRedDefectImp, true)
 	local LinearConvCheckLim=ConvCheck(self.max_linear_steps_Lim, self.LinAbsDefectLim, self.LinRedDefectLim, true)
 	local LimexConvCheck=ConvCheck(1, 1e-12, 1e-12, true)
@@ -1117,7 +1162,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	-----------------
 	print("Creating linear solver")
 	local LinearSolverLim = self:LinearSolver("bicgStab",LinearConvCheckLim,self.precondLim)
-	local LinearSolverImp = self:LinearSolver("bicgStab",LinearConvCheckImp,"gmg")
+	local LinearSolverImp = self:LinearSolver("bicgStab",LinearConvCheckImp,self.precondImp)
 	
 
 	
@@ -1174,15 +1219,16 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	TransientNewtonUpdater = nil
 	if (self.NewtonUpdater and self.timeMethod == "euler")then
 	
-		local projectionMask = GridFunction(approxSpace)
-		projectionMask:set(0.0)
-		Interpolate(1.0, projectionMask, "c")
-		
 		TransientNewtonUpdater = NewtonUpdaterProjection()
 		TransientNewtonUpdater:set_projection_fct(self.dim+1)
-		TransientNewtonUpdater:set_projection_mask(projectionMask)
 		TransientNewtonUpdater:set_max_threshold(1.1)
 		TransientNewtonUpdater:set_min_threshold(-1e-5)
+		if self.algebraBlockSize == 1 then
+			local projectionMask = GridFunction(approxSpace)
+			projectionMask:set(0.0)
+			Interpolate(1.0, projectionMask, "c")
+			TransientNewtonUpdater:set_projection_mask(projectionMask)
+		end
 		NLSolver:setNewtonUpdater(TransientNewtonUpdater)
 	end
 	
@@ -1208,7 +1254,7 @@ myProblem.InitializeSolution = function(self, u, folder)
     end
 
     if interpolate then
-        Interpolate(0.0, u, "u")
+        Interpolate(0.001, u, "u")
         Interpolate(0.0, u, "v")
         if self.dim == 3 then Interpolate(0.0, u, "w") end
         Interpolate(0.0, u, "p")
@@ -1250,7 +1296,7 @@ myProblem.OutputParameters = function (self)
 	out:select(self.NavierStokesDisc:velocity_grad(), "Gamma")
 	out:select(self.gamma, "MeanGamma")
 	if (self.boolSlipDiff) then
-		out:select_element(self.SlipDiff, "SDiff")
+		out:select_element(self.SlipDiff, "SlipDiff")
 	else
 		if self.boolSlipVel then
 			out:select_element(self.SlipVel, "SVel")
@@ -1258,6 +1304,7 @@ myProblem.OutputParameters = function (self)
 	end
 	out:select_element(self.Diffusion, "D")
 	out:select_element(self.Normal, "n")
+	out:select_element(self.SaltFlux,"SaltFlux" )
 
 	print("Output file setting DONE")
 	return out
