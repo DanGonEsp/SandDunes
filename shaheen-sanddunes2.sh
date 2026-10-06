@@ -1,16 +1,16 @@
 #!/bin/bash -l
 
-#SBATCH --job-name=Avalanche2
+#SBATCH --job-name=MultiphaseFlow
 #SBATCH --partition=workq
 #SBATCH --account=k10105
 #SBATCH --nodes=1
-#SBATCH --ntasks=128
-#SBATCH --ntasks-per-node=128
+#SBATCH --ntasks=16
+#SBATCH --ntasks-per-node=16
 #SBATCH --cpus-per-task=1
 #SBATCH --hint=nomultithread
 #SBATCH --time=24:00:00
-#SBATCH --output=/scratch/gonzald/SandDunes/AvalancheGlobal2-%j.out
-#SBATCH --error=/scratch/gonzald/SandDunes/AvalancheGlobal2-%j.err
+#SBATCH --output=/scratch/gonzald/SandDunes/MultiphaseFlow-%j.out
+#SBATCH --error=/scratch/gonzald/SandDunes/MultiphaseFlow-%j.err
 #SBATCH --mail-user=daniel.gonzalezesparza@kaust.edu.sa
 #SBATCH --mail-type=ALL
 
@@ -29,18 +29,14 @@ APPDIR=/project/k10105/gonzald/SandDunes/Files
 cd "${APPDIR}" || exit 1
 
 ARGS=(
-    -ex Avalanche.lua
-    -file_name SolutionILUT
-    -folder_name SolutionILUT
+    -ex Multiphase.lua
     -dir_name "${WORKDIR}"
-    -boolData false  #Always false#
     -dim 2
-    -simCaseBnd 1
     -timeMethod limex
-    -numRefs 5
-    -numPreRefs 4
+    -numRefs 3
+    -numPreRefs 1
     -numTimeSteps 100
-    -DT 1000.0
+    -DT 100.0
 )
 
 
@@ -60,7 +56,7 @@ srun --exclusive --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomul
 # One simulation at a time, using all 128 spatial ranks
 # ============================================================
 
-srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}"
+#srun --exclusive --ntasks=128 --ntasks-per-node=128 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}"
 
 echo "=============================================="
 echo "All Avalanche simulations finished."
