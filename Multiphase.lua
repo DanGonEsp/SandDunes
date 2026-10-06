@@ -106,6 +106,7 @@ params =
 	modifyDT     = util.GetParamBool("-modifyDT", false),
 	DT= util.GetParamNumber("-DT", 100.0, "DT[seconds]"),
 	DTmin= util.GetParamNumber("-DTmin", 1e-04, "min  DT"),
+	DTLimex=util.GetParamNumber("-DTLimex", defaults.DTLimex, "Initital DT limex"),
 	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 100, "time steps"),
 	
 	
@@ -238,7 +239,6 @@ params =
 params.startTime  = 0.0
 params.endTime    = params.DT * params.numTimeSteps
 params.DTmax = params.DT
-params.DTLimex = defaults.factor_dt*params.DT
 
 c_init = params.c_init
 params.interface_value  = params.alpha_min/params.packing_factor

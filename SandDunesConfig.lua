@@ -194,7 +194,7 @@ myProblem.GetCaseDefaults = function(self, problem)
             boolFixVel = false,
 			pre_smooth = 1,
 			post_smooth = 2,
-			factor_dt = 1e-04,
+			DTLimex=1e-07,
         }
     elseif problem == "avalanche" then
         return {
@@ -212,7 +212,7 @@ myProblem.GetCaseDefaults = function(self, problem)
             boolFixVel = true,
 			pre_smooth = 1,
 			post_smooth = 2,
-			factor_dt = 1,
+			DTLimex=1e-03,
         }
     end
 
