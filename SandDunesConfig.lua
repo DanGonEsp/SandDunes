@@ -184,7 +184,7 @@ myProblem.GetCaseDefaults = function(self, problem)
             numRefs = 3,
             numPreRefs = 1,
             alphaVel = 1.0,
-            alphaPress = 0.5e-10,
+            alphaPress = 0.5e-12,
             LinRedDefectImp = 1e-3,
             LinAbsDefectLim = 1e-5,
             LinRedDefectLim = 1e-5,
@@ -1762,7 +1762,7 @@ end
 myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, time_step, StartTime, EndTime, NewtonLimexSteps)
 	
 	if(time_step == 1) then
-		limex:set_dt_min(1e-06)
+		limex:set_dt_min(1e-010)
 	end
 	limex:set_start_step(1)
 	limex:apply(u, EndTime, u, StartTime)
