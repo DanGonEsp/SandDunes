@@ -184,7 +184,7 @@ myProblem.GetCaseDefaults = function(self, problem)
             numRefs = 3,
             numPreRefs = 1,
             alphaVel = 1.0,
-            alphaPress = 0.5e-12,
+            alphaPress = 1e-12,
             LinRedDefectImp = 1e-3,
             LinAbsDefectLim = 1e-5,
             LinRedDefectLim = 1e-5,
@@ -849,8 +849,8 @@ myProblem.Discretization = function (self,Inner_total)
 	NavierStokesDisc:set_div_correction (self.div_correction)
 	NavierStokesDisc:set_transport_ip_velocity(self.boolIPVelocity)
 	NavierStokesDisc:set_transport_jac(self.boolTransportJac)
-	NavierStokesDisc:set_mass_term(self.boolMassTerm)
 	NavierStokesDisc:set_mass_mean(self.boolDensityMean)
+	NavierStokesDisc:set_mass_term(self.boolMassTerm)
 	
 	
 	NavierStokesDisc:set_density(self.Density,true)
@@ -1153,7 +1153,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	local LinearConvCheckImp=ConvCheck(self.max_linear_steps_Imp, self.LinAbsDefectImp, self.LinRedDefectImp, true)
 	local LinearConvCheckLim=ConvCheck(self.max_linear_steps_Lim, self.LinAbsDefectLim, self.LinRedDefectLim, true)
 	local LimexConvCheck=ConvCheck(1, 1e-12, 1e-12, true)
-	      LimexConvCheck:set_supress_unsuccessful(true)
+	LimexConvCheck:set_supress_unsuccessful(true)
 	
 
 	
