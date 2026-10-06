@@ -128,7 +128,7 @@ params =
 	maxConvRate = util.GetParamNumber("-maxConvRate", 0.9),
 	minConvRate = util.GetParamNumber("-minConvRate", 0.5),
 	
-	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 50),
+	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 200),
 	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 700),
 	SteadyAbsDefect = util.GetParamNumber("-AbsDefect", 1e-05),
 	SteadyRedDefect = util.GetParamNumber("-RedDefect", 1e-05),
@@ -410,7 +410,7 @@ local time_work_steady=0.0
 local linsolver_calls = 0
 local linsolver_steps = 0
 
-if params.doSteadyState then
+if params.doSteadyState and step == 0 then
 	-- Steady state solution.
 	
 	NewtonSolverSteady:add_inner_step_update(myProblem.gamma)

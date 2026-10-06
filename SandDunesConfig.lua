@@ -853,16 +853,18 @@ myProblem.Discretization = function (self,Inner_total)
 	NavierStokesDisc:set_mass_term(self.boolMassTerm)
 	
 	
-	NavierStokesDisc:set_density(self.Density,true)
 	NavierStokesDisc:set_kinematic_viscosity (self.EfectiveKinViscosity)
 	NavierStokesDisc:set_average_gamma(self.gamma)
 	if self.boolSaltationFlux then
 		NavierStokesDisc:set_saltation_flux(self.SaltFlux)
 	end
 	
-	--[[if self.timeMethod == "limex" and self.boolMassTerm and not(self.bStokes) then
-		NavierStokesDisc:set_limex_correction(false)
-	end]]
+	if self.timeMethod == "limex" and self.boolMassTerm and not(self.bStokes) then
+		NavierStokesDisc:set_density(self.Density,false)
+		NavierStokesDisc:set_limex_correction(true)
+	else
+		NavierStokesDisc:set_density(self.Density,true)
+	end
 
 		
 	if self.boolRelativeVel then
