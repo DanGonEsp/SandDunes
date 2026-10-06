@@ -49,7 +49,7 @@ ARGS=(
 # One simulation at a time, using 64 spatial ranks
 # ============================================================
 
-srun --exclusive --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}"
+srun --exclusive --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores "${UGSHELL}" "${ARGS[@]}"
 
 # ============================================================
 # 128 MPI ranks
