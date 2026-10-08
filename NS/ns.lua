@@ -61,7 +61,7 @@ params =
 	numRefs     = util.GetParamNumber("-numRefs", 3, "number of grid refinements"),
 	numPreRefs     = util.GetParamNumber("-numPreRefs", 1, "number of prerefinements (parallel)"),
 	startTime  = util.GetParamNumber("-start", 0.0, "start time"),
-	endTime    = util.GetParamNumber("-end", 0.1, "end time"),
+	endTime    = util.GetParamNumber("-end", 10, "end time"),
 	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 10, "time steps"),
 	DTmin= util.GetParamNumber("-DTmin", 1e-05, "min  DT"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
@@ -81,7 +81,7 @@ params =
 	limex_debug_level = util.GetParamNumber("-limex-debug-level", 5, "limex debug level (integer)"),
 	
 	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 100),
-	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 100),
+	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 300),
 	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-07),
 	RedDefect = util.GetParamNumber("-RedDefect", 1e-08),
 	NewtonDebug = util.GetParamBool("-NewtonDebug", false),
@@ -131,7 +131,7 @@ params =
 	div_correction = util.GetParamBool("-DivCorrection", false ,"Divergence correction for Newton's inner steps'"),
 	boolIPVelocity = util.GetParamBool("-boolIPVelocity", false),
 	boolTransportJac = util.GetParamBool("-boolTransportJac", false),
-	turbViscMethod = util.GetParam("-turbViscMethod","sma","TurbVismodel type no , dyn or sma"),
+	turbViscMethod = util.GetParam("-turbViscMethod","komega","TurbVismodel type no , komega, dyn or sma"),
 	modellconstant = util.GetParamNumber("-c",0.5),
 
 	--Material Properties
@@ -778,12 +778,12 @@ TurbulenceDisc = RANSTurbulenceFV1({"k", "omega"}, Inner_total)
 TurbulenceDisc:set_velocity(NavierStokesDisc:velocity_ip())
 TurbulenceDisc:set_upwind("full")
 TurbulenceDisc:set_velocity_gradient(NavierStokesDisc:velocity_grad())
-TurbulenceDisc:set_wall_distance(wallDistance1)
+TurbulenceDisc:set_wall_distance("WallDistance")
 TurbulenceDisc:set_kinematic_viscosity(params.nu_a)
 
 TurbulenceDisc:set_linearize_turbulent_viscosity(true)
-TurbulenceDisc:set_linearize_f2(true)
 TurbulenceDisc:set_linearize_destruction_coupling(true)
+TurbulenceDisc:set_linearize_f2(true)
 TurbulenceDisc:set_cross_diffusion_linearization(0)
 
 TurbulenceDisc:set_linearize_exported_viscosity(false)
