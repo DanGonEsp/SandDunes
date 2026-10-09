@@ -131,7 +131,7 @@ params =
 	div_correction = util.GetParamBool("-DivCorrection", false ,"Divergence correction for Newton's inner steps'"),
 	boolIPVelocity = util.GetParamBool("-boolIPVelocity", false),
 	boolTransportJac = util.GetParamBool("-boolTransportJac", false),
-	turbViscMethod = util.GetParam("-turbViscMethod","komega","TurbVismodel type no , komega, dyn or sma"),
+	turbViscMethod = util.GetParam("-turbViscMethod","komegaSST","TurbVismodel type no , komegaSST, dyn or sma"),
 	modellconstant = util.GetParamNumber("-c",0.5),
 
 	--Material Properties
@@ -565,8 +565,8 @@ Density = GranularDensityLinker();
 Density:set_model(params.density_model)
 Density:set_phase_parameters(InterfaceValues)
 
-
 ---------------------------------------------------------------------- Viscosity
+TurbulenceDisc = RANSTurbulenceFV1({"k", "omega"}, Inner_total)
 
 Inverse_RHO = InverseLinker();
 Inverse_RHO:divide(1.0,Density);
@@ -576,15 +576,22 @@ KinMixViscosity:set_import_1(Inverse_RHO)
 
 
 EfectiveKinViscosity = nil
-
-if params.turbViscMethod=="dyn" then
-	KinTurbulentViscosity = FV1DynamicTurbViscData(approxSpace,u)
+KinTurbulentViscosity = nil
+if params.turbViscMethod=="no" then
+	KinTurbulentViscosity = 0.0
+elseif params.turbViscMethod=="dyn" or params.turbViscMethod=="sma" then
+	if params.turbViscMethod == "dyn" then
+		KinTurbulentViscosity = FV1DynamicTurbViscData(approxSpace,u)
+	else
+		KinTurbulentViscosity = FV1SmagorinskyTurbViscData(approxSpace,u,params.modellconstant)
+	end
+	KinTurbulentViscosity:set_turbulence_zero_bnd("Inlet,LowerWall,UpperWall,CylinderWall,Outlet")
+	KinTurbulentViscosity:set_kinematic_viscosity(params.nu_a)
 	
-else
-	KinTurbulentViscosity = FV1SmagorinskyTurbViscData(approxSpace,u,params.modellconstant)
- end
-KinTurbulentViscosity:set_turbulence_zero_bnd("Inlet,LowerWall,UpperWall,CylinderWall,Outlet")
-KinTurbulentViscosity:set_kinematic_viscosity(params.nu_a)
+elseif params.turbViscMethod=="komegaSST" then
+	KinTurbulentViscosity = TurbulenceDisc:turbulent_kinematic_viscosity() + params.nu_a
+end
+
 
 TurbulentViscosity = ScaleLinker();
 TurbulentViscosity:set_import_1(params.rho_a)
@@ -600,7 +607,6 @@ end
 MixViscosity = ScaleLinker();
 MixViscosity:set_import_1(params.rho_a)
 MixViscosity:set_import_2(EfectiveKinViscosity)
-
 ---------------------------------------------------------------------- Pjump
 
 Source = GranularSourceLinker()
@@ -667,7 +673,7 @@ end
 --PressureGradientMean:set_phase_parameters(InterfaceValues)
 
 ------------------------------------------------------------------------------------------
--- Compose the discretization
+-- Compose the discretization NS
 ------------------------------------------------------------------------------------------
 
 NavierStokesDisc = NavierStokesFV1M (fct_cmp_tbl, Inner_total)
@@ -739,6 +745,10 @@ flowBnd:add(0.0, "c", "Inlet")
 -- inner space
 -- inner space
 
+------------------------------------------------------------------------------------------
+-- Compose the discretization TUrbulence Model
+------------------------------------------------------------------------------------------
+
 local cylinderX = 0.5
 local cylinderY = -0.005
 local cylinderRadius = 0.05
@@ -774,7 +784,6 @@ function InletOmega(x, y)
     return math.sqrt(k) / (Cmu^0.25 * turbulenceLength)
 end
 
-TurbulenceDisc = RANSTurbulenceFV1({"k", "omega"}, Inner_total)
 TurbulenceDisc:set_velocity(NavierStokesDisc:velocity_ip())
 TurbulenceDisc:set_upwind("full")
 TurbulenceDisc:set_velocity_gradient(NavierStokesDisc:velocity_grad())
@@ -785,12 +794,8 @@ TurbulenceDisc:set_linearize_turbulent_viscosity(true)
 TurbulenceDisc:set_linearize_destruction_coupling(true)
 TurbulenceDisc:set_linearize_f2(true)
 TurbulenceDisc:set_cross_diffusion_linearization(0)
-
 TurbulenceDisc:set_linearize_exported_viscosity(false)
 
-
-nuT = TurbulenceDisc:turbulent_kinematic_viscosity()
-nuEff = nuT + params.nu_a
 
 beta1 = 0.075
 
@@ -810,7 +815,6 @@ RANSBnd:add(omegaWall, "omega", "UpperWall,LowerWall,CylinderWall")
 
 RANSBnd:add(kIn, "k", "Outlet")
 RANSBnd:add(omegaIn, "omega", "Outlet")
-
 
 
 ---------------------------------------------------------------------------------------
@@ -891,7 +895,10 @@ Interpolate("StartValueC", u, "c")
 Interpolate(kIn, u, "k")
 Interpolate(omegaIn, u, "omega")
 myProblem.KinTurbulentViscosity = KinTurbulentViscosity
-KinTurbulentViscosity:update()
+
+if params.turbViscMethod=="dyn" or params.turbViscMethod=="sma" then
+	KinTurbulentViscosity:update()
+end
 --gamma:update()
 if params.boolRelativeVel then
 	RelVel:update()
@@ -921,7 +928,9 @@ if params.doSteadyState then
 		NewtonSolverSteady:add_step_update(RelVel)
 	end
 	--NewtonSolverSteady:add_step_update(Normal)
-	NewtonSolverSteady:add_inner_step_update(KinTurbulentViscosity)
+	if params.turbViscMethod=="dyn" or params.turbViscMethod=="sma" then
+		NewtonSolverSteady:add_inner_step_update(KinTurbulentViscosity)
+	end
 	--NewtonSolverSteady:add_inner_step_update(PressureGradientMean)
 	if params.boolSlipDiff then
 		NewtonSolverSteady:add_step_update(SlipDiff)
@@ -971,7 +980,6 @@ if true then--boolSolution == 1 then
 	out:select(NavierStokesDisc:einstein_viscosity(), "Mu_eins")
 	out:select(NavierStokesDisc:mix_viscosity(), "Mu_I")
 	out:select(MixViscosity, "MixViscosity")
-	out:select(nuT, "nu_t")
 	out:select(TurbulentViscosity, "Mu_turb")
 	if params.boolRelativeVel then
 		out:select(RelVel, "RelVel")
@@ -1010,8 +1018,9 @@ solTimeSeries = SolutionTimeSeries()
 solTimeSeries:push(uOld, time)
 
 
-
-NLSolver:add_inner_step_update(KinTurbulentViscosity)
+if params.turbViscMethod=="dyn" or params.turbViscMethod=="sma" then
+	NLSolver:add_inner_step_update(KinTurbulentViscosity)
+end
 --NLSolver:add_inner_step_update(gamma)
 if params.boolRelativeVel then
 	NLSolver:add_inner_step_update(RelVel)

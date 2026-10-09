@@ -99,8 +99,8 @@ params =
 	data_name = util.GetParam("-data_name", "Data"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	writeIntegral = util.GetParamBool("-writeIntegral", true),
-	boolLoadCheckPoint = util.GetParamBool("-boolLoadCheckPoint", true),
-	boolSaveCheckPoint = util.GetParamBool("-boolSaveCheckPoint", true),
+	boolLoadCheckPoint = util.GetParamBool("-boolLoadCheckPoint", false),
+	boolSaveCheckPoint = util.GetParamBool("-boolSaveCheckPoint", false),
 	
 	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", false),
@@ -128,7 +128,7 @@ params =
 	maxConvRate = util.GetParamNumber("-maxConvRate", 0.9),
 	minConvRate = util.GetParamNumber("-minConvRate", 0.5),
 	
-	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 200),
+	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 100),
 	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 700),
 	SteadyAbsDefect = util.GetParamNumber("-AbsDefect", 1e-05),
 	SteadyRedDefect = util.GetParamNumber("-RedDefect", 1e-05),
@@ -198,8 +198,12 @@ params =
 	div_correction = util.GetParamBool("-DivCorrection", false ,"Divergence correction for Newton's inner steps'"),
 	boolIPVelocity = util.GetParamBool("-boolIPVelocity", true),
 	boolTransportJac = util.GetParamBool("-boolTransportJac", true),
-	turbViscMethod = util.GetParam("-turbViscMethod","sma","TurbVismodel type no , dyn or sma"),
+	turbViscMethod = util.GetParam("-turbViscMethod","komegaSST","TurbVismodel type no , komegaSST, dyn or sma"),
 	modellconstant = util.GetParamNumber("-c",0.5),
+	beta1 = 0.075,
+	kIn = 1.0e-4,
+	omegaIn = 1.0,
+	dWall = 0.35,
 	
 
 	--Material Properties
@@ -232,7 +236,7 @@ params =
 	FricMu_2=0.64,
 	I_0 = 0.279,
 	gravity = -9.81,
-	roughness_length = 1e-04,
+	roughness_length = 0.5e-03,
 	
 }
 
@@ -242,7 +246,7 @@ params.DTmax = params.DT
 
 c_init = params.c_init
 params.interface_value  = params.alpha_min/params.packing_factor
-
+params.omegaWall = 60.0 * params.nu_a / (params.beta1 * params.dWall * params.dWall)
 
 ------------------------------------------------------------------------------------------
 -- Geometry Parameters  - GridName -  Domain Subsets
@@ -273,8 +277,8 @@ SynchronizeProcesses()
 -- Initialize UG4
 ------------------------------------------------------------------------------------------
 
-if params.algebraBlockSize ~= 1 and params.algebraBlockSize ~= params.dim + 2 then
-    print("ERROR: algebraBlockSize must be 0 or " .. (params.dim + 2) .. ". Received: " .. tostring(params.algebraBlockSize))
+if (params.algebraBlockSize ~= 1) and (params.algebraBlockSize ~= params.dim + 2) and params.algebraBlockSize ~= params.dim + 4 then
+    print("ERROR: algebraBlockSize must be 1, " .. (params.dim + 2) .." or ".. (params.dim + 4) .. " when komegaSST enabled. Received: " .. tostring(params.algebraBlockSize))
     exit()
 end
 InitUG (params.dim, AlgebraType("CPU", params.algebraBlockSize))
@@ -298,7 +302,7 @@ myProblem:PrintingSettings()
 -- load, refine and distribute the grid  (Approximation Space)
 ------------------------------------------------------------------------------------------
 
-	approxSpace,u = myProblem:ApproximationSpace(geometry.allSubsets)
+	approxSpace,u = myProblem:ApproximationSpace()
 	
 ------------------------------------------------------------------------------------------
 -- Lua Functions
@@ -320,7 +324,7 @@ InterfaceValues = myProblem:InterfaceParameters()
 ------------------------------------------------------------------------------------------
 
 
-myProblem:Clousures(approxSpace,u,geometry.turbulenceZeroSubsets)
+myProblem:Clousures(approxSpace,u,geometry.innerSubsets,geometry.turbulenceZeroSubsets)
 
 
 ------------------------------------------------------------------------------------------
@@ -328,8 +332,7 @@ myProblem:Clousures(approxSpace,u,geometry.turbulenceZeroSubsets)
 ------------------------------------------------------------------------------------------
 
 
-NavierStokesDisc = myProblem:Discretization(geometry.innerSubsets)
-
+local NavierStokesDisc, TurbulenceDisc = myProblem:Discretization()
 
 ------------------------------------------------------------------------------------------
 -- Boundary Conditions
@@ -351,7 +354,16 @@ myProblem:ConnectClosures(NavierStokesDisc)
 
 local domainDisc = DomainDiscretization(approxSpace)
 domainDisc:add(NavierStokesDisc)
+
+if params.turbViscMethod=="komegaSST" then
+	domainDisc:add(TurbulenceDisc)
+end
+
+
+
 for _, boundary in ipairs(boundaries) do domainDisc:add(boundary) end
+
+
 
 ---------------------------------------------------------------------------------------
 -- Time Discretization
@@ -385,20 +397,7 @@ op, NLSolver, NewtonSolverSteady, limex = myProblem:CreateSolver(domainDisc, app
 
 out = myProblem:OutputParameters()
 
-
-
-myProblem.KinTurbulentViscosity:update()
-myProblem.gamma:update()
-myProblem.RelVel:update()
-if params.boolSlipDiff then
-	myProblem.SlipDiff:update()
-else if params.boolSlipVel then
-		myProblem.SlipVel:update()
-	end
-end
-if params.boolAveNormal then
-	myProblem.Normal:update()
-end
+myProblem:UpdateParameters()
 
 ------------------------------------------------------------------------------------------
 -- Steady State Solution
@@ -418,9 +417,8 @@ if params.doSteadyState and step == 0 then
 	if params.boolAveNormal then
 		NewtonSolverSteady:add_step_update(myProblem.Normal)
 	end
-	if params.turbViscMethod=="no" then
-		NewtonSolverSteady:add_step_update(myProblem.KinTurbulentViscosity)
-	else
+
+	if params.turbViscMethod=="dyn" or params.turbViscMethod=="sma" then
 		NewtonSolverSteady:add_inner_step_update(myProblem.KinTurbulentViscosity)
 	end
 
@@ -457,19 +455,18 @@ end
 ------------------------------------------------------------------------------------------
 -- Updating attachments
 ------------------------------------------------------------------------------------------
-
-if params.turbViscMethod=="no" or params.timeMethod == "limex" then
-	NLSolver:add_step_update(myProblem.KinTurbulentViscosity)
-else
-	NLSolver:add_inner_step_update(myProblem.KinTurbulentViscosity)
+if params.turbViscMethod=="dyn" or params.turbViscMethod=="sma" then
+	if params.timeMethod == "limex" then
+		NLSolver:add_step_update(myProblem.KinTurbulentViscosity)
+	else
+		NLSolver:add_inner_step_update(myProblem.KinTurbulentViscosity)
+	end
 end
+
 
 
 NLSolver:add_step_update(myProblem.RelVel)
 
-if (boolAveNormal) then
-	NLSolver:add_step_update(myProblem.Normal)
-end
 
 if params.timeMethod == "limex" then
 	NLSolver:add_step_update(myProblem.gamma)

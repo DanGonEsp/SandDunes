@@ -181,7 +181,7 @@ params =
 	div_correction = util.GetParamBool("-DivCorrection", false ,"Divergence correction for Newton's inner steps'"),
 	boolIPVelocity = util.GetParamBool("-boolIPVelocity", true),
 	boolTransportJac = util.GetParamBool("-boolTransportJac", true),
-	turbViscMethod = util.GetParam("-turbViscMethod","no","TurbVismodel type no , dyn or sma"),
+	turbViscMethod = util.GetParam("-turbViscMethod","komegaSST","TurbVismodel type no , komegaSST, dyn or sma"),
 	modellconstant = util.GetParamNumber("-c",0.5),
 
 

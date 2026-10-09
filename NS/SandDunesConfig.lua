@@ -374,8 +374,8 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
 	domainDisc:add(fixer)
 	fixer:invert_subset_selection()
 	fixer:add("c", "")
-	fixer:add("k", "")
-	fixer:add("omega", "")
+	--fixer:add("k", "")
+	--fixer:add("omega", "")
 	
 
 	solver:init(AssembledOperator(domainDisc))
@@ -383,7 +383,9 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
 	solver:prepare(u)
 	
 	domainDisc:adjust_solution(u)
-	KinTurbulentViscosity:update()
+	if params.turbViscMethod=="dyn" or params.turbViscMethod=="sma" then
+		KinTurbulentViscosity:update()
+	end
 
 	-- apply the solver for the stationary pressure problem
      print("++++++ STEADY STATE CALCULATION BEGIN ++++++")
@@ -747,7 +749,9 @@ myProblem.CheckJacobian = function(self, domainDisc, u, approxSpace, perturbFct,
 	------------------------------------------------------------
 
 	local function UpdateParameters()
-		self.KinTurbulentViscosity:update()
+		if params.turbViscMethod=="dyn" or params.turbViscMethod=="sma" then
+			self.KinTurbulentViscosity:update()
+		end
 	end
 
 

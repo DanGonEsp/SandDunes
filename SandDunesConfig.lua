@@ -128,6 +128,11 @@ myProblem.Init = function(self, o)
 	self.boolTransportJac = o.boolTransportJac
 	self.turbViscMethod = o.turbViscMethod
 	self.modellconstant = o.modellconstant
+	self.beta1 = o.beta1
+	self.kIn = o.kIn
+	self.omegaIn = o.omegaIn
+	self.dWall = o.dWall
+	self.omegaWall = o.omegaWall
 
 	
 	--Material Properties
@@ -184,12 +189,12 @@ myProblem.GetCaseDefaults = function(self, problem)
             numRefs = 3,
             numPreRefs = 1,
             alphaVel = 1.0,
-            alphaPress = 1e-12,
+            alphaPress = 0.5e-10,
             LinRedDefectImp = 1e-3,
             LinAbsDefectLim = 1e-10,
             LinRedDefectLim = 1e-8,
-            boolAveDiff = true,
-            boolSlipDiff = true,
+            boolAveDiff = false,
+            boolSlipDiff = false,
             boolSlipVel = false,
             boolFixVel = false,
 			pre_smooth = 1,
@@ -231,7 +236,7 @@ myProblem.GetGeometry = function(self, params)
         geometry.gridName = "Dune" .. params.dim .. "D_" .. params.elem_type .. "_double.ugx"
         geometry.innerSubsets = {"Inner", "Inner2"}
         geometry.allSubsets = "Inner,Inner2,Left,Right,Top,Bottom"
-        geometry.turbulenceZeroSubsets = "Left,Right,Top,Bottom"
+        geometry.boundaries = "Left,Right,Top,Bottom"
 
         if params.dim == 3 then
             geometry.allSubsets = geometry.allSubsets .. ",Back,Front"
@@ -242,15 +247,15 @@ myProblem.GetGeometry = function(self, params)
 
         if params.dim == 2 then
             geometry.allSubsets = "Inner,Left,Right,Top,Bottom"
-            geometry.turbulenceZeroSubsets = "Left,Right,Top,Bottom"
+            geometry.boundaries = "Left,Right,Top,Bottom"
         else
             geometry.allSubsets = "Inner,Left1,Left2,Right,Top,Bottom,Front1,Front2,Back1,Back2,Back3"
-            geometry.turbulenceZeroSubsets = "Left1,Left2,Right,Top,Bottom,Front1,Front2,Back1,Back2,Back3"
+            geometry.boundaries = "Left1,Left2,Right,Top,Bottom,Front1,Front2,Back1,Back2,Back3"
         end
     else
         error("Unknown problem: " .. tostring(params.problem))
     end
-
+	self.geometry = geometry
     return geometry
 end
 --------------------------------------------------------------------------------
@@ -259,7 +264,7 @@ end
 myProblem.FileNames = function (self,rank,SpaceSize)
 
 
-	riemman_name = nil
+	local riemman_name = nil
 	if self.riemman == 0 then
 		riemman_name = "Godunov"
 	elseif self.riemman == 1 then
@@ -284,7 +289,9 @@ myProblem.FileNames = function (self,rank,SpaceSize)
 
 	folder_name = folder_name .. "_" .. self.dim.. "D"
 	folder_name = folder_name .. "-" .. self.timeMethod
-	
+	if self.turbViscMethod ~= "no" and not(self.bStokes) then
+		folder_name = folder_name .. "-" .. self.turbViscMethod
+	end
 	if self.bStokes then
 		folder_name = folder_name .. "-Stokes"
 	end
@@ -487,17 +494,32 @@ end
 --------------------------------------------------------------------------------
 -- Approximation Space
 --------------------------------------------------------------------------------
-myProblem.ApproximationSpace = function (self,allSubsets)
+myProblem.ApproximationSpace = function (self)
+	local allSubsets = self.geometry.allSubsets
 	print("Approximation Space Setting")
 	local fct_cmp_tbl = nil
+	local nv_cmp_tbl = nil
 	local vel_cmp_tbl = nil
-			
-	if self.dim == 3 then
-		fct_cmp_tbl = {"u", "v", "w", "p", "c"}
-		vel_cmp_tbl = {"u", "v", "w"}
+	if self.turbViscMethod == "komegaSST" then
+		if self.dim == 3 then
+			fct_cmp_tbl = {"u", "v", "w", "p", "c", "k", "omega"}
+			nv_cmp_tbl = {"u", "v", "w", "p", "c"}
+			vel_cmp_tbl = {"u", "v", "w"}
+		else
+			fct_cmp_tbl = {"u", "v", "p", "c", "k", "omega"}
+			nv_cmp_tbl = {"u", "v", "p", "c"}
+			vel_cmp_tbl = {"u", "v"}
+		end
 	else
-		fct_cmp_tbl = {"u", "v", "p", "c"}
-		vel_cmp_tbl = {"u", "v"}
+		if self.dim == 3 then
+			fct_cmp_tbl = {"u", "v", "w", "p", "c"}
+			nv_cmp_tbl = fct_cmp_tbl
+			vel_cmp_tbl = {"u", "v", "w"}
+		else
+			fct_cmp_tbl = {"u", "v", "p", "c"}
+			nv_cmp_tbl = fct_cmp_tbl
+			vel_cmp_tbl = {"u", "v"}
+		end
 	end
 
 	-- Create the domain, load the grid and refine it
@@ -518,6 +540,11 @@ myProblem.ApproximationSpace = function (self,allSubsets)
 	end
 	approxSpace:add_fct("p", "Lagrange",1,allSubsets)
 	approxSpace:add_fct("c", "Lagrange",1,allSubsets)
+	
+	if self.turbViscMethod == "komegaSST" then
+		approxSpace:add_fct("k", "Lagrange",1,allSubsets)
+		approxSpace:add_fct("omega", "Lagrange",1,allSubsets)
+	end
 
 	approxSpace:init_levels()
 	approxSpace:init_top_surface()
@@ -534,6 +561,7 @@ myProblem.ApproximationSpace = function (self,allSubsets)
 	u:set(0)
 
 	self.fct_cmp_tbl = fct_cmp_tbl
+	self.nv_cmp_tbl = nv_cmp_tbl
 	self.vel_cmp_tbl = vel_cmp_tbl
 	self.u = u
 	self.approxSpace = approxSpace
@@ -597,9 +625,11 @@ myProblem.RegisterCallbacks = function(self)
     local function inletSpeed(height)
 		hh=14.1856
         if self.problem == "avalanche" then return 0.0 end
-        --return self.inflow * math.log(1 + height / self.roughness_length) / math.log(1 + hh / self.roughness_length)
-		return self.inflow* (2*hh - height) * (height ) / (hh * hh)
+        return self.inflow * math.log(1 + height / self.roughness_length) / math.log(1 + hh / self.roughness_length)
+		--return self.inflow* (2*hh - height) * (height ) / (hh * hh)
     end
+	local function InflowVel2d(x, y, t) return inletSpeed(y), 0.0 end
+	local function InflowVel3d(x, y, z, t) return inletSpeed(z), 0.0, 0.0 end
 
     local function initialC2d(x, y)
         if self.problem == "flow" then
@@ -635,21 +665,52 @@ myProblem.RegisterCallbacks = function(self)
         if x > -1.0 and x < 2.0 then return -1e-5 end
         return 0.0
     end
+    
+	local turbulenceIntensity = 0.05
+	local turbulenceLength = 0.05
+	local Cmu = 0.09
+	
+	local function InletK2d(x, y, t)
+		local ux, uy = InflowVel2d(x, y, t)
+		local U = math.sqrt(ux * ux + uy * uy)
+		return 1.5 * (turbulenceIntensity * U)^2
+	end
+	local function InletK3d(x, y, z, t)
+		local ux, uy, uz = InflowVel3d(x, y, z, t)
+		local U = math.sqrt(ux * ux + uy * uy + uz * uz)
+		return 1.5 * (turbulenceIntensity * U)^2
+	end
+	local function InletOmega2d(x, y, t)
+		local k = InletK2d(x, y, t)
+		return math.sqrt(k) / (Cmu^0.25 * turbulenceLength)
+	end
+	local function InletOmega3d(x, y, z, t)
+		local k = InletK3d(x, y, z, t)
+		return math.sqrt(k) / (Cmu^0.25 * turbulenceLength)
+	end
 
     if self.dim == 2 then
-        _G.SandInflow = function(x, y, t) return inletSpeed(y), 0.0 end
+        _G.SandInflow = InflowVel2d
         _G.SandInitialC = initialC2d
+		_G.SandInitialK = InletK2d
+		_G.SandInitialOmega = InletOmega2d
         _G.SandTopFlux = topFlux2d
+		_G.InletK = InletK2d
+		_G.InletOmega = InletOmega2d
     else
-        _G.SandInflow = function(x, y, z, t) return inletSpeed(z), 0.0, 0.0 end
+        _G.SandInflow = InflowVel3d
         _G.SandInitialC = initialC3d
+		_G.SandInitialK = InletK3d
+		_G.SandInitialOmega = InletOmega3d
         _G.SandTopFlux = topFlux3d
+		_G.InletK = InletK3d
+		_G.InletOmega = InletOmega3d
     end
 end
 --------------------------------------------------------------------------------
 -- Variables
 --------------------------------------------------------------------------------
-myProblem.Clousures = function (self,approxSpace,u,walls)
+myProblem.Clousures = function (self,approxSpace,u,Inner_total,walls)
 		
 	local InterfaceValues = self.InterfaceValues
 	-------------------------------------------------------------- VelocityGradMag
@@ -675,26 +736,35 @@ myProblem.Clousures = function (self,approxSpace,u,walls)
 	local Inverse_RHO = InverseLinker();
 	Inverse_RHO:divide(1.0,Density);
 
-	Scale_RHO = ScaleLinker();
+	local Scale_RHO = ScaleLinker();
 	Scale_RHO:set_import_1(Inverse_RHO)
 	Scale_RHO:set_import_2(self.rho_a)
 
-	local KinMixViscosity = nil
-	KinMixViscosity = ScaleLinker();
+	local KinMixViscosity = ScaleLinker();
 	KinMixViscosity:set_import_1(Inverse_RHO)
 	
 
-	if self.turbViscMethod=="dyn" then
-		KinTurbulentViscosity = FV1DynamicTurbViscData(approxSpace,u)
-		
-	else
-		KinTurbulentViscosity = FV1SmagorinskyTurbViscData(approxSpace,u,self.modellconstant)
-	 end
-	KinTurbulentViscosity:set_turbulence_zero_bnd(walls)
-	KinTurbulentViscosity:set_kinematic_viscosity(0.0)
-
-
 	local EfectiveKinViscosity = nil
+	local KinTurbulentViscosity = nil
+	local TurbulenceDisc = nil
+	if self.turbViscMethod=="no" then
+		KinTurbulentViscosity = 0.0
+	elseif self.turbViscMethod=="dyn" or self.turbViscMethod=="sma" then
+		if self.turbViscMethod == "dyn" then
+			KinTurbulentViscosity = FV1DynamicTurbViscData(approxSpace,u)
+		else
+			KinTurbulentViscosity = FV1SmagorinskyTurbViscData(approxSpace,u,self.modellconstant)
+		end
+		KinTurbulentViscosity:set_turbulence_zero_bnd(self.geometry.boundaries)
+		KinTurbulentViscosity:set_kinematic_viscosity(0.0)
+		
+	elseif self.turbViscMethod=="komegaSST" then
+		TurbulenceDisc = RANSTurbulenceFV1({"k", "omega"}, Inner_total)
+		KinTurbulentViscosity = TurbulenceDisc:turbulent_kinematic_viscosity()
+	end
+
+
+
 	if self.turbViscMethod=="no" then
 		EfectiveKinViscosity = KinMixViscosity
 	else
@@ -725,7 +795,7 @@ myProblem.Clousures = function (self,approxSpace,u,walls)
 	TurbulentViscosity:set_import_1(self.rho_a)
 	TurbulentViscosity:set_import_2(KinTurbulentViscosity)
 
-	
+	self.TurbulenceDisc = TurbulenceDisc
 	self.TurbulentViscosity = TurbulentViscosity
 	self.KinTurbulentViscosity = KinTurbulentViscosity
 	self.MixViscosity = MixViscosity
@@ -833,12 +903,33 @@ myProblem.ConnectClosures = function(self, NavierStokesDisc)
 	self.SaltFlux:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
 	self.SaltFlux:set_velocity_gradient(NavierStokesDisc:velocity_grad())
 end
+
+------------------------------------------------------------
+-- UPDATE STATE-DEPENDENT PARAMETERS
+------------------------------------------------------------
+
+myProblem.UpdateParameters = function (self)
+	if self.turbViscMethod=="dyn" or self.turbViscMethod=="sma" then
+		self.KinTurbulentViscosity:update()
+	end
+	self.gamma:update()
+	self.RelVel:update()
+	if self.boolSlipDiff then
+		self.SlipDiff:update()
+	else if self.boolSlipVel then
+			self.SlipVel:update()
+		end
+	end
+	if self.boolAveNormal then
+		self.Normal:update()
+	end
+end
 --------------------------------------------------------------------------------
--- Discretization
+-- Navier-Stokes Discretization
 --------------------------------------------------------------------------------
-myProblem.Discretization = function (self,Inner_total)
-	
-	local NavierStokesDisc = NavierStokesFV1M (self.fct_cmp_tbl, Inner_total)
+myProblem.Discretization = function (self)
+	local Inner_total = self.geometry.innerSubsets
+	local NavierStokesDisc = NavierStokesFV1M (self.nv_cmp_tbl, Inner_total)
 	NavierStokesDisc:set_exact_jacobian (self.bExactJac)
 	NavierStokesDisc:set_stokes (self.bStokes)
 	NavierStokesDisc:set_laplace (self.bNoLaplace)
@@ -891,7 +982,46 @@ myProblem.Discretization = function (self,Inner_total)
 	print("Space Discretization DONE")
 	
 	self.NavierStokesDisc = NavierStokesDisc
-	return NavierStokesDisc
+	
+	local TurbulenceDisc = nil
+	if self.turbViscMethod =="komegaSST" then
+		TurbulenceDisc = self:TurbulenceDiscretization()
+	end
+	
+	
+	return NavierStokesDisc, TurbulenceDisc
+end
+
+--------------------------------------------------------------------------------
+-- k-Omega SST Discretization
+--------------------------------------------------------------------------------
+
+myProblem.TurbulenceDiscretization = function (self)
+
+	local lowerWallY = 0.0
+	
+	function WallDistance(x,y)
+		local dLower = y - lowerWallY
+		return math.max( dLower, 0.0)
+	end
+
+	local wallDistance1 = ConstUserNumber(0.3)
+	self.TurbulenceDisc:set_velocity(self.NavierStokesDisc:velocity_ip())
+	self.TurbulenceDisc:set_upwind("full")
+	self.TurbulenceDisc:set_velocity_gradient(self.NavierStokesDisc:velocity_grad())
+	self.TurbulenceDisc:set_wall_distance("WallDistance")
+	self.TurbulenceDisc:set_kinematic_viscosity(self.KinMixViscosity)
+
+	self.TurbulenceDisc:set_linearize_turbulent_viscosity(true)
+	self.TurbulenceDisc:set_linearize_destruction_coupling(true)
+	self.TurbulenceDisc:set_linearize_f2(true)
+	self.TurbulenceDisc:set_cross_diffusion_linearization(0)
+	self.TurbulenceDisc:set_linearize_exported_viscosity(false)
+	
+	print("Space Discretization (k-OMEGA SST) DONE")
+	
+
+	return self.TurbulenceDisc
 end
 --------------------------------------------------------------------------------
 -- BoundaryConditions
@@ -899,38 +1029,35 @@ end
 myProblem.CreateBoundaryConditions = function(self, NavierStokesDisc, geometry)
     local boundaries = {}
     local inlet = NavierStokesInflowFV1M(NavierStokesDisc)
+	local dirichlet = DirichletBoundary()
 
     if self.problem == "flow" then
         inlet:add("SandInflow", "SandInflow", "Left,Top")
-        if self.dim == 3 then inlet:add("SandInflow", "SandInflow", "Back,Front") end
-    else
-        if self.dim == 2 then
-            inlet:add("SandInflow", "SandInflow", "Left,Top,Right")
-        else
-            inlet:add("SandInflow", "SandInflow", geometry.turbulenceZeroSubsets)
+        if self.dim == 3 then
+			inlet:add("SandInflow", "SandInflow", "Back,Front")
         end
-    end
-
-    table.insert(boundaries, inlet)
-
-    if self.problem == "flow" then
-        local outlet = NavierStokesNoNormalStressOutflowFV1M(NavierStokesDisc)
+		table.insert(boundaries, inlet)
+		
+		local outlet = NavierStokesNoNormalStressOutflowFV1M(NavierStokesDisc)
         outlet:add("Right")
         outlet:set_phase_parameters(self.InterfaceValues)
         table.insert(boundaries, outlet)
-    end
-
-    local wall = NavierStokesWall(NavierStokesDisc)
-    wall:add("Bottom")
-    table.insert(boundaries, wall)
-
-    local dirichlet = DirichletBoundary()
-
-    if self.problem == "flow" then
-        dirichlet:add(0.0, "c", "Left,Top")
+        
+		local wall = NavierStokesWall(NavierStokesDisc)
+		wall:add("Bottom")
+		table.insert(boundaries, wall)
+		
+		dirichlet:add(0.0, "c", "Left,Top")
+		if self.dim == 3 then
+			dirichlet:add(0.0, "c", "Back,Front")
+        end
+		
         table.insert(boundaries, dirichlet)
-    else
-        local neumann = NeumannBoundaryFV1("c")
+	else
+		inlet:add("SandInflow", "SandInflow", geometry.boundaries)
+		table.insert(boundaries, inlet)
+		
+		local neumann = NeumannBoundaryFV1("c")
         neumann:add("SandTopFlux", "Top", "Inner")
         neumann:add(0.0, "Bottom", "Inner")
 
@@ -959,7 +1086,33 @@ myProblem.CreateBoundaryConditions = function(self, NavierStokesDisc, geometry)
 
         table.insert(boundaries, dirichlet)
         table.insert(boundaries, neumann)
-    end
+	end
+
+
+    if self.turbViscMethod=="komegaSST" then
+		local RANSBnd = DirichletBoundary()
+		if self.problem == "flow" then
+			RANSBnd:add("InletK","k", "Left,Top")
+			RANSBnd:add("InletOmega", "omega", "Left,Top")
+			if self.dim == 3 then
+				RANSBnd:add("InletK","k", "Back,Front")
+				RANSBnd:add("InletOmega", "omega", "Back,Front")
+			end
+			
+			RANSBnd:add(0.0, "k", "Bottom")
+			RANSBnd:add(self.omegaWall, "omega", "Bottom")
+			
+			RANSBnd:add(self.kIn, "k", "Right")
+			RANSBnd:add(self.omegaIn, "omega", "Right")
+			
+			
+		else
+			RANSBnd:add(0.0,k, geometry.boundaries)
+			RANSBnd:add(0.0, "omega", geometry.boundaries)
+		end
+
+		table.insert(boundaries, RANSBnd)
+	end
 
     return boundaries
 end
@@ -1138,17 +1291,25 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	
 	local NewtonSteadyConvCheck = CompositeConvCheck(approxSpace)
 	NewtonSteadyConvCheck:set_maximum_steps(self.max_newton_steps_steady_state)
-	NewtonSteadyConvCheck:set_group_check({"u", "v"}, self.SteadyAbsDefect, self.SteadyRedDefect)
+	NewtonSteadyConvCheck:set_group_check(self.vel_cmp_tbl, self.SteadyAbsDefect, self.SteadyRedDefect)
 	NewtonSteadyConvCheck:set_component_check("p", self.SteadyAbsDefect, self.SteadyRedDefect)
 	NewtonSteadyConvCheck:set_component_check("c", self.SteadyAbsDefect, self.SteadyRedDefect)
+	if self.turbViscMethod == "komegaSST" then
+		NewtonSteadyConvCheck:set_component_check("k", self.SteadyAbsDefect, self.SteadyRedDefect)
+		NewtonSteadyConvCheck:set_component_check("omega", self.SteadyAbsDefect, self.SteadyRedDefect)
+	end
 	NewtonSteadyConvCheck:disable_rest_check()
 	NewtonSteadyConvCheck:set_verbose(true)
 	
 	local NewtonConvCheck = CompositeConvCheck(approxSpace)
 	NewtonConvCheck:set_maximum_steps(self.max_newton_steps_transient)
-	NewtonConvCheck:set_group_check({"u", "v"}, self.AbsDefect, self.RedDefect)
+	NewtonConvCheck:set_group_check(self.vel_cmp_tbl, self.AbsDefect, self.RedDefect)
 	NewtonConvCheck:set_component_check("p", self.AbsDefect, self.RedDefect)
 	NewtonConvCheck:set_component_check("c", self.AbsDefect, self.RedDefect)
+	if self.turbViscMethod == "komegaSST" then
+		NewtonConvCheck:set_component_check("k", self.AbsDefect, self.RedDefect)
+		NewtonConvCheck:set_component_check("omega", self.AbsDefect, self.RedDefect)
+	end
 	NewtonConvCheck:disable_rest_check()
 	NewtonConvCheck:set_verbose(true)
 	
@@ -1258,9 +1419,15 @@ myProblem.InitializeSolution = function(self, u, folder)
     if interpolate then
         Interpolate(0.001, u, "u")
         Interpolate(0.0, u, "v")
-        if self.dim == 3 then Interpolate(0.0, u, "w") end
+        if self.dim == 3 then
+			Interpolate(0.0, u, "w")
+		end
         Interpolate(0.0, u, "p")
         Interpolate("SandInitialC", u, "c")
+		if self.turbViscMethod=="komegaSST" then
+			Interpolate("SandInitialK", u, "k")
+			Interpolate("SandInitialOmega", u, "omega")
+		end
     end
 
     return time, step, time_work_total
@@ -1286,11 +1453,15 @@ myProblem.OutputParameters = function (self)
 	end
 	out:select_nodal ("p", "p")
 	out:select_nodal ("c", "c")
+	if self.turbViscMethod=="komegaSST" then
+		out:select_nodal ("k", "k")
+		out:select_nodal ("omega", "omega")
+	end
 	out:select(self.Density, "Rho")
 	out:select(self.NavierStokesDisc:einstein_viscosity(), "Mu_eins")
 	out:select(self.NavierStokesDisc:mix_viscosity(), "Mu_I")
 	out:select(self.MixViscosity, "MixViscosity")
-	out:select(self.TurbulentViscosity, "Mu_turb")
+	out:select(self.TurbulentViscosity, "Mu_t")
 	
 	out:select(self.RelVel, "RelVel")
 	out:select(self.NavierStokesDisc:particle_pressure(), "Ps")
@@ -1420,6 +1591,8 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
 	domainDisc:add(fixer)
 	fixer:invert_subset_selection()
 	fixer:add("c", "")
+	--fixer:add("k", "")
+	--fixer:add("omega", "")
 
 	solver:init(AssembledOperator(domainDisc))
 	
@@ -1791,54 +1964,6 @@ myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, time_
   return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, 1
 end
 
-
---------------------------------------------------------------------------------
--- ParaView Contour Extraction
---------------------------------------------------------------------------------
-myProblem.RunParaViewContour = function(self, rank, folder_vtk)
-
-    if not self.boolData then
-        return
-    end
-    print(
-        "RunParaViewContour ENTER: rank=" .. tostring(rank) ..
-        ", boolData=" .. tostring(self.boolData) ..
-        ", folder=" .. tostring(folder_vtk)
-    )
-
-    if rank ~= 0 then
-        return
-    end
-
-    print("============================================")
-    print("Starting ParaView contour extraction")
-    print("============================================")
-
-    local command =
-        "pvpython FunctionTools.py contour " ..
-        "\"" .. folder_vtk .. "\" " ..
-        tostring(self.dim) .. " " ..
-        "\"" .. self.data_name .. "\""
-
-    print("Input folder : " .. folder_vtk)
-    print("Dimension    : " .. tostring(self.dim))
-    print("Data name    : " .. self.data_name)
-    print("Command      : " .. command)
-
-    local result = os.execute(command)
-
-    print("ParaView return code:", result)
-
-    if result ~= 0 then
-        print("WARNING: ParaView contour extraction failed.")
-    else
-        print("ParaView contour extraction completed successfully.")
-    end
-
-    print("============================================")
-    print("ParaView contour extraction finished")
-    print("============================================")
-end
 
 return myProblem
 
