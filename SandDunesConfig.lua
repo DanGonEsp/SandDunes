@@ -720,7 +720,7 @@ myProblem.Clousures = function (self,approxSpace,u,Inner_total,walls)
 
 	---------------------------------------------------------------------- Density
 	local Density = nil
-	if self.bStokes then
+	if self.bStokes or self.boolSaltationFlux then
 		Density = ConstUserNumber(self.rho_a)
 	else
 		Density = GranularDensityLinker();
@@ -853,6 +853,7 @@ myProblem.Clousures = function (self,approxSpace,u,Inner_total,walls)
 	SaltFlux:set_threshold_friction_velocity(0.22)
 	SaltFlux:set_normal_epsilon(1e-8)
 	SaltFlux:set_delta_epsilon(1e-8)
+	SaltFlux:set_turbulent_kinematic_viscosity(TurbulenceDisc:turbulent_kinematic_viscosity())
 
 	self.SaltFlux = SaltFlux
 	
@@ -895,10 +896,14 @@ end
 -- ConnectClosures
 --------------------------------------------------------------------------------
 myProblem.ConnectClosures = function(self, NavierStokesDisc)
-    if not self.bStokes then self.Density:set_volume_fraction(NavierStokesDisc:volume_fraction()) end
+    if not (self.bStokes) and not(self.boolSaltationFlux) then
+		self.Density:set_volume_fraction(NavierStokesDisc:volume_fraction())
+	end
     self.Diffusion:set_velocity_gradient(NavierStokesDisc:velocity_grad())
     self.KinMixViscosity:set_import_2(NavierStokesDisc:mix_viscosity())
-    if not self.boolAveNormal then self.Normal:set_volume_grad(NavierStokesDisc:volume_fraction_grad()) end
+    if not self.boolAveNormal then
+		self.Normal:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
+	end
     
 	self.SaltFlux:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
 	self.SaltFlux:set_velocity_gradient(NavierStokesDisc:velocity_grad())
@@ -1962,6 +1967,533 @@ myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, time_
 	NLSolver:clear_average_convergence();
 
   return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, 1
+end
+
+myProblem.CheckJacobian = function(self, domainDisc, u, approxSpace, perturbFct, solveLinearSystem)
+
+	------------------------------------------------------------
+	-- Settings
+	------------------------------------------------------------
+
+	if solveLinearSystem == nil then
+		solveLinearSystem = true
+	end
+
+	local linSolver = self.LinearSolver
+
+	local innerSubsets = table.concat(Inner_total, ",")
+	local boundarySubsets = "Inlet,UpperWall,LowerWall,CylinderWall,Outlet"
+
+	local epsList = {
+		1.0e-3,
+		1.0e-4,
+		1.0e-5,
+		1.0e-6,
+		1.0e-7,
+		1.0e-8
+	}
+
+
+	------------------------------------------------------------
+	-- UPDATE STATE-DEPENDENT PARAMETERS
+	--
+	-- Add here all quantities that must be updated whenever
+	-- the current solution changes.
+	------------------------------------------------------------
+
+	local function UpdateParameters()
+		if params.turbViscMethod=="dyn" or params.turbViscMethod=="sma" then
+			self.KinTurbulentViscosity:update()
+		end
+	end
+
+
+	------------------------------------------------------------
+	-- Jacobian perturbation function
+	--
+	-- Must be GLOBAL because UG4 Interpolate searches for the
+	-- callback by its string name in the global Lua namespace.
+	------------------------------------------------------------
+
+	function JacobianPerturbation(x, y, t)
+		return x
+	end
+
+
+	------------------------------------------------------------
+	-- Build perturbation direction v
+	------------------------------------------------------------
+
+	local v = u:clone()
+	v:set(0.0)
+
+	Interpolate("JacobianPerturbation", v, perturbFct, innerSubsets)
+	Interpolate(0.0, v, perturbFct, boundarySubsets)
+
+
+	------------------------------------------------------------
+	-- Working vectors
+	------------------------------------------------------------
+
+	local rNewton = u:clone()
+	rNewton:set(0.0)
+
+	local r0 = u:clone()
+	r0:set(0.0)
+
+	local r1 = u:clone()
+	r1:set(0.0)
+
+	local Jv = u:clone()
+	Jv:set(0.0)
+
+	local fd = u:clone()
+	fd:set(0.0)
+
+	local err = u:clone()
+	err:set(0.0)
+
+
+	------------------------------------------------------------
+	-- Adjust current solution
+	------------------------------------------------------------
+
+	domainDisc:adjust_solution(u)
+
+
+	------------------------------------------------------------
+	-- Newton defect
+	--
+	-- Newton computes the defect BEFORE the step update.
+	------------------------------------------------------------
+
+	domainDisc:assemble_defect(rNewton, u)
+
+
+	------------------------------------------------------------
+	-- Update state-dependent parameters
+	--
+	-- This corresponds to the Newton step update before the
+	-- Jacobian is assembled.
+	------------------------------------------------------------
+
+	UpdateParameters()
+
+
+	------------------------------------------------------------
+	-- Assemble Jacobian
+	------------------------------------------------------------
+
+	local J = AssembledLinearOperator(domainDisc)
+	domainDisc:assemble_jacobian(J, u)
+
+
+	------------------------------------------------------------
+	-- Assemble the reference defect for the FD test
+	--
+	-- IMPORTANT:
+	-- This is assembled AFTER UpdateParameters(), so that
+	--
+	--     R(u), J(u), R(u + eps*v)
+	--
+	-- all use exactly the same frozen parameters.
+	------------------------------------------------------------
+
+	r0:set(0.0)
+	domainDisc:assemble_defect(r0, u)
+
+
+	------------------------------------------------------------
+	-- Component spaces
+	------------------------------------------------------------
+
+	local spaceUV = GridFunctionComponentSpace("u,v")
+	local spaceP = GridFunctionComponentSpace("p")
+	local spaceC = GridFunctionComponentSpace("c")
+	local spaceK = GridFunctionComponentSpace("k")
+	local spaceOmega = GridFunctionComponentSpace("omega")
+
+	local spaceKInner = GridFunctionComponentSpace("k", innerSubsets)
+	local spaceOmegaInner = GridFunctionComponentSpace("omega", innerSubsets)
+
+	local spacePertInner = GridFunctionComponentSpace(perturbFct, innerSubsets)
+	local spacePertInlet = GridFunctionComponentSpace(perturbFct, "Inlet")
+	local spacePertOutlet = GridFunctionComponentSpace(perturbFct, "Outlet")
+	local spacePertUpper = GridFunctionComponentSpace(perturbFct, "UpperWall")
+	local spacePertLower = GridFunctionComponentSpace(perturbFct, "LowerWall")
+	local spacePertCylinder = GridFunctionComponentSpace(perturbFct, "CylinderWall")
+
+
+	------------------------------------------------------------
+	-- Optional Newton / linear-system analysis
+	------------------------------------------------------------
+
+	if solveLinearSystem then
+
+		--------------------------------------------------------
+		-- Actual Newton correction
+		--
+		-- J * corr = R
+		-- u_new = u - lambda * corr
+		--------------------------------------------------------
+
+		local corr = u:clone()
+		corr:set(0.0)
+
+		linSolver:init(J, corr)
+
+		if not linSolver:apply(corr, rNewton) then
+
+			print("")
+			print("================================================")
+			print(" LINEAR SOLVE FOR NEWTON CORRECTION FAILED")
+			print("================================================")
+			print("")
+
+		else
+
+			print("")
+			print("================================================")
+			print(" ACTUAL NEWTON CORRECTION")
+			print("================================================")
+
+			print(string.format("|corr|         = %.6e", VecNorm(corr)))
+			print(string.format("|corr u,v|     = %.6e", spaceUV:norm(corr)))
+			print(string.format("|corr p|       = %.6e", spaceP:norm(corr)))
+			print(string.format("|corr c|       = %.6e", spaceC:norm(corr)))
+			print(string.format("|corr k|       = %.6e", spaceK:norm(corr)))
+			print(string.format("|corr omega|   = %.6e", spaceOmega:norm(corr)))
+			print(string.format("|corr k inner| = %.6e", spaceKInner:norm(corr)))
+			print(string.format("|corr w inner| = %.6e", spaceOmegaInner:norm(corr)))
+
+			print("================================================")
+			print("")
+
+
+			----------------------------------------------------
+			-- Norm calls may change parallel storage.
+			----------------------------------------------------
+
+			corr:enforce_consistent_type()
+			u:enforce_consistent_type()
+
+
+			----------------------------------------------------
+			-- Save original solution
+			----------------------------------------------------
+
+			local uSave = u:clone()
+
+			corr:enforce_consistent_type()
+			uSave:enforce_consistent_type()
+
+
+			----------------------------------------------------
+			-- Newton line-search diagnostic
+			----------------------------------------------------
+
+			local lambdaList = {
+				1.0,
+				0.5,
+				0.25,
+				0.125,
+				0.0625,
+				0.03125,
+				0.015625,
+				0.0078125,
+				0.00390625,
+				0.001953125,
+				0.0009765625,
+				0.00048828125,
+				0.000244140625,
+				0.0001220703125
+			}
+
+			print("NEWTON TRIAL DEFECTS")
+
+			for _, lambda in ipairs(lambdaList) do
+
+				corr:enforce_consistent_type()
+				uSave:enforce_consistent_type()
+				u:enforce_consistent_type()
+
+				VecScaleAdd2(u, 1.0, uSave, -lambda, corr)
+
+				domainDisc:adjust_solution(u)
+
+				------------------------------------------------
+				-- DO NOT call UpdateParameters() here.
+				--
+				-- The Newton line search uses the parameters
+				-- frozen at the step update.
+				------------------------------------------------
+
+				local rTrial = u:clone()
+				rTrial:set(0.0)
+
+				domainDisc:assemble_defect(rTrial, u)
+
+				print(string.format(
+					"lambda = %.6f   |R(u-lambda*corr)| = %.6e",
+					lambda,
+					VecNorm(rTrial)
+				))
+
+				u:enforce_consistent_type()
+				uSave:enforce_consistent_type()
+
+				VecAssign(u, uSave)
+			end
+
+
+			----------------------------------------------------
+			-- Restore original solution and parameter state
+			----------------------------------------------------
+
+			u:enforce_consistent_type()
+			uSave:enforce_consistent_type()
+
+			VecAssign(u, uSave)
+
+			domainDisc:adjust_solution(u)
+
+			UpdateParameters()
+
+			print("")
+		end
+
+	else
+
+		print("")
+		print("================================================")
+		print(" LINEAR SYSTEM / NEWTON ANALYSIS DISABLED")
+		print("================================================")
+		print("")
+
+	end
+
+
+	------------------------------------------------------------
+	-- Re-establish state for Jacobian finite-difference test
+	------------------------------------------------------------
+
+	domainDisc:adjust_solution(u)
+	UpdateParameters()
+
+	------------------------------------------------------------
+	-- Reassemble reference defect with the same frozen
+	-- parameters used for the FD perturbations.
+	------------------------------------------------------------
+
+	r0:set(0.0)
+	domainDisc:assemble_defect(r0, u)
+
+
+	------------------------------------------------------------
+	-- Compute J*v
+	------------------------------------------------------------
+
+	Jv:set(0.0)
+
+	v:enforce_consistent_type()
+	Jv:enforce_consistent_type()
+
+	J:apply(Jv, v)
+
+
+	------------------------------------------------------------
+	-- Print perturbation information
+	------------------------------------------------------------
+
+	print("")
+	print("================================================")
+	print(" " .. string.upper(perturbFct) .. "-DIRECTION JACOBIAN FINITE-DIFFERENCE TEST")
+	print("================================================")
+	print("")
+
+	print(string.upper(perturbFct) .. " PERTURBATION v ON SUBSETS")
+
+	print(string.format("inner    : %.6e", spacePertInner:norm(v)))
+	print(string.format("inlet    : %.6e", spacePertInlet:norm(v)))
+	print(string.format("outlet   : %.6e", spacePertOutlet:norm(v)))
+	print(string.format("upper    : %.6e", spacePertUpper:norm(v)))
+	print(string.format("lower    : %.6e", spacePertLower:norm(v)))
+	print(string.format("cylinder : %.6e", spacePertCylinder:norm(v)))
+
+	print("")
+
+
+	------------------------------------------------------------
+	-- Restore consistent storage after norm calls
+	------------------------------------------------------------
+
+	v:enforce_consistent_type()
+	u:enforce_consistent_type()
+	r0:enforce_consistent_type()
+	Jv:enforce_consistent_type()
+
+
+	------------------------------------------------------------
+	-- Finite-difference Jacobian test
+	------------------------------------------------------------
+
+	for _, eps in ipairs(epsList) do
+
+		local uPert = u:clone()
+
+		u:enforce_consistent_type()
+		v:enforce_consistent_type()
+		uPert:enforce_consistent_type()
+
+		VecScaleAdd2(uPert, 1.0, u, eps, v)
+
+		domainDisc:adjust_solution(uPert)
+
+
+		--------------------------------------------------------
+		-- IMPORTANT:
+		--
+		-- Do NOT call UpdateParameters() here.
+		--
+		-- The state-dependent parameters remain frozen at the
+		-- state at which J was assembled.
+		--------------------------------------------------------
+
+		r1:set(0.0)
+		domainDisc:assemble_defect(r1, uPert)
+
+
+		--------------------------------------------------------
+		-- FD = [R(u + eps*v) - R(u)] / eps
+		--------------------------------------------------------
+
+		r1:enforce_consistent_type()
+		r0:enforce_consistent_type()
+		fd:enforce_consistent_type()
+
+		VecScaleAdd2(fd, 1.0 / eps, r1, -1.0 / eps, r0)
+
+
+		--------------------------------------------------------
+		-- err = FD - J*v
+		--------------------------------------------------------
+
+		fd:enforce_consistent_type()
+		Jv:enforce_consistent_type()
+		err:enforce_consistent_type()
+
+		VecScaleAdd2(err, 1.0, fd, -1.0, Jv)
+
+
+		--------------------------------------------------------
+		-- Global norms
+		--------------------------------------------------------
+
+		local normFD = VecNorm(fd)
+		local normJv = VecNorm(Jv)
+		local normErr = VecNorm(err)
+
+		local denom = math.max(normFD, normJv, 1.0e-30)
+		local relErr = normErr / denom
+
+
+		--------------------------------------------------------
+		-- Detailed block analysis at eps = 1e-6
+		--------------------------------------------------------
+
+		if eps == 1.0e-6 then
+
+			print("")
+			print("COMPONENT-WISE JACOBIAN CHECK AT eps = 1e-6")
+			print("Input block: " .. perturbFct)
+			print("")
+
+			print(string.format(
+				"u,v   : |FD| = %.6e   |Jv| = %.6e   |err| = %.6e",
+				spaceUV:norm(fd),
+				spaceUV:norm(Jv),
+				spaceUV:norm(err)
+			))
+
+			print(string.format(
+				"p     : |FD| = %.6e   |Jv| = %.6e   |err| = %.6e",
+				spaceP:norm(fd),
+				spaceP:norm(Jv),
+				spaceP:norm(err)
+			))
+
+			print(string.format(
+				"c     : |FD| = %.6e   |Jv| = %.6e   |err| = %.6e",
+				spaceC:norm(fd),
+				spaceC:norm(Jv),
+				spaceC:norm(err)
+			))
+
+			print(string.format(
+				"k     : |FD| = %.6e   |Jv| = %.6e   |err| = %.6e",
+				spaceK:norm(fd),
+				spaceK:norm(Jv),
+				spaceK:norm(err)
+			))
+
+			print(string.format(
+				"omega : |FD| = %.6e   |Jv| = %.6e   |err| = %.6e",
+				spaceOmega:norm(fd),
+				spaceOmega:norm(Jv),
+				spaceOmega:norm(err)
+			))
+
+			print("")
+
+			print(string.format(
+				"k inner     : |FD| = %.6e   |Jv| = %.6e   |err| = %.6e",
+				spaceKInner:norm(fd),
+				spaceKInner:norm(Jv),
+				spaceKInner:norm(err)
+			))
+
+			print(string.format(
+				"omega inner : |FD| = %.6e   |Jv| = %.6e   |err| = %.6e",
+				spaceOmegaInner:norm(fd),
+				spaceOmegaInner:norm(Jv),
+				spaceOmegaInner:norm(err)
+			))
+
+			print("")
+		end
+
+
+		--------------------------------------------------------
+		-- Global FD comparison
+		--------------------------------------------------------
+
+		print(string.format(
+			"eps = %.1e   |FD| = %.6e   |Jv| = %.6e   |FD-Jv| = %.6e   rel = %.6e",
+			eps,
+			normFD,
+			normJv,
+			normErr,
+			relErr
+		))
+
+
+		--------------------------------------------------------
+		-- Restore compatible storage for next epsilon
+		--------------------------------------------------------
+
+		u:enforce_consistent_type()
+		v:enforce_consistent_type()
+		r0:enforce_consistent_type()
+		r1:enforce_consistent_type()
+		Jv:enforce_consistent_type()
+		fd:enforce_consistent_type()
+		err:enforce_consistent_type()
+	end
+
+
+	print("================================================")
+	print("")
+
 end
 
 
