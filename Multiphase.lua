@@ -99,8 +99,8 @@ params =
 	data_name = util.GetParam("-data_name", "Data"),
 	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
 	writeIntegral = util.GetParamBool("-writeIntegral", true),
-	boolLoadCheckPoint = util.GetParamBool("-boolLoadCheckPoint", false),
-	boolSaveCheckPoint = util.GetParamBool("-boolSaveCheckPoint", false),
+	boolLoadCheckPoint = util.GetParamBool("-boolLoadCheckPoint", true),
+	boolSaveCheckPoint = util.GetParamBool("-boolSaveCheckPoint", true),
 	
 	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", false),
@@ -171,7 +171,7 @@ params =
 	boolGradientPsSource = util.GetParamBool("-boolGradientPsSource", false),
 	boolViscPs = util.GetParamBool("-boolViscPs", true),
 	boolAveDiff = util.GetParamBool("-boolAveDiff", defaults.boolAveDiff),
-	boolSaltationFlux = util.GetParamBool("-boolSaltationFlux", false, "SaltationFlux"),
+	boolSaltationFlux = util.GetParamBool("-boolSaltationFlux", true, "SaltationFlux"),
 	boolSlipDiff = util.GetParamBool("-boolSlipDiff", defaults.boolSlipDiff),
 	boolSlipVel = util.GetParamBool("-boolSlipVel", defaults.boolSlipVel),
 	boolpress_jump= util.GetParamBool("-boolpress_jump", false),
@@ -197,7 +197,6 @@ params =
 	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)"),
 	div_correction = util.GetParamBool("-DivCorrection", false ,"Divergence correction for Newton's inner steps'"),
 	boolIPVelocity = util.GetParamBool("-boolIPVelocity", true),
-	boolTransportJac = util.GetParamBool("-boolTransportJac", true),
 	turbViscMethod = util.GetParam("-turbViscMethod","komegaSST","TurbVismodel type no , komegaSST, dyn or sma"),
 	modellconstant = util.GetParamNumber("-c",0.5),
 	beta1 = 0.075,
@@ -222,7 +221,7 @@ params =
 	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein, 4 Relax"),
 	density_model  = util.GetParam("-density_model", "linear", "constant, linear"),
 	drag_mod = util.GetParamNumber("-drag_model", 2, "Opt: 0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel"),
-	riemman = util.GetParamNumber("-riemman", 1, "Opt: 0 Godunov, 1 Rusanov, 2 Roe"),
+	riemman = util.GetParamNumber("-riemman", 3, "Opt: 0 Godunov, 1 Rusanov, 2 Roe, 3 Engquist-Osher"),
 	--Model 0 pow(0.63+4.8/sqrt(RE),2.0);
 
 	FR = 0.05,
@@ -245,7 +244,7 @@ params.endTime    = params.DT * params.numTimeSteps
 params.DTmax = params.DT
 
 c_init = params.c_init
-params.interface_value  = params.alpha_min/params.packing_factor
+params.interface_value  = 0.5--params.alpha_min/params.packing_factor
 params.omegaWall = 60.0 * params.nu_a / (params.beta1 * params.dWall * params.dWall)
 
 ------------------------------------------------------------------------------------------
@@ -324,7 +323,7 @@ InterfaceValues = myProblem:InterfaceParameters()
 ------------------------------------------------------------------------------------------
 
 
-myProblem:Clousures(approxSpace,u,geometry.innerSubsets,geometry.turbulenceZeroSubsets)
+myProblem:Clousures(approxSpace,u,geometry.innerSubsets)
 
 
 ------------------------------------------------------------------------------------------
@@ -498,6 +497,7 @@ end
 ------------------------------------------------------------------------------------------
 
 	-- write start solution
+myProblem:UpdateParameters()
 if boolSolution == 1 then
 	if (step % params.outputFactor == 0 ) then
 		local vtkStep = math.floor(step / params.outputFactor)
@@ -519,6 +519,22 @@ if boolSolution == 1 then
 		end
 	end
 end
+myProblem:UpdateParameters()
+
+
+--myProblem:CheckJacobian(domainDisc, u, approxSpace, "u", false)
+--myProblem:CheckJacobian(domainDisc, u, approxSpace, "v", false)
+--myProblem:CheckJacobian(domainDisc, u, approxSpace, "c", false)
+--myProblem:CheckJacobian(domainDisc, u, approxSpace, "p", false)
+--myProblem:CheckJacobian(domainDisc, u, approxSpace, "k", false)
+--myProblem:CheckJacobian(domainDisc, u, approxSpace, "omega", false)
+
+--myProblem:CheckJacobian(domainDisc, u, approxSpace, "u", false)
+--myProblem:CheckJacobian(domainDisc, u, approxSpace, "v", false)
+--myProblem:CheckJacobian(domainDisc, u, approxSpace, "c", false)
+--myProblem:CheckJacobian(domainDisc, u, approxSpace, "p", false)
+--myProblem:CheckJacobian(domainDisc, u, approxSpace, "k", false)
+--myProblem:CheckJacobian(domainDisc, u, approxSpace, "omega", false)
 
 
 ------------------------------------------------------------------------------------------
@@ -676,7 +692,6 @@ Headers = " Sim, Vel, H0, W0, Solved\n"
 lineWriter:write_line(Tablename,simCase, Headers, params.inflow, H_0, W0, boolSolution)
 ]]
 
-myProblem:RunParaViewContour( rank, folder_vtk)
 
 --SynchronizeProcesses()
 --SpaceTimeComm:unsplit()

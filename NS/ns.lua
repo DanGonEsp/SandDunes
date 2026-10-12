@@ -130,7 +130,6 @@ params =
 	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)"),
 	div_correction = util.GetParamBool("-DivCorrection", false ,"Divergence correction for Newton's inner steps'"),
 	boolIPVelocity = util.GetParamBool("-boolIPVelocity", false),
-	boolTransportJac = util.GetParamBool("-boolTransportJac", false),
 	turbViscMethod = util.GetParam("-turbViscMethod","komegaSST","TurbVismodel type no , komegaSST, dyn or sma"),
 	modellconstant = util.GetParamNumber("-c",0.5),
 
@@ -686,7 +685,6 @@ NavierStokesDisc:set_peclet_blend (params.bPecletBlend)
 NavierStokesDisc:set_stabilization (params.stab, params.diffLength)
 NavierStokesDisc:set_div_correction (params.div_correction)
 NavierStokesDisc:set_transport_ip_velocity(params.boolIPVelocity)
-NavierStokesDisc:set_transport_jac(params.boolTransportJac)
 NavierStokesDisc:set_density(params.rho_a)
 if params.boolRelativeVel then
 	NavierStokesDisc:set_relative_velocity(RelVel,params.riemman)

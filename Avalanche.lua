@@ -462,7 +462,7 @@ InterfaceValues = myProblem:InterfaceParameters()
 ------------------------------------------------------------------------------------------
 
 
-myProblem:Clousures(approxSpace,u,walls)
+myProblem:Clousures(approxSpace,u)
 
 
 ------------------------------------------------------------------------------------------

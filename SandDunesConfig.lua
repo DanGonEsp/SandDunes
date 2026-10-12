@@ -125,7 +125,6 @@ myProblem.Init = function(self, o)
 	self.stab = o.stab
 	self.div_correction = o.div_correction
 	self.boolIPVelocity = o.boolIPVelocity
-	self.boolTransportJac = o.boolTransportJac
 	self.turbViscMethod = o.turbViscMethod
 	self.modellconstant = o.modellconstant
 	self.beta1 = o.beta1
@@ -271,6 +270,8 @@ myProblem.FileNames = function (self,rank,SpaceSize)
 		riemman_name = "Rusanov"
 	elseif self.riemman == 2 then
 		riemman_name = "Roe"
+	elseif self.riemman == 3 then
+		riemman_name = "Engquist-Osher"
 	else
 		print ("Numerical Flux Scheme for NonLinear Scalar conservation Law not defined"); exit();
 	end
@@ -710,7 +711,7 @@ end
 --------------------------------------------------------------------------------
 -- Variables
 --------------------------------------------------------------------------------
-myProblem.Clousures = function (self,approxSpace,u,Inner_total,walls)
+myProblem.Clousures = function (self,approxSpace,u,Inner_total)
 		
 	local InterfaceValues = self.InterfaceValues
 	-------------------------------------------------------------- VelocityGradMag
@@ -847,15 +848,26 @@ myProblem.Clousures = function (self,approxSpace,u,Inner_total,walls)
 	
 	
 	---------------------------------------------------------------------- SaltationFlux
-	local SaltFlux = SaltationFluxLinker2d()
+	local SaltFlux = SaltationFluxLinker()
 	SaltFlux:set_phase_parameters(InterfaceValues)
 	SaltFlux:set_saltation_coefficient(5.5)
 	SaltFlux:set_threshold_friction_velocity(0.22)
 	SaltFlux:set_normal_epsilon(1e-8)
 	SaltFlux:set_delta_epsilon(1e-8)
+	SaltFlux:set_velocity_epsilon(1e-8)
+	SaltFlux:set_direction_mode(2)
 	SaltFlux:set_turbulent_kinematic_viscosity(TurbulenceDisc:turbulent_kinematic_viscosity())
-
 	self.SaltFlux = SaltFlux
+	
+	---------------------------------------------------------------------- AvalancheFlux
+	local AvalancheFlux = AvalancheFluxLinker()
+	AvalancheFlux:set_phase_parameters(InterfaceValues)
+	AvalancheFlux:set_avalanche_coefficient(1.0)
+	AvalancheFlux:set_angle_of_repose_degrees(34.0)
+	AvalancheFlux:set_normal_epsilon(1.0e-8)
+	AvalancheFlux:set_delta_epsilon(1.0e-8)
+	AvalancheFlux:set_vertical_epsilon(1.0e-8)
+	self.AvalancheFlux = AvalancheFlux
 	
 	---------------------------------------------------------------------- Vel-Diffusion (Avalanching)
 	
@@ -907,6 +919,9 @@ myProblem.ConnectClosures = function(self, NavierStokesDisc)
     
 	self.SaltFlux:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
 	self.SaltFlux:set_velocity_gradient(NavierStokesDisc:velocity_grad())
+	self.SaltFlux:set_velocity(NavierStokesDisc:velocity())
+	
+	self.AvalancheFlux:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
 end
 
 ------------------------------------------------------------
@@ -944,7 +959,6 @@ myProblem.Discretization = function (self)
 	NavierStokesDisc:set_stabilization (self.stab, self.diffLength)
 	NavierStokesDisc:set_div_correction (self.div_correction)
 	NavierStokesDisc:set_transport_ip_velocity(self.boolIPVelocity)
-	NavierStokesDisc:set_transport_jac(self.boolTransportJac)
 	NavierStokesDisc:set_mass_mean(self.boolDensityMean)
 	NavierStokesDisc:set_mass_term(self.boolMassTerm)
 	
@@ -1021,7 +1035,7 @@ myProblem.TurbulenceDiscretization = function (self)
 	self.TurbulenceDisc:set_linearize_destruction_coupling(true)
 	self.TurbulenceDisc:set_linearize_f2(true)
 	self.TurbulenceDisc:set_cross_diffusion_linearization(0)
-	self.TurbulenceDisc:set_linearize_exported_viscosity(false)
+	self.TurbulenceDisc:set_linearize_exported_viscosity(true)
 	
 	print("Space Discretization (k-OMEGA SST) DONE")
 	
@@ -1471,6 +1485,7 @@ myProblem.OutputParameters = function (self)
 	out:select(self.RelVel, "RelVel")
 	out:select(self.NavierStokesDisc:particle_pressure(), "Ps")
 	out:select(self.NavierStokesDisc:particle_pressure_grad(), "DPs")
+	out:select(self.NavierStokesDisc:volume_fraction_grad(), "DC")
 	out:select(self.NavierStokesDisc:velocity_grad(), "Gamma")
 	out:select(self.gamma, "MeanGamma")
 	if (self.boolSlipDiff) then
@@ -1483,6 +1498,7 @@ myProblem.OutputParameters = function (self)
 	out:select_element(self.Diffusion, "D")
 	out:select_element(self.Normal, "n")
 	out:select_element(self.SaltFlux,"SaltFlux" )
+	out:select_element(self.AvalancheFlux,"AvalancheFlux" )
 
 	print("Output file setting DONE")
 	return out
@@ -1981,8 +1997,8 @@ myProblem.CheckJacobian = function(self, domainDisc, u, approxSpace, perturbFct,
 
 	local linSolver = self.LinearSolver
 
-	local innerSubsets = table.concat(Inner_total, ",")
-	local boundarySubsets = "Inlet,UpperWall,LowerWall,CylinderWall,Outlet"
+	local innerSubsets = table.concat(self.geometry.innerSubsets, ",")
+	local boundarySubsets = self.geometry.boundaries
 
 	local epsList = {
 		1.0e-3,
@@ -2028,7 +2044,6 @@ myProblem.CheckJacobian = function(self, domainDisc, u, approxSpace, perturbFct,
 	v:set(0.0)
 
 	Interpolate("JacobianPerturbation", v, perturbFct, innerSubsets)
-	Interpolate(0.0, v, perturbFct, boundarySubsets)
 
 
 	------------------------------------------------------------
@@ -2117,11 +2132,6 @@ myProblem.CheckJacobian = function(self, domainDisc, u, approxSpace, perturbFct,
 	local spaceOmegaInner = GridFunctionComponentSpace("omega", innerSubsets)
 
 	local spacePertInner = GridFunctionComponentSpace(perturbFct, innerSubsets)
-	local spacePertInlet = GridFunctionComponentSpace(perturbFct, "Inlet")
-	local spacePertOutlet = GridFunctionComponentSpace(perturbFct, "Outlet")
-	local spacePertUpper = GridFunctionComponentSpace(perturbFct, "UpperWall")
-	local spacePertLower = GridFunctionComponentSpace(perturbFct, "LowerWall")
-	local spacePertCylinder = GridFunctionComponentSpace(perturbFct, "CylinderWall")
 
 
 	------------------------------------------------------------
@@ -2281,13 +2291,18 @@ myProblem.CheckJacobian = function(self, domainDisc, u, approxSpace, perturbFct,
 	UpdateParameters()
 
 	------------------------------------------------------------
-	-- Reassemble reference defect with the same frozen
-	-- parameters used for the FD perturbations.
+	-- Assemble reference defect at the test state
 	------------------------------------------------------------
 
 	r0:set(0.0)
 	domainDisc:assemble_defect(r0, u)
 
+	------------------------------------------------------------
+	-- Assemble a fresh Jacobian at exactly the same test state
+	------------------------------------------------------------
+
+	local JTest = AssembledLinearOperator(domainDisc)
+	domainDisc:assemble_jacobian(JTest, u)
 
 	------------------------------------------------------------
 	-- Compute J*v
@@ -2298,7 +2313,7 @@ myProblem.CheckJacobian = function(self, domainDisc, u, approxSpace, perturbFct,
 	v:enforce_consistent_type()
 	Jv:enforce_consistent_type()
 
-	J:apply(Jv, v)
+	JTest:apply(Jv, v)
 
 
 	------------------------------------------------------------
@@ -2311,15 +2326,8 @@ myProblem.CheckJacobian = function(self, domainDisc, u, approxSpace, perturbFct,
 	print("================================================")
 	print("")
 
-	print(string.upper(perturbFct) .. " PERTURBATION v ON SUBSETS")
-
-	print(string.format("inner    : %.6e", spacePertInner:norm(v)))
-	print(string.format("inlet    : %.6e", spacePertInlet:norm(v)))
-	print(string.format("outlet   : %.6e", spacePertOutlet:norm(v)))
-	print(string.format("upper    : %.6e", spacePertUpper:norm(v)))
-	print(string.format("lower    : %.6e", spacePertLower:norm(v)))
-	print(string.format("cylinder : %.6e", spacePertCylinder:norm(v)))
-
+	print(string.upper(perturbFct) .. " PERTURBATION v")
+	print(string.format("inner : %.6e", spacePertInner:norm(v)))
 	print("")
 
 
@@ -2395,7 +2403,43 @@ myProblem.CheckJacobian = function(self, domainDisc, u, approxSpace, perturbFct,
 
 		local denom = math.max(normFD, normJv, 1.0e-30)
 		local relErr = normErr / denom
+		
+		local normFDC = spaceC:norm(fd)
+		local normJvC = spaceC:norm(Jv)
+		local normErrC = spaceC:norm(err)
+		local relErrC = normErrC / math.max(normFDC, normJvC, 1.0e-30)
 
+		print(string.format(
+			"C BLOCK: eps = %.1e   |FD| = %.6e   |Jv| = %.6e   |err| = %.6e   rel = %.6e",
+			eps, normFDC, normJvC, normErrC, relErrC
+		))
+
+		local jacOut = VTKOutput()
+		jacOut:clear_selection()
+		jacOut:select_all(false)
+		jacOut:select_nodal("c", "c")
+		
+		VecScaleAdd2(fd, 1.0 / eps, r1, -1.0 / eps, r0)
+
+		fd:enforce_consistent_type()
+		Jv:enforce_consistent_type()
+		err:enforce_consistent_type()
+
+		VecScaleAdd2(err, 1.0, fd, -1.0, Jv)
+		
+		if eps == 1.0e-6 then
+			fd:enforce_consistent_type()
+			Jv:enforce_consistent_type()
+			err:enforce_consistent_type()
+			v:enforce_consistent_type()
+
+			jacOut:print_subsets(folder_vtk .. "/Jacobian_FD", fd, self.geometry.allSubsets, 0, 0.0, true)
+			jacOut:print_subsets(folder_vtk .. "/Jacobian_Jv", Jv, self.geometry.allSubsets, 0, 0.0, true)
+			jacOut:print_subsets(folder_vtk .. "/Jacobian_Error", err, self.geometry.allSubsets, 0, 0.0, true)
+			jacOut:print_subsets(folder_vtk .. "/Jacobian_Perturbation", v, self.geometry.allSubsets, 0, 0.0, true)
+
+			print("Jacobian c-block diagnostic files written.")
+		end
 
 		--------------------------------------------------------
 		-- Detailed block analysis at eps = 1e-6
