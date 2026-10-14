@@ -110,7 +110,7 @@ params =
 	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 100, "time steps"),
 	
 	
-	tol     = util.GetParamNumber("-limex-tol", 1e-2, "time step size"),
+	tol     = util.GetParamNumber("-limex-tol", 1e-1, "time step size"),
 	nstages = util.GetParamNumber("-limex-nstages", 2, "limex stages (2 default)"),
 	limex_partial_mask = util.GetParamNumber("-limex-partial", 0, "limex partial (0 or 3)"),
 	limex_debug_level = util.GetParamNumber("-limex-debug-level", 5, "limex debug level (integer)"),
@@ -152,7 +152,7 @@ params =
 	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", defaults.LinRedDefectImp),
 	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", defaults.LinAbsDefectLim),
 	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", defaults.LinRedDefectLim),
-	max_linear_steps_Lim=util.GetParamNumber("-max_linear_steps_lim", 100),
+	max_linear_steps_Lim=util.GetParamNumber("-max_linear_steps_lim", 400),
 	max_linear_steps_Imp=util.GetParamNumber("-max_linear_steps_imp", 400),
 	precondLim = util.GetParam("-precondLim","gmg","ilu,gmg"),
 	precondImp = util.GetParam("-precondImp","gmg","ilu,gmg"),
@@ -221,7 +221,7 @@ params =
 	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein, 4 Relax"),
 	density_model  = util.GetParam("-density_model", "linear", "constant, linear"),
 	drag_mod = util.GetParamNumber("-drag_model", 2, "Opt: 0 StokesLaw, 1 formula, 2 Schiller-Naumann, 3 Turton and Levenspiel"),
-	riemman = util.GetParamNumber("-riemman", 3, "Opt: 0 Godunov, 1 Rusanov, 2 Roe, 3 Engquist-Osher"),
+	riemman = util.GetParamNumber("-riemman", 1, "Opt: 0 Godunov, 1 Rusanov, 2 Roe, 3 Engquist-Osher"),
 	--Model 0 pow(0.63+4.8/sqrt(RE),2.0);
 
 	FR = 0.05,

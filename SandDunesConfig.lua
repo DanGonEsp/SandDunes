@@ -855,7 +855,7 @@ myProblem.Clousures = function (self,approxSpace,u,Inner_total)
 	SaltFlux:set_normal_epsilon(1e-8)
 	SaltFlux:set_delta_epsilon(1e-8)
 	SaltFlux:set_velocity_epsilon(1e-8)
-	SaltFlux:set_direction_mode(2)
+	SaltFlux:set_direction_mode(1)
 	SaltFlux:set_turbulent_kinematic_viscosity(TurbulenceDisc:turbulent_kinematic_viscosity())
 	self.SaltFlux = SaltFlux
 	
@@ -961,6 +961,7 @@ myProblem.Discretization = function (self)
 	NavierStokesDisc:set_transport_ip_velocity(self.boolIPVelocity)
 	NavierStokesDisc:set_mass_mean(self.boolDensityMean)
 	NavierStokesDisc:set_mass_term(self.boolMassTerm)
+	NavierStokesDisc:set_viscosity_averaging("arithmetic")
 	
 	
 	NavierStokesDisc:set_kinematic_viscosity (self.EfectiveKinViscosity)
@@ -1896,6 +1897,10 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 		limexEstimator:add(H1SemiComponentSpace("c", 2, self.alphaVol))
 	else
 		print ("LimexErrorEstimator for VolumeFraction not defined"); exit();
+	end
+	if self.turbViscMethod=="komegaSST" then
+		limexEstimator:add(L2ComponentSpace("k", 2))
+		limexEstimator:add(L2ComponentSpace("omega", 2))
 	end
 	
 
