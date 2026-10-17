@@ -90,8 +90,8 @@ params =
 	file_name = util.GetParam("-file_name", defaults.Name),
 	folder_name = util.GetParam("-folder_name", defaults.Name) .."_".. fixedNum .."_".. problemTag.. simCaseBnd,
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
-	numRefs = util.GetParamNumber("-numRefs",6, "number of grid refinements"),
-	numPreRefs = util.GetParamNumber("-numPreRefs", 4, "number of prerefinements (parallel)"),
+	numRefs = util.GetParamNumber("-numRefs", defaults.numRefs, "number of grid refinements"),
+	numPreRefs = util.GetParamNumber("-numPreRefs", defaults.numPreRefs, "number of prerefinements (parallel)"),
 	algebraBlockSize = util.GetParamNumber("-algebraBlockSize", 1, "algebraBlockSize"),
 	
 	--Output Data
@@ -105,7 +105,7 @@ params =
 	timeMethod = util.GetParam("-timeMethod","limex","euler limex"),
 	modifyDT     = util.GetParamBool("-modifyDT", false),
 	DT= util.GetParamNumber("-DT", 100.0, "DT[seconds]"),
-	DTmin= util.GetParamNumber("-DTmin", 1e-04, "min  DT"),
+	DTmin= util.GetParamNumber("-DTmin", 1e-06, "min  DT"),
 	DTLimex=util.GetParamNumber("-DTLimex", defaults.DTLimex, "Initital DT limex"),
 	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 100, "time steps"),
 	

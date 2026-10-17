@@ -185,8 +185,8 @@ myProblem.GetCaseDefaults = function(self, problem)
     if problem == "flow" then
         return {
         	Name = "Dune",
-            numRefs = 3,
-            numPreRefs = 1,
+            numRefs = 6,
+            numPreRefs = 4,
             alphaVel = 1.0,
             alphaPress = 1e-11,
             LinRedDefectImp = 1e-5,

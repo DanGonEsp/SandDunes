@@ -32,11 +32,10 @@ ARGS=(
     -dir_name "${WORKDIR}"
     -dim 2
     -timeMethod limex
-    -numRefs 3
-    -numPreRefs 1
+    -numRefs 6
+    -numPreRefs 4
     -numTimeSteps 100
     -DT 3600.0
-    -DTmin 1e-06
 )
 
 
