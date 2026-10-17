@@ -980,7 +980,7 @@ myProblem.Discretization = function (self)
 	NavierStokesDisc:set_mass_term(self.boolMassTerm)
 	NavierStokesDisc:set_saltation_riemann(true)
 	
-	ifself.riemman == 1 then
+	if self.riemman == 1 then
 		NavierStokesDisc:set_viscosity_averaging("interpolated")
 	else
 		NavierStokesDisc:set_viscosity_averaging("harmonic")
