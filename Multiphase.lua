@@ -90,8 +90,8 @@ params =
 	file_name = util.GetParam("-file_name", defaults.Name),
 	folder_name = util.GetParam("-folder_name", defaults.Name) .."_".. fixedNum .."_".. problemTag.. simCaseBnd,
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
-	numRefs = util.GetParamNumber("-numRefs",3, "number of grid refinements"),
-	numPreRefs = util.GetParamNumber("-numPreRefs", 2, "number of prerefinements (parallel)"),
+	numRefs = util.GetParamNumber("-numRefs",6, "number of grid refinements"),
+	numPreRefs = util.GetParamNumber("-numPreRefs", 4, "number of prerefinements (parallel)"),
 	algebraBlockSize = util.GetParamNumber("-algebraBlockSize", 1, "algebraBlockSize"),
 	
 	--Output Data

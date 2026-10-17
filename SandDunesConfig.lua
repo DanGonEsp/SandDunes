@@ -189,7 +189,7 @@ myProblem.GetCaseDefaults = function(self, problem)
             numPreRefs = 1,
             alphaVel = 1.0,
             alphaPress = 1e-11,
-            LinRedDefectImp = 1e-3,
+            LinRedDefectImp = 1e-5,
             LinAbsDefectLim = 1e-10,
             LinRedDefectLim = 1e-8,
             boolAveDiff = false,
@@ -630,7 +630,7 @@ myProblem.RegisterCallbacks = function(self)
     end
 
     local function inletSpeed(height)
-		hh=14.1856
+		hh=20.0
         if self.problem == "avalanche" then return 0.0 end
 		if height <= 0.0 then return 0.0 end
         return self.inflow * math.log(1 + height / self.roughness_length) / math.log(1 + hh / self.roughness_length)
@@ -653,8 +653,8 @@ myProblem.RegisterCallbacks = function(self)
 
     local function initialC3d(x, y, z)
         if self.problem == "avalanche" then return 0.0 end
-        local dx = math.abs((x - 20.0) / 3.0)
-        local dy = math.abs(y / 3.0)
+        local dx = math.abs((x - 20.0) / 6.0)
+        local dy = math.abs(y / 6.0)
         local height = self.H_0 * math.exp(-(dx^4 + dy^4)) - 0.01
         if z > height then return 0.0 end
         return self.c_init
