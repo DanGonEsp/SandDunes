@@ -80,7 +80,7 @@ params =
 	limex_partial_mask = util.GetParamNumber("-limex-partial", 0, "limex partial (0 or 3)"),
 	limex_debug_level = util.GetParamNumber("-limex-debug-level", 5, "limex debug level (integer)"),
 	
-	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 100),
+	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 400),
 	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 300),
 	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-07),
 	RedDefect = util.GetParamNumber("-RedDefect", 1e-08),
@@ -89,7 +89,7 @@ params =
 	StepDebug = util.GetParamBool("-StepDebug", false),
 	NewtonUpdater = util.GetParamBool("-NewtonUpdater", false),
 	
-	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 5),
+	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 6),
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
 
 	max_linear_steps=util.GetParamNumber("-max_linear_steps", 700),

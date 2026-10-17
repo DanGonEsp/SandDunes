@@ -136,7 +136,7 @@ params =
 	RedDefect = util.GetParamNumber("-RedDefect", 1e-05),
 	NewtonDebug = util.GetParamBool("-NewtonDebug", false),
 	NewtonSteadyDebug = util.GetParamBool("-NewtonSteadyDebug", false),
-	NewtonUpdater = util.GetParamBool("-NewtonUpdater", true),
+	NewtonUpdater = util.GetParamBool("-NewtonUpdater", false),
 	StepDebug = util.GetParamBool("-StepDebug", false),
 	
 	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 5),
@@ -145,9 +145,8 @@ params =
 
 	------------------------------------------------------------------------------------- LINEAR SOLVER
 	damping_mg = util.GetParamNumber("-damping_mg", 1.0),
-	rap = util.GetParamBool("-rap", true),
-	value_beta = util.GetParamNumber("-value_beta", -0.0 ),
-	--value_beta = util.GetParamNumber("-value_beta", -0.14 ),
+	rap = util.GetParamBool("-rap",defaults.rap, "RAP"),
+	value_beta = util.GetParamNumber("-value_beta", defaults.value_beta, "ILU_beta"),
 	LinAbsDefectImp = util.GetParamNumber("-LinAbsDefectImp", 1e-012),
 	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", defaults.LinRedDefectImp),
 	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", defaults.LinAbsDefectLim),
@@ -156,7 +155,7 @@ params =
 	max_linear_steps_Imp=util.GetParamNumber("-max_linear_steps_imp", 400),
 	precondLim = util.GetParam("-precondLim","gmg","ilu,gmg"),
 	precondImp = util.GetParam("-precondImp","gmg","ilu,gmg"),
-	smoother = util.GetParam("-smoother","ilu","ilu,ilut"),
+	smoother = util.GetParam("-smoother", defaults.smoother, "smoother"),
 	pre_smooth   = util.GetParamNumber("-pre_smooth", defaults.pre_smooth, "PreSmooth steps"),
 	post_smooth = util.GetParamNumber("-post_smooth", defaults.post_smooth, "PostSmooth steps"),
 	eps_ilut = util.GetParamNumber("-eps_ilut", 1e-02),
@@ -323,7 +322,7 @@ InterfaceValues = myProblem:InterfaceParameters()
 ------------------------------------------------------------------------------------------
 
 
-myProblem:Clousures(approxSpace,u,geometry.innerSubsets)
+myProblem:Clousures(u,geometry.innerSubsets)
 
 
 ------------------------------------------------------------------------------------------
@@ -385,7 +384,7 @@ local time, step, time_work_total = myProblem:InitializeSolution(u, folder_vtk)
 ------------------------------------------------------------------------------------------
 print("Setting Solver")
 boolSolution = 1
-op, NLSolver, NewtonSolverSteady, limex = myProblem:CreateSolver(domainDisc, approxSpace)
+op, NLSolver, NewtonSolverSteady, limex = myProblem:CreateSolver(domainDisc)
 
 
 
@@ -393,10 +392,10 @@ op, NLSolver, NewtonSolverSteady, limex = myProblem:CreateSolver(domainDisc, app
 -- Set up the Output (For printing variables)
 ------------------------------------------------------------------------------------------
 
+myProblem:UpdateParameters()
 
 out = myProblem:OutputParameters()
 
-myProblem:UpdateParameters()
 
 ------------------------------------------------------------------------------------------
 -- Steady State Solution
@@ -522,19 +521,19 @@ end
 myProblem:UpdateParameters()
 
 
---myProblem:CheckJacobian(domainDisc, u, approxSpace, "u", false)
---myProblem:CheckJacobian(domainDisc, u, approxSpace, "v", false)
---myProblem:CheckJacobian(domainDisc, u, approxSpace, "c", false)
---myProblem:CheckJacobian(domainDisc, u, approxSpace, "p", false)
---myProblem:CheckJacobian(domainDisc, u, approxSpace, "k", false)
---myProblem:CheckJacobian(domainDisc, u, approxSpace, "omega", false)
+--myProblem:CheckJacobian(domainDisc, u, "u", false)
+--myProblem:CheckJacobian(domainDisc, u, "v", false)
+--myProblem:CheckJacobian(domainDisc, u, "c", false)
+--myProblem:CheckJacobian(domainDisc, u, "p", false)
+--myProblem:CheckJacobian(domainDisc, u, "k", false)
+--myProblem:CheckJacobian(domainDisc, u, "omega", false)
 
---myProblem:CheckJacobian(domainDisc, u, approxSpace, "u", false)
---myProblem:CheckJacobian(domainDisc, u, approxSpace, "v", false)
---myProblem:CheckJacobian(domainDisc, u, approxSpace, "c", false)
---myProblem:CheckJacobian(domainDisc, u, approxSpace, "p", false)
---myProblem:CheckJacobian(domainDisc, u, approxSpace, "k", false)
---myProblem:CheckJacobian(domainDisc, u, approxSpace, "omega", false)
+--myProblem:CheckJacobian(domainDisc, u, "u", false)
+--myProblem:CheckJacobian(domainDisc, u, "v", false)
+--myProblem:CheckJacobian(domainDisc, u, "c", false)
+--myProblem:CheckJacobian(domainDisc, u, "p", false)
+--myProblem:CheckJacobian(domainDisc, u, "k", false)
+--myProblem:CheckJacobian(domainDisc, u, "omega", false)
 
 
 ------------------------------------------------------------------------------------------

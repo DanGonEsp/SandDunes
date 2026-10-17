@@ -188,7 +188,7 @@ myProblem.GetCaseDefaults = function(self, problem)
             numRefs = 3,
             numPreRefs = 1,
             alphaVel = 1.0,
-            alphaPress = 0.5e-10,
+            alphaPress = 1e-11,
             LinRedDefectImp = 1e-3,
             LinAbsDefectLim = 1e-10,
             LinRedDefectLim = 1e-8,
@@ -196,9 +196,12 @@ myProblem.GetCaseDefaults = function(self, problem)
             boolSlipDiff = false,
             boolSlipVel = false,
             boolFixVel = false,
+			rap = true,
+			value_beta = 0.0,
 			pre_smooth = 1,
 			post_smooth = 2,
-			DTLimex=1e-07,
+			smoother = "ilu",
+			DTLimex=1000,
         }
     elseif problem == "avalanche" then
         return {
@@ -214,8 +217,11 @@ myProblem.GetCaseDefaults = function(self, problem)
             boolSlipDiff = false,
             boolSlipVel = true,
             boolFixVel = true,
+			rap = true,
+			value_beta = 0.0,
 			pre_smooth = 1,
 			post_smooth = 2,
+			smoother = "ilu",
 			DTLimex=1e-03,
         }
     end
@@ -626,6 +632,7 @@ myProblem.RegisterCallbacks = function(self)
     local function inletSpeed(height)
 		hh=14.1856
         if self.problem == "avalanche" then return 0.0 end
+		if height <= 0.0 then return 0.0 end
         return self.inflow * math.log(1 + height / self.roughness_length) / math.log(1 + hh / self.roughness_length)
 		--return self.inflow* (2*hh - height) * (height ) / (hh * hh)
     end
@@ -711,12 +718,12 @@ end
 --------------------------------------------------------------------------------
 -- Variables
 --------------------------------------------------------------------------------
-myProblem.Clousures = function (self,approxSpace,u,Inner_total)
+myProblem.Clousures = function (self,u,Inner_total)
 		
 	local InterfaceValues = self.InterfaceValues
 	-------------------------------------------------------------- VelocityGradMag
 
-	local gamma = ShearStressFV1(approxSpace,u)
+	local gamma = ShearStressFV1(self.approxSpace,u)
 	self.gamma = gamma
 
 	---------------------------------------------------------------------- Density
@@ -752,9 +759,9 @@ myProblem.Clousures = function (self,approxSpace,u,Inner_total)
 		KinTurbulentViscosity = 0.0
 	elseif self.turbViscMethod=="dyn" or self.turbViscMethod=="sma" then
 		if self.turbViscMethod == "dyn" then
-			KinTurbulentViscosity = FV1DynamicTurbViscData(approxSpace,u)
+			KinTurbulentViscosity = FV1DynamicTurbViscData(self.approxSpace,u)
 		else
-			KinTurbulentViscosity = FV1SmagorinskyTurbViscData(approxSpace,u,self.modellconstant)
+			KinTurbulentViscosity = FV1SmagorinskyTurbViscData(self.approxSpace,u,self.modellconstant)
 		end
 		KinTurbulentViscosity:set_turbulence_zero_bnd(self.geometry.boundaries)
 		KinTurbulentViscosity:set_kinematic_viscosity(0.0)
@@ -802,6 +809,22 @@ myProblem.Clousures = function (self,approxSpace,u,Inner_total)
 	self.MixViscosity = MixViscosity
 	self.KinMixViscosity = KinMixViscosity
 	self.EfectiveKinViscosity = EfectiveKinViscosity
+	
+	---------------------------------------------------------------------- Normal
+	
+	local ss_value = math.atan(self.FricMu_2)*180/3.1415926
+	
+	local Normal = nil
+	if self.boolAveNormal then
+		Normal = DuneNormal(self.approxSpace,u)
+		Normal:set_theta(ss_value)
+		Normal:set_gradient_limit(self.grad_limit)
+		Normal:set_phase_parameters(InterfaceValues)
+	else
+		Normal = InterfaceNormalLinker()
+	end
+	
+	self.Normal = Normal
 
 	---------------------------------------------------------------------- Sediment Velocity
 
@@ -811,8 +834,11 @@ myProblem.Clousures = function (self,approxSpace,u,Inner_total)
 	local Cd = InterfaceValues:CD(re,self.drag_mod)
 
 
-	local RelVel = RelativeVelocity(approxSpace,u)
+	--RelVel = ScaleAddLinkerVector()
+	--RelVel:add(-Vs, self.Normal)
+	local RelVel = RelativeVelocity(self.approxSpace,u)
 	RelVel:set_phase_parameters(InterfaceValues)
+
 	
 	self.RelVel = RelVel
 
@@ -827,24 +853,13 @@ myProblem.Clousures = function (self,approxSpace,u,Inner_total)
 	Diffusion:set_mix_viscosity(DiffusionViscosity)
 	Diffusion:set_diff_factor(Diff_factor)
 	Diffusion:set_phase_parameters(InterfaceValues)
+	
+	
+	--local Dreg = ConstUserMatrix(0.2*Vs)
+
 
 	self.Diffusion = Diffusion
-	
-	---------------------------------------------------------------------- Normal
-	
-	local ss_value = math.atan(self.FricMu_2)*180/3.1415926
-	
-	local Normal = nil
-	if self.boolAveNormal then
-		Normal = DuneNormal(approxSpace,u)
-		Normal:set_theta(ss_value)
-		Normal:set_gradient_limit(self.grad_limit)
-		Normal:set_phase_parameters(InterfaceValues)
-	else
-		Normal = InterfaceNormalLinker()
-	end
-	
-	self.Normal = Normal
+	--self.Dreg = Dreg
 	
 	
 	---------------------------------------------------------------------- SaltationFlux
@@ -855,8 +870,9 @@ myProblem.Clousures = function (self,approxSpace,u,Inner_total)
 	SaltFlux:set_normal_epsilon(1e-8)
 	SaltFlux:set_delta_epsilon(1e-8)
 	SaltFlux:set_velocity_epsilon(1e-8)
-	SaltFlux:set_direction_mode(1)
+	SaltFlux:set_direction_mode(2)
 	SaltFlux:set_turbulent_kinematic_viscosity(TurbulenceDisc:turbulent_kinematic_viscosity())
+	SaltFlux:set_normal(self.Normal)
 	self.SaltFlux = SaltFlux
 	
 	---------------------------------------------------------------------- AvalancheFlux
@@ -876,7 +892,7 @@ myProblem.Clousures = function (self,approxSpace,u,Inner_total)
 	local SlipDiff = nil
 	local SlipVel = nil
 	if self.boolSlipDiff then
-		SlipDiff = SlipDiffusion(approxSpace,u)
+		SlipDiff = SlipDiffusion(self.approxSpace,u)
 		SlipDiff:set_theta(ss_value)
 		SlipDiff:set_diff(self.SlipVelValue)
 		SlipDiff:set_slope_limit(self.slope_limit)
@@ -887,7 +903,7 @@ myProblem.Clousures = function (self,approxSpace,u,Inner_total)
 			SlipDiff:set_diffusion(Diffusion)
 		end
 	else if self.boolSlipVel then
-			SlipVel = SlipVelocity(approxSpace,u)
+			SlipVel = SlipVelocity(self.approxSpace,u)
 			SlipVel:set_theta(ss_value)
 			SlipVel:set_vel(self.SlipVelValue)
 			SlipVel:set_slope_limit(self.slope_limit)
@@ -922,6 +938,7 @@ myProblem.ConnectClosures = function(self, NavierStokesDisc)
 	self.SaltFlux:set_velocity(NavierStokesDisc:velocity())
 	
 	self.AvalancheFlux:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
+
 end
 
 ------------------------------------------------------------
@@ -961,7 +978,8 @@ myProblem.Discretization = function (self)
 	NavierStokesDisc:set_transport_ip_velocity(self.boolIPVelocity)
 	NavierStokesDisc:set_mass_mean(self.boolDensityMean)
 	NavierStokesDisc:set_mass_term(self.boolMassTerm)
-	NavierStokesDisc:set_viscosity_averaging("arithmetic")
+	NavierStokesDisc:set_viscosity_averaging("interpolated")
+	NavierStokesDisc:set_saltation_riemann(true)
 	
 	
 	NavierStokesDisc:set_kinematic_viscosity (self.EfectiveKinViscosity)
@@ -1276,10 +1294,9 @@ myProblem.LinearSolver = function (self,LinSolver_name,LinearConvCheck,precond_n
 	
 	return LinearSolver
 end
-myProblem.CreateSolver = function (self, domainDisc, approxSpace)
+myProblem.CreateSolver = function (self, domainDisc)
 
 	self.domainDisc = domainDisc
-	self.approxSpace = approxSpace
 	local op = nil
 	
 	--------------
@@ -1309,7 +1326,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	-- NoLinear COnvCheck
 	----------------------
 	
-	local NewtonSteadyConvCheck = CompositeConvCheck(approxSpace)
+	local NewtonSteadyConvCheck = CompositeConvCheck(self.approxSpace)
 	NewtonSteadyConvCheck:set_maximum_steps(self.max_newton_steps_steady_state)
 	NewtonSteadyConvCheck:set_group_check(self.vel_cmp_tbl, self.SteadyAbsDefect, self.SteadyRedDefect)
 	NewtonSteadyConvCheck:set_component_check("p", self.SteadyAbsDefect, self.SteadyRedDefect)
@@ -1321,7 +1338,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	NewtonSteadyConvCheck:disable_rest_check()
 	NewtonSteadyConvCheck:set_verbose(true)
 	
-	local NewtonConvCheck = CompositeConvCheck(approxSpace)
+	local NewtonConvCheck = CompositeConvCheck(self.approxSpace)
 	NewtonConvCheck:set_maximum_steps(self.max_newton_steps_transient)
 	NewtonConvCheck:set_group_check(self.vel_cmp_tbl, self.AbsDefect, self.RedDefect)
 	NewtonConvCheck:set_component_check("p", self.AbsDefect, self.RedDefect)
@@ -1358,7 +1375,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 		NewtonSolverSteady:set_line_search(NewtonLineSearch)
 		
 		if self.NewtonSteadyDebug then
-			local dbgWriter_steady = GridFunctionDebugWriter(approxSpace)
+			local dbgWriter_steady = GridFunctionDebugWriter(self.approxSpace)
 			dbgWriter_steady:set_vtk_output(true)
 			dbgWriter_steady:set_conn_viewer_output(false)
 			dbgWriter_steady:set_base_dir(self.debug_dir)
@@ -1391,7 +1408,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 	end
 	
 	if self.NewtonDebug then
-		local dbgWriter = GridFunctionDebugWriter(approxSpace)
+		local dbgWriter = GridFunctionDebugWriter(self.approxSpace)
 		dbgWriter:set_vtk_output(true)
 		dbgWriter:set_conn_viewer_output(false)
 		dbgWriter:set_base_dir(self.debug_dir)
@@ -1407,7 +1424,7 @@ myProblem.CreateSolver = function (self, domainDisc, approxSpace)
 		TransientNewtonUpdater:set_max_threshold(1.1)
 		TransientNewtonUpdater:set_min_threshold(-1e-5)
 		if self.algebraBlockSize == 1 then
-			local projectionMask = GridFunction(approxSpace)
+			local projectionMask = GridFunction(self.approxSpace)
 			projectionMask:set(0.0)
 			Interpolate(1.0, projectionMask, "c")
 			TransientNewtonUpdater:set_projection_mask(projectionMask)
@@ -1437,7 +1454,7 @@ myProblem.InitializeSolution = function(self, u, folder)
     end
 
     if interpolate then
-        Interpolate(0.001, u, "u")
+        Interpolate(0.0001, u, "u")
         Interpolate(0.0, u, "v")
         if self.dim == 3 then
 			Interpolate(0.0, u, "w")
@@ -1478,6 +1495,7 @@ myProblem.OutputParameters = function (self)
 		out:select_nodal ("omega", "omega")
 	end
 	out:select(self.Density, "Rho")
+	out:select(self.NavierStokesDisc:mix_density(), "Rho2")
 	out:select(self.NavierStokesDisc:einstein_viscosity(), "Mu_eins")
 	out:select(self.NavierStokesDisc:mix_viscosity(), "Mu_I")
 	out:select(self.MixViscosity, "MixViscosity")
@@ -1670,7 +1688,6 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, solTimeSeries, 
 
 	if(self.boolSolverDesc == false) then print("SolverDesc Not initialized ") return 0, 0, 0, 0, 0, 0 end
 	local solverDesc = self.NewtonSolverDesc
-	local approxSpace = self.approxSpace
 		
     local Newton_Steps = 0
     local Newton_Steps_fail = 0
@@ -1727,7 +1744,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, solTimeSeries, 
 						}
 
 					solver:set_convergence_check(ConvCheck(5, self.AbsDefect, self.RedDefect, true))
-					local dbgWriter = GridFunctionDebugWriter(approxSpace)
+					local dbgWriter = GridFunctionDebugWriter(self.approxSpace)
 					dbgWriter:set_vtk_output(true)
 					dbgWriter:set_base_dir(self.debug_dir .."Steady")
 					solver:set_debug(dbgWriter)
@@ -1966,7 +1983,7 @@ myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, time_
 		limex:set_dt_min(1e-010)
 	end
 	limex:set_start_step(1)
-	limex:apply(u, EndTime, u, StartTime)
+	local fail = limex:apply(u, EndTime, u, StartTime)
 	
 	print("LIMEX total   = ", limex:get_total_steps())
 	print("LIMEX success = ", limex:get_success_steps())
@@ -1986,11 +2003,14 @@ myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, time_
 	end
 	
 	NLSolver:clear_average_convergence();
-
-  return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, 1
+	if (fail) then
+		return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, 1
+	else
+		return Newton_Steps, Newton_Steps_fail, linsolver_calls_step, linsolver_steps_step, 0
+	end
 end
 
-myProblem.CheckJacobian = function(self, domainDisc, u, approxSpace, perturbFct, solveLinearSystem)
+myProblem.CheckJacobian = function(self, domainDisc, u, perturbFct, solveLinearSystem)
 
 	------------------------------------------------------------
 	-- Settings
