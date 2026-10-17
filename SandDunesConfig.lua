@@ -978,7 +978,7 @@ myProblem.Discretization = function (self)
 	NavierStokesDisc:set_transport_ip_velocity(self.boolIPVelocity)
 	NavierStokesDisc:set_mass_mean(self.boolDensityMean)
 	NavierStokesDisc:set_mass_term(self.boolMassTerm)
-	NavierStokesDisc:set_viscosity_averaging("interpolated")
+	NavierStokesDisc:set_viscosity_averaging("harmonic")
 	NavierStokesDisc:set_saltation_riemann(true)
 	
 	
