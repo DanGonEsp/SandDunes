@@ -403,20 +403,23 @@ end
 --------------------------------------------------------------------------------
 -- LOG Files
 --------------------------------------------------------------------------------
-myProblem.LogFiles = function (self,rank_t,Name)
-	
-	
-	local counter = 0
-	local filename = Name .. "_" .. counter
-	while io.open(filename, "r") do
+myProblem.LogFiles = function (self, rank, Name)
+	if rank == 0 then
+		local counter = 0
+		local filename = Name .. "_" .. counter
 
-		counter = counter + 1
-		filename = Name .. "_" .. counter
+		while true do
+			local file = io.open(filename, "r")
+			if file == nil then break end
+			file:close()
+			counter = counter + 1
+			filename = Name .. "_" .. counter
+		end
 
+		GetLogAssistant():enable_file_output(true, filename)
+	else
+		GetLogAssistant():enable_terminal_output(false)
 	end
-	GetLogAssistant():enable_file_output(true, filename)
-	if rank_t > 0 then GetLogAssistant():enable_terminal_output(false) end
-
 end
 
 
@@ -744,9 +747,11 @@ myProblem.Clousures = function (self,u,Inner_total)
 	local Inverse_RHO = InverseLinker();
 	Inverse_RHO:divide(1.0,Density);
 
+	local AirDensity = ConstUserNumber(self.rho_a)
+
 	local Scale_RHO = ScaleLinker();
 	Scale_RHO:set_import_1(Inverse_RHO)
-	Scale_RHO:set_import_2(self.rho_a)
+	Scale_RHO:set_import_2(AirDensity)
 
 	local KinMixViscosity = ScaleLinker();
 	KinMixViscosity:set_import_1(Inverse_RHO)
@@ -793,14 +798,14 @@ myProblem.Clousures = function (self,u,Inner_total)
 
 	local DiffusionViscosity = nil
 	if self.turbViscMethod=="no" then
-		DiffusionViscosity = self.rho_a * self.nu_a
+		DiffusionViscosity = ConstUserNumber(self.rho_a * self.nu_a)
 	else
-		DiffusionViscosity = self.rho_a * self.nu_a
+		DiffusionViscosity = ConstUserNumber(self.rho_a * self.nu_a)
 	end
 
 
 	local TurbulentViscosity = ScaleLinker();
-	TurbulentViscosity:set_import_1(self.rho_a)
+	TurbulentViscosity:set_import_1(AirDensity)
 	TurbulentViscosity:set_import_2(KinTurbulentViscosity)
 
 	self.TurbulenceDisc = TurbulenceDisc
@@ -871,6 +876,9 @@ myProblem.Clousures = function (self,u,Inner_total)
 	SaltFlux:set_delta_epsilon(1e-8)
 	SaltFlux:set_velocity_epsilon(1e-8)
 	SaltFlux:set_direction_mode(2)
+	if not self.turbViscMethod =="komegaSST" then
+		print ("komegaSST required to Saltation flux"); exit();
+	end
 	SaltFlux:set_turbulent_kinematic_viscosity(TurbulenceDisc:turbulent_kinematic_viscosity())
 	SaltFlux:set_normal(self.Normal)
 	self.SaltFlux = SaltFlux
@@ -1145,7 +1153,7 @@ myProblem.CreateBoundaryConditions = function(self, NavierStokesDisc, geometry)
 			
 			
 		else
-			RANSBnd:add(0.0,k, geometry.boundaries)
+			RANSBnd:add(0.0, "k", geometry.boundaries)
 			RANSBnd:add(0.0, "omega", geometry.boundaries)
 		end
 

@@ -97,7 +97,7 @@ params =
 	--Output Data
 	boolData = util.GetParamBool("-boolData", false),
 	data_name = util.GetParam("-data_name", "Data"),
-	outputFactor     = util.GetParam("-output", 1, "output every ... steps"),
+	outputFactor     = util.GetParamNumber("-output", 1, "output every ... steps"),
 	writeIntegral = util.GetParamBool("-writeIntegral", true),
 	boolLoadCheckPoint = util.GetParamBool("-boolLoadCheckPoint", true),
 	boolSaveCheckPoint = util.GetParamBool("-boolSaveCheckPoint", true),
@@ -130,8 +130,8 @@ params =
 	
 	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 100),
 	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 700),
-	SteadyAbsDefect = util.GetParamNumber("-AbsDefect", 1e-05),
-	SteadyRedDefect = util.GetParamNumber("-RedDefect", 1e-05),
+	SteadyAbsDefect = util.GetParamNumber("-SteadyAbsDefect", 1e-05),
+	SteadyRedDefect = util.GetParamNumber("-SteadyRedDefect", 1e-05),
 	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05),
 	RedDefect = util.GetParamNumber("-RedDefect", 1e-05),
 	NewtonDebug = util.GetParamBool("-NewtonDebug", false),
@@ -185,13 +185,13 @@ params =
 	H_0= H_0,
 	ReferencePressure  = util.GetParamNumber("-ReferencePressure",  1.7493e2, "interface value"),
 	bStokes     = util.GetParamBool("-Stokes", false ,"If defined, only Stokes Eq. computed"),
-	bNoLaplace     = util.GetParamNumber("-noLaplace", false,"If defined, only laplace term used"),
+	bNoLaplace     = util.GetParamBool("-noLaplace", false,"If defined, only laplace term used"),
 	bExactJac     = util.GetParamNumber("-exactJac", 0.0,"If defined, exact jacobian used"),
 	bPecletBlend = util.GetParamBool("-PecletBlend", false,"If defined, Peclet Blend used"),
 	upwind_m      = util.GetParam("-upwind_m", "full", "Upwind type full or lps"),
 	upwind_t      = util.GetParam("-upwind_t", "full", "Upwind type full or lps"),
 	upwind_r      = util.GetParam("-upwind_r", "full", "Upwind type full or lps"),
-	bPac        = util.GetParamNumber("-pac", false,"If defined, pac upwind used"),
+	bPac        = util.GetParamBool("-pac", false,"If defined, pac upwind used"),
 	diffLength  = util.GetParam("-difflength", "raw", "fivepoint, raw, cor Diffusion length type"),
 	stab        = util.GetParam("-stab", "fields_2", "Stabilization type (fields or flow viscosity or karimian)"),
 	div_correction = util.GetParamBool("-DivCorrection", false ,"Divergence correction for Newton's inner steps'"),
@@ -213,7 +213,7 @@ params =
 	c_init        = util.GetParamNumber("-c_init", 1.0, "max volume fraction"),
 
 	alpha_max        = util.GetParamNumber("-alpha_max", 0.635, "max volume fraction"),
-	alpha_min        = util.GetParamNumber("-min alpha_min", 0.57, "max volume fraction"),
+	alpha_min        = util.GetParamNumber("-alpha_min", 0.57, "max volume fraction"),
 	packing_factor   = util.GetParamNumber("-packing_factor", 0.6, "Packingfactor"),
 	grad_limit = util.GetParamNumber("-grad_limit", 0.05, "grad limit in Normal vector"),
 	slope_limit = util.GetParamNumber("-slope_limit", 2e-02, "regularization factor in slip and diff velocity"),
@@ -286,7 +286,7 @@ InitUG (params.dim, AlgebraType("CPU", params.algebraBlockSize))
 -- LOG File
 ------------------------------------------------------------------------------------------
 
-myProblem:LogFiles(rank_t,folder_vtk .. "/LogFile")
+myProblem:LogFiles(rank,folder_vtk .. "/LogFile")
 
 ------------------------------------------------------------------------------------------
 -- Printing Values
