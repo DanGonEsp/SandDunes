@@ -186,12 +186,12 @@ myProblem.GetCaseDefaults = function(self, problem)
         return {
         	Name = "Dune",
             numRefs = 6,
-            numPreRefs = 4,
+            numPreRefs = 3,
             alphaVel = 1.0,
             alphaPress = 1e-11,
             LinRedDefectImp = 1e-5,
-            LinAbsDefectLim = 1e-10,
-            LinRedDefectLim = 1e-8,
+            LinAbsDefectLim = 1e-8,
+            LinRedDefectLim = 1e-7,
             boolAveDiff = false,
             boolSlipDiff = false,
             boolSlipVel = false,
@@ -199,7 +199,7 @@ myProblem.GetCaseDefaults = function(self, problem)
 			rap = true,
 			value_beta = 0.0,
 			pre_smooth = 1,
-			post_smooth = 2,
+			post_smooth = 0,
 			smoother = "ilu",
 			DTLimex=1000,
         }
@@ -1235,7 +1235,10 @@ myProblem.Smoother = function (self,smoother_name)
 		local egs = ElementGaussSeidel();
 		smoother = egs
 	elseif smoother_name == "cgs" then
-		local cgs = ComponentGaussSeidel(0.1, {"p"}, {1,2}, {1})
+		local cgs = ComponentGaussSeidel(1.0, {"p"})
+		cgs:set_alpha(1.0)
+		cgs:set_beta(1.0)
+		cgs:set_weights(true)
 		smoother = cgs
 	else
 		print ("Smoother not defined"); exit();
@@ -1249,7 +1252,7 @@ myProblem.Preconditioner = function (self,precond_name)
 	if precond_name == "gmg" then
 		--local baseSolver = LU()
 		--local baseSolver = AgglomeratingSolver(SuperLU());
-		local baseConvCheck=ConvCheck(self.max_linear_steps_Imp, self.LinAbsDefectImp, self.LinRedDefectImp, false)
+		local baseConvCheck=ConvCheck(1000, 1e-8, 1e-03, false)
 		local baseSolver = self:LinearSolver("bicgStab",baseConvCheck,"ilu")
 		
 		local gmg = GeometricMultiGrid(self.approxSpace)
@@ -1266,6 +1269,11 @@ myProblem.Preconditioner = function (self,precond_name)
 		-- gmg:set_damp(MinimalResiduumDamping())
 		-- gmg:set_damp(0.8)
 		-- gmg:set_damp(MinimalEnergyDamping())
+		transfer = StdTransfer()
+		transfer:set_restriction_damping(1.0)
+		transfer:set_prolongation_damping(0.6)
+		
+		gmg:set_transfer(transfer)
 		preconditioner = gmg
 	else
 		preconditioner = smoother
