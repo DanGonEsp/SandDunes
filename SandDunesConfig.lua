@@ -202,7 +202,7 @@ myProblem.GetCaseDefaults = function(self, problem)
 			pre_smooth = 1,
 			post_smooth = 0,
 			smoother = "ilu",
-			baseSolver = "bicgStab"
+			baseSolver = "bicgStab",
 			DTLimex=1000,
         }
     elseif problem == "avalanche" then
@@ -224,7 +224,7 @@ myProblem.GetCaseDefaults = function(self, problem)
 			pre_smooth = 1,
 			post_smooth = 2,
 			smoother = "ilu",
-			baseSolver = "SuperLu"
+			baseSolver = "SuperLu",
 			DTLimex=1e-03,
         }
     end
