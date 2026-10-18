@@ -158,6 +158,7 @@ params =
 	smoother = util.GetParam("-smoother", defaults.smoother, "smoother"),
 	pre_smooth   = util.GetParamNumber("-pre_smooth", defaults.pre_smooth, "PreSmooth steps"),
 	post_smooth = util.GetParamNumber("-post_smooth", defaults.post_smooth, "PostSmooth steps"),
+	baseSolver = util.GetParam("-baseSolver","SuperLu","SuperLu, bicgStab"),
 	eps_ilut = util.GetParamNumber("-eps_ilut", 1e-02),
 
 

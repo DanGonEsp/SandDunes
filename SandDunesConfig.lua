@@ -72,6 +72,7 @@ myProblem.Init = function(self, o)
 	self.AbsDefect = o.AbsDefect
 	self.RedDefect = o.RedDefect
 
+	self.baseSolver = o.baseSolver
 	self.precondLim = o.precondLim
 	self.precondImp = o.precondImp
 	self.LinAbsDefectImp = o.LinAbsDefectImp
@@ -1245,16 +1246,27 @@ myProblem.Smoother = function (self,smoother_name)
 	end
 	return smoother
 end
+myProblem.BaseSolver = function (self,baseSolver_name)
+	--------------
+	-- Base Solver
+	--------------
+	local Solver
+	if baseSolver_name == "SuperLu" then
+		--local Solver = LU()
+		Solver = AgglomeratingSolver(SuperLU());
+	else
+		local baseConvCheck=ConvCheck(1000, 1e-8, 1e-03, false)
+		Solver = self:LinearSolver("bicgStab",baseConvCheck,"ilu")
+	end
+	return Solver
+end
+	
 
 myProblem.Preconditioner = function (self,precond_name)
 	local preconditioner = nil
 	local smoother = self:Smoother(self.smoother)
 	if precond_name == "gmg" then
-		--local baseSolver = LU()
-		--local baseSolver = AgglomeratingSolver(SuperLU());
-		local baseConvCheck=ConvCheck(1000, 1e-8, 1e-03, false)
-		local baseSolver = self:LinearSolver("bicgStab",baseConvCheck,"ilu")
-		
+		local baseSolver = self:BaseSolver(self.baseSolver)
 		local gmg = GeometricMultiGrid(self.approxSpace)
 		gmg:set_discretization(self.domainDisc)
 		gmg:set_base_level(self.numPreRefs)
