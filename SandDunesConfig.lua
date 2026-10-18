@@ -403,21 +403,18 @@ end
 --------------------------------------------------------------------------------
 -- LOG Files
 --------------------------------------------------------------------------------
-myProblem.LogFiles = function (self, rank, Name)
-	if rank == 0 then
-		local counter = 0
-		local filename = Name .. "_" .. counter
+myProblem.LogFiles = function (self,rank_t,Name)
+	local counter = 0
+	local filename = Name .. "_" .. counter
 
-		while true do
-			local file = io.open(filename, "r")
-			if file == nil then break end
-			file:close()
-			counter = counter + 1
-			filename = Name .. "_" .. counter
-		end
+	while io.open(filename, "r") do
+		counter = counter + 1
+		filename = Name .. "_" .. counter
+	end
 
-		GetLogAssistant():enable_file_output(true, filename)
-	else
+	GetLogAssistant():enable_file_output(true, filename)
+
+	if rank_t > 0 then
 		GetLogAssistant():enable_terminal_output(false)
 	end
 end
@@ -479,8 +476,8 @@ myProblem.PrintingSettings = function (self)
 	print ("	RedDefLim		= " .. self.LinRedDefectLim)
 	print ("	MaxStepsLim		= " .. tostring (self.max_linear_steps_Lim))
 	print ("	MaxStepsImp		= " .. tostring (self.max_linear_steps_Imp))
-	print ("	PreconditionerLim		= " .. tostring (self.precondLim))
-	print ("	PreconditionerImp		= " .. tostring (self.precondImp))
+	print ("	PreconditionerLim	= " .. tostring (self.precondLim))
+	print ("	PreconditionerImp	= " .. tostring (self.precondImp))
 	print ("	Smoother		= " .. tostring (self.smoother))
 	print ("	Pre Smooth		= " .. tostring (self.pre_smooth))
 	print ("	Post Smooth		= " .. tostring (self.post_smooth))
@@ -1250,8 +1247,10 @@ myProblem.Preconditioner = function (self,precond_name)
 	local preconditioner = nil
 	local smoother = self:Smoother(self.smoother)
 	if precond_name == "gmg" then
-		local baseSolver = LU()
-		local baseSolver = AgglomeratingSolver(SuperLU());
+		--local baseSolver = LU()
+		--local baseSolver = AgglomeratingSolver(SuperLU());
+		local baseConvCheck=ConvCheck(self.max_linear_steps_Imp, self.LinAbsDefectImp, self.LinRedDefectImp, false)
+		local baseSolver = self:LinearSolver("bicgStab",baseConvCheck,"ilu")
 		
 		local gmg = GeometricMultiGrid(self.approxSpace)
 		gmg:set_discretization(self.domainDisc)

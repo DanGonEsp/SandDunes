@@ -286,7 +286,7 @@ InitUG (params.dim, AlgebraType("CPU", params.algebraBlockSize))
 -- LOG File
 ------------------------------------------------------------------------------------------
 
-myProblem:LogFiles(rank,folder_vtk .. "/LogFile")
+myProblem:LogFiles(rank_t,folder_vtk .. "/LogFile")
 
 ------------------------------------------------------------------------------------------
 -- Printing Values
