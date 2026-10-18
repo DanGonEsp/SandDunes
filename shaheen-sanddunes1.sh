@@ -36,6 +36,7 @@ ARGS=(
     -numPreRefs 3
     -numTimeSteps 100
     -DT 3600.0
+	-baseSolver SuperLu
 )
 
 
