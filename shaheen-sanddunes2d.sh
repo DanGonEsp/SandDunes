@@ -9,8 +9,8 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --hint=nomultithread
 #SBATCH --time=24:00:00
-#SBATCH --output=/scratch/gonzald/SandDunes/Dune-%j.out
-#SBATCH --error=/scratch/gonzald/SandDunes/Dune-%j.err
+#SBATCH --output=/scratch/gonzald/SandDunes/Dune2d-%j.out
+#SBATCH --error=/scratch/gonzald/SandDunes/Dune2d-%j.err
 #SBATCH --mail-user=daniel.gonzalezesparza@kaust.edu.sa
 #SBATCH --mail-type=ALL
 
