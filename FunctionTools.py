@@ -113,7 +113,11 @@ def plot_scene(folder, dim, data_name, property_name, skip_scenes, plane_y=None,
     timesteps = solution.TimestepValues
 
     if timesteps is None or len(timesteps) == 0:
-        raise RuntimeError("ERROR: No timesteps found in the solution data!")
+        if len(files) == 1:
+            timesteps = [0.0]
+            print("Single solution file detected. Using one static scene.")
+        else:
+            raise RuntimeError("ERROR: No timesteps found in the solution data!")
     
     
     # ========================================================
