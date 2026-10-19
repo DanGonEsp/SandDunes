@@ -256,8 +256,8 @@ def plot_scene(folder, dim, data_name, property_name, skip_scenes):
     color_map = GetColorTransferFunction(property_name)
     if property_name == "c":
         color_map.RescaleTransferFunction(1.0e-6, 1.0)
-        color_map.MapControlPointsToLogSpace()
-        color_map.UseLogScale = 1
+        #color_map.MapControlPointsToLogSpace()
+        #color_map.UseLogScale = 1
 
     
     color_bar = GetScalarBar(color_map, render_view)
@@ -719,24 +719,24 @@ def plot_contour(folder, dim, data_name, num_contours, time_factor):
         points = sorted(zip(contours[timestep]["x"], contours[timestep]["y"]), key=lambda point: point[0])
         x_sorted = [point[0] for point in points]
         y_sorted = [point[1] for point in points]
-        ax.plot(x_sorted, y_sorted, color=cmap(norm(time)), linewidth=1.2)
-        #ax.plot(x_sorted, y_sorted, color="k", linewidth=0.5)
+        #ax.plot(x_sorted, y_sorted, color=cmap(norm(time)), linewidth=1.2)
+        ax.plot(x_sorted, y_sorted, color="k", linewidth=0.5)
     #ax.plot(x_sorted, y_sorted, color="k", linewidth=1.2,label="Steady State")
-    #ax.fill_between(x_sorted, 0.0, y_sorted, color="yellow", alpha=0.1)
+    ax.fill_between(x_sorted, 0.0, y_sorted, color="yellow", alpha=0.1)
+
+    if True == False:
     # ========================================================
     # COLORBAR
     # ========================================================
 
-    scalar_map = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
-    scalar_map.set_array([])
-    colorbar = fig.colorbar(scalar_map, ax=ax)
-    colorbar.set_label("Time [h]", fontsize = 14)
-    colorbar.ax.tick_params(labelsize=14)
-
+        scalar_map = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
+        scalar_map.set_array([])
+        colorbar = fig.colorbar(scalar_map, ax=ax)
+        colorbar.set_label("Time [h]", fontsize = 14)
+        colorbar.ax.tick_params(labelsize=14)
     # ========================================================
     # AXES
     # ========================================================
-    if True == False:
         ax.set_xlabel("X",fontsize=14)
         ax.set_ylabel("Y",fontsize=14)
         ax.set_aspect("equal")
@@ -758,8 +758,8 @@ def plot_contour(folder, dim, data_name, num_contours, time_factor):
         ax.spines["right"].set_visible(False)
         ax.spines["left"].set_visible(False)
     else:
-        ax.set_xlabel("X",fontsize=14)
-        ax.set_ylabel("Y",fontsize=14)
+        ax.set_xlabel("X",fontsize=7)
+        ax.set_ylabel("Y",fontsize=7)
         ax.set_aspect("equal")
         ax.set_xlim(10.0, 30.0)
         ax.set_ylim(bottom=-0.02)
