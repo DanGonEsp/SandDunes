@@ -190,7 +190,8 @@ myProblem.GetCaseDefaults = function(self, problem)
             numPreRefs = 3,
             alphaVel = 1.0,
             alphaPress = 1e-11,
-            LinRedDefectImp = 1e-5,
+			LinAbsDefectImp = 1e-08,
+            LinRedDefectImp = 1e-3,
             LinAbsDefectLim = 1e-8,
             LinRedDefectLim = 1e-7,
             boolAveDiff = false,
@@ -202,7 +203,7 @@ myProblem.GetCaseDefaults = function(self, problem)
 			pre_smooth = 1,
 			post_smooth = 0,
 			smoother = "ilu",
-			baseSolver = "bicgStab",
+			baseSolver = "SuperLu",
 			DTLimex=1000,
         }
     elseif problem == "avalanche" then
@@ -212,6 +213,7 @@ myProblem.GetCaseDefaults = function(self, problem)
             numPreRefs = 3,
             alphaVel = 1e-15,
             alphaPress = 0.5e-15,
+			LinAbsDefectImp = 1e-08,
             LinRedDefectImp = 1e-5,
             LinAbsDefectLim = 1e-12,
             LinRedDefectLim = 1e-12,
