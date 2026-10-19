@@ -1,6 +1,6 @@
 #!/bin/bash -l
 
-#SBATCH --job-name=Dune
+#SBATCH --job-name=Dune2d
 #SBATCH --partition=workq
 #SBATCH --account=k10105
 #SBATCH --nodes=1
@@ -42,30 +42,30 @@ ARGS=(
 
 
 # 64 MPI ranks = 1 cases x 64 spatial ranks
-srun --exclusive --exact --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneRusanov-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneRusanov-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -riemman 1 &
+srun --exclusive --exact --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneRusanov2d-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneRusanov2d-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -riemman 1 &
 PID1=$!
 
 
 # 64 MPI ranks = 1 cases x 64 spatial ranks
-srun --exclusive --exact --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -riemman 3 &
+srun --exclusive --exact --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher2d-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher2d-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -riemman 3 &
 PID2=$!
 
 
 
 STATUS=0
-wait "${PID1}" || { echo "ERROR: 64 MPI rank DuneRusanov experiment failed."; STATUS=1; }
-wait "${PID2}" ||  { echo "ERROR: 64  MPI rank DuneEngquistOsher experiment failed."; STATUS=1; }
+wait "${PID1}" || { echo "ERROR: 64 MPI rank DuneRusanov2d experiment failed."; STATUS=1; }
+wait "${PID2}" ||  { echo "ERROR: 64  MPI rank DuneEngquistOsher2d experiment failed."; STATUS=1; }
 
 
 if [ "${STATUS}" -ne 0 ]; then
     echo "=============================================="
-    echo "One or more Dune experiments failed."
+    echo "One or more Dune 2d experiments failed."
     echo "Job ID: ${SLURM_JOB_ID}"
     echo "=============================================="
     exit 1
 fi
 
 echo "=============================================="
-echo "All Dune simulations finished."
+echo "All Dune 2d simulations finished."
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "=============================================="
