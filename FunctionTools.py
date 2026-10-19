@@ -13,14 +13,14 @@ import sys
 # PLOT SCENE
 # ============================================================
 
-def plot_scene(folder, dim, data_name, property_name, skip_scenes):
+def plot_scene(folder, dim, data_name, property_name, skip_scenes, plane_y=None, plane_z=None):
 
     # ========================================================
     # CHECK INPUTS
     # ========================================================
 
-    if dim != 2:
-        raise ValueError("ERROR: plot_scene is currently implemented only for dim = 2.")
+    if dim not in [2, 3]:
+        raise ValueError("ERROR: dim must be either 2 or 3.")
 
     if not os.path.isdir(folder):
         raise ValueError(f"ERROR: Folder does not exist: {folder}")
@@ -33,6 +33,12 @@ def plot_scene(folder, dim, data_name, property_name, skip_scenes):
 
     if skip_scenes < 0:
         raise ValueError("ERROR: skip_scenes must be greater than or equal to zero.")
+        
+    if dim == 3 and plane_y is None:
+        raise ValueError("ERROR: plane_y must be provided for dim = 3.")
+
+    if dim == 3 and plane_z is None:
+        raise ValueError("ERROR: plane_z must be provided for dim = 3.")
 
     # ========================================================
     # OUTPUT FOLDER
@@ -55,6 +61,9 @@ def plot_scene(folder, dim, data_name, property_name, skip_scenes):
     print("Dimension        :", dim)
     print("Property         :", property_name)
     print("Skipped scenes   :", skip_scenes)
+    if dim == 3:
+        print("Y-plane position :", plane_y)
+        print("Z-plane position :", plane_z)
     
     
     # ========================================================
@@ -182,14 +191,29 @@ def plot_scene(folder, dim, data_name, property_name, skip_scenes):
     render_view.Background = [1.0, 1.0, 1.0]
     render_view.OrientationAxesVisibility = 0
 
-    solution_display = Show(solution, render_view)
-    solution_display.Representation = "Surface"
+    if dim == 2:
+        solution_display = Show(solution, render_view)
+        solution_display.Representation = "Surface"
+
+    elif dim == 3:
+        slice_y = Slice(Input=solution)
+        slice_y.SliceType = "Plane"
+        slice_y.SliceType.Normal = [0.0, -1.0, 0.0]
+        slice_y.SliceType.Origin = [0.0, plane_y, 0.0]
+
+        slice_z = Slice(Input=solution)
+        slice_z.SliceType = "Plane"
+        slice_z.SliceType.Normal = [0.0, 0.0, 1.0]
+        slice_z.SliceType.Origin = [0.0, 0.0, plane_z]
+
+        slice_y.UpdatePipeline(time=selected_timesteps[0])
+        slice_z.UpdatePipeline(time=selected_timesteps[0])
     
     # ========================================================
     # STREAM TRACER
     # ========================================================
 
-    if property_name == "velocity":
+    if dim == 2 and property_name == "velocity":
 
         bounds = solution.GetDataInformation().GetBounds()
 
@@ -217,49 +241,115 @@ def plot_scene(folder, dim, data_name, property_name, skip_scenes):
 
         render_view.Update()
 
-    if property_num_components == 1:
-        ColorBy(solution_display, (property_association, property_name))
-    else:
-        ColorBy(solution_display, (property_association, property_name, "Magnitude"))
+    if dim == 2:
+    
+        if property_num_components == 1:
+            ColorBy(solution_display, (property_association, property_name))
+        else:
+            ColorBy(solution_display, (property_association, property_name, "Magnitude"))
 
-    solution_display.RescaleTransferFunctionToDataRange(True, False)
-    solution_display.SetScalarBarVisibility(render_view, True)
+        solution_display.RescaleTransferFunctionToDataRange(True, False)
+        solution_display.SetScalarBarVisibility(render_view, True)
+    elif dim == 3:
+
+        slice_y_display = Show(slice_y, render_view)
+        slice_y_display.Representation = "Surface"
+
+        slice_z_display = Show(slice_z, render_view)
+        slice_z_display.Representation = "Surface"
+
+        if property_num_components == 1:
+            ColorBy(slice_y_display, (property_association, property_name))
+            ColorBy(slice_z_display, (property_association, property_name))
+        else:
+            ColorBy(slice_y_display, (property_association, property_name, "Magnitude"))
+            ColorBy(slice_z_display, (property_association, property_name, "Magnitude"))
+
+        slice_y_display.SetScalarBarVisibility(render_view, True)
     
     # ========================================================
     # CONTOUR
     # ========================================================
+
     if property_name == "c":
         contour_values = [0.0001, 0.001, 0.01, 0.5]
     else:
         contour_values = [0.5]
 
-    contour = Contour(Input=solution)
-    contour.ContourBy = ["POINTS", "c"]
-    contour.Isosurfaces = contour_values
+    if dim == 2:
 
-    contour_display = Show(contour, render_view)
-    contour_display.Representation = "Surface"
+        contour = Contour(Input=solution)
+        contour.ContourBy = ["POINTS", "c"]
+        contour.Isosurfaces = contour_values
 
-    ColorBy(contour_display, None)
-    contour_display.AmbientColor = [0.0, 0.0, 0.0]
-    if property_name == "c":
-        contour_display.DiffuseColor = [1.0, 1.0, 1.0]
-        contour_display.LineWidth = 2.0
-    else:
-        contour_display.DiffuseColor = [1.0, 0.0, 0.0]
-        contour_display.LineWidth = 4.0
+        contour_display = Show(contour, render_view)
+        contour_display.Representation = "Surface"
+
+        ColorBy(contour_display, None)
+        contour_display.AmbientColor = [0.0, 0.0, 0.0]
+
+        if property_name == "c":
+            contour_display.DiffuseColor = [1.0, 1.0, 1.0]
+            contour_display.LineWidth = 2.0
+        else:
+            contour_display.DiffuseColor = [1.0, 0.0, 0.0]
+            contour_display.LineWidth = 4.0
+
+    elif dim == 3:
+
+        contour_y = Contour(Input=slice_y)
+        contour_y.ContourBy = ["POINTS", "c"]
+        contour_y.Isosurfaces = contour_values
+
+        contour_z = Contour(Input=slice_z)
+        contour_z.ContourBy = ["POINTS", "c"]
+        contour_z.Isosurfaces = contour_values
+
+        contour_y_display = Show(contour_y, render_view)
+        contour_y_display.Representation = "Surface"
+
+        contour_z_display = Show(contour_z, render_view)
+        contour_z_display.Representation = "Surface"
+
+        ColorBy(contour_y_display, None)
+        ColorBy(contour_z_display, None)
+
+        contour_y_display.AmbientColor = [0.0, 0.0, 0.0]
+        contour_z_display.AmbientColor = [0.0, 0.0, 0.0]
+
+        if property_name == "c":
+            contour_y_display.DiffuseColor = [1.0, 1.0, 1.0]
+            contour_z_display.DiffuseColor = [1.0, 1.0, 1.0]
+            contour_y_display.LineWidth = 2.0
+            contour_z_display.LineWidth = 2.0
+        else:
+            contour_y_display.DiffuseColor = [1.0, 0.0, 0.0]
+            contour_z_display.DiffuseColor = [1.0, 0.0, 0.0]
+            contour_y_display.LineWidth = 4.0
+            contour_z_display.LineWidth = 4.0
+            
+        slice_y_display.Visibility = 0
+        contour_y_display.Visibility = 0
+        slice_z_display.Visibility = 0
+        contour_z_display.Visibility = 0
     
-	# ========================================================
+    # ========================================================
     # COLORBAR
     # ========================================================
 
     color_map = GetColorTransferFunction(property_name)
-    if property_name == "c":
-        color_map.RescaleTransferFunction(1.0e-6, 1.0)
-        #color_map.MapControlPointsToLogSpace()
-        #color_map.UseLogScale = 1
 
-    
+    if property_num_components == 1:
+        color_min, color_max = property_info.GetRange(0)
+    else:
+        color_min, color_max = property_info.GetRange(-1)
+
+    if property_name == "c":
+        color_min = 1.0e-6
+        color_max = 1.0
+
+    color_map.RescaleTransferFunction(color_min, color_max)
+
     color_bar = GetScalarBar(color_map, render_view)
 
     color_bar.Orientation = "Horizontal"
@@ -279,21 +369,54 @@ def plot_scene(folder, dim, data_name, property_name, skip_scenes):
     render_view.InteractionMode = "2D"
     render_view.CameraParallelProjection = 1
 
-    camera_x = 20.0
-    camera_y = 1.9
-    camera_z = 264.65000000000003
-    camera_scale = 3.5
-    
-    render_view.CameraFocalPoint = [camera_x, camera_y, 0.0]
-    render_view.CameraPosition = [camera_x, camera_y, camera_z]
-    render_view.CameraViewUp = [0.0, 1.0, 0.0]
-    render_view.CameraParallelScale = camera_scale
+    if dim == 2:
 
-    render_view.Update()
-	
+        camera_x = 20.0
+        camera_y = 1.9
+        camera_z = 264.65000000000003
+        camera_scale = 3.5
+
+        render_view.CameraFocalPoint = [camera_x, camera_y, 0.0]
+        render_view.CameraPosition = [camera_x, camera_y, camera_z]
+        render_view.CameraViewUp = [0.0, 1.0, 0.0]
+        render_view.CameraParallelScale = camera_scale
+
+        render_view.Update()
+
+    elif dim == 3:
+
+        bounds = solution.GetDataInformation().GetBounds()
+
+        x_min = bounds[0]
+        x_max = bounds[1]
+        y_min = bounds[2]
+        y_max = bounds[3]
+        z_min = bounds[4]
+        z_max = bounds[5]
+
+        x_center = 0.5 * (x_min + x_max)
+        y_center = 0.5 * (y_min + y_max)
+        z_center = 0.5 * (z_min + z_max)
+
+        x_length = x_max - x_min
+        y_length = y_max - y_min
+        z_length = z_max - z_min
+
+        aspect_ratio = ViewSize[0] / ViewSize[1]
+
+        camera_scale_y = 0.5 * max(z_length, x_length / aspect_ratio)
+        camera_scale_z = 0.5 * max(y_length, x_length / aspect_ratio)
+
+        camera_distance = 2.0 * max(x_length, y_length, z_length)
     # ========================================================
     # SAVE ALL SELECTED SCENES
     # ========================================================
+
+    if dim == 3:
+        plane_y_folder = os.path.join(property_folder, "plane_y")
+        plane_z_folder = os.path.join(property_folder, "plane_z")
+        os.makedirs(plane_y_folder, exist_ok=True)
+        os.makedirs(plane_z_folder, exist_ok=True)
 
     for saved_scene_number, scene_index in enumerate(selected_indices):
 
@@ -302,7 +425,6 @@ def plot_scene(folder, dim, data_name, property_name, skip_scenes):
 
         animation_scene.AnimationTime = scene_time
         solution.UpdatePipeline(time=scene_time)
-        render_view.Update()
 
         scene_base = os.path.splitext(os.path.basename(scene_file))[0]
         scene_suffix = scene_base.split("_")[-1]
@@ -312,11 +434,68 @@ def plot_scene(folder, dim, data_name, property_name, skip_scenes):
         elif not scene_suffix.isdigit():
             raise RuntimeError(f"ERROR: Could not extract a numeric index from file: {scene_file}")
 
-        output_file = os.path.join(property_folder, f"{property_name}_{scene_suffix}.png")
+        if dim == 2:
 
-        SaveScreenshot(output_file, render_view, ImageResolution=ImRes, TransparentBackground=1)
+            render_view.Update()
 
-        print("Saved scene", saved_scene_number + 1, "of", len(selected_indices), ":", output_file)
+            output_file = os.path.join(property_folder, f"{property_name}_{scene_suffix}.png")
+
+            SaveScreenshot(output_file, render_view, ImageResolution=ImRes, TransparentBackground=1)
+
+            print("Saved scene", saved_scene_number + 1, "of", len(selected_indices), ":", output_file)
+
+        elif dim == 3:
+
+            slice_y.UpdatePipeline(time=scene_time)
+            slice_z.UpdatePipeline(time=scene_time)
+            contour_y.UpdatePipeline(time=scene_time)
+            contour_z.UpdatePipeline(time=scene_time)
+
+            # ====================================================
+            # Y-PLANE: normal = [0, -1, 0]
+            # ====================================================
+
+            slice_y_display.Visibility = 1
+            contour_y_display.Visibility = 1
+
+            slice_z_display.Visibility = 0
+            contour_z_display.Visibility = 0
+
+            render_view.CameraFocalPoint = [x_center, plane_y, z_center]
+            render_view.CameraPosition = [x_center, plane_y - camera_distance, z_center]
+            render_view.CameraViewUp = [0.0, 0.0, 1.0]
+            render_view.CameraParallelScale = camera_scale_y
+
+            render_view.Update()
+
+            output_file_y = os.path.join(plane_y_folder, f"{property_name}_{scene_suffix}.png")
+
+            SaveScreenshot(output_file_y, render_view, ImageResolution=ImRes, TransparentBackground=1)
+
+            # ====================================================
+            # Z-PLANE: normal = [0, 0, 1]
+            # ====================================================
+
+            slice_y_display.Visibility = 0
+            contour_y_display.Visibility = 0
+
+            slice_z_display.Visibility = 1
+            contour_z_display.Visibility = 1
+
+            render_view.CameraFocalPoint = [x_center, y_center, plane_z]
+            render_view.CameraPosition = [x_center, y_center, plane_z + camera_distance]
+            render_view.CameraViewUp = [0.0, 1.0, 0.0]
+            render_view.CameraParallelScale = camera_scale_z
+
+            render_view.Update()
+
+            output_file_z = os.path.join(plane_z_folder, f"{property_name}_{scene_suffix}.png")
+
+            SaveScreenshot(output_file_z, render_view, ImageResolution=ImRes, TransparentBackground=1)
+
+            print("Saved scene", saved_scene_number + 1, "of", len(selected_indices), ":")
+            print("    Y-plane:", output_file_y)
+            print("    Z-plane:", output_file_z)
     
     
     
@@ -1234,15 +1413,29 @@ if __name__ == "__main__":
     function = sys.argv[1]
 
     if function == "plot_scene":
-        if len(sys.argv) != 7:
-            raise RuntimeError("Usage: pvpython FunctionTools.py plot_scene <folder> <dim> <data_name> <property_name> <skip_scenes>")
+        if len(sys.argv) < 7:
+            raise RuntimeError("Usage: pvpython FunctionTools.py plot_scene <folder> <dim> <data_name> <property_name> <skip_scenes> [plane_y] [plane_z]")
+
         folder = sys.argv[2]
         dim = int(sys.argv[3])
         data_name = sys.argv[4]
         property_name = sys.argv[5]
         skip_scenes = int(sys.argv[6])
 
-        plot_scene(folder, dim, data_name, property_name, skip_scenes)
+        if dim == 2:
+            if len(sys.argv) != 7:
+                raise RuntimeError("Usage for 2D: pvpython FunctionTools.py plot_scene <folder> 2 <data_name> <property_name> <skip_scenes>")
+            plot_scene(folder, dim, data_name, property_name, skip_scenes)
+
+        elif dim == 3:
+            if len(sys.argv) != 9:
+                raise RuntimeError("Usage for 3D: pvpython FunctionTools.py plot_scene <folder> 3 <data_name> <property_name> <skip_scenes> <plane_y> <plane_z>")
+            plane_y = float(sys.argv[7])
+            plane_z = float(sys.argv[8])
+            plot_scene(folder, dim, data_name, property_name, skip_scenes, plane_y, plane_z)
+
+        else:
+            raise ValueError("ERROR: dim must be either 2 or 3.")
         
         
     elif function == "plot_contour":
