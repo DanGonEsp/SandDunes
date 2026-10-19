@@ -36,8 +36,9 @@ ARGS=(
     -numPreRefs 3
     -numTimeSteps 100
     -DT 3600.0
-    -baseSolver SuperLu
+    -baseSolver bicgStab
     -riemman 3
+    -LinRedDefectImp 1e-02
 )
 
 

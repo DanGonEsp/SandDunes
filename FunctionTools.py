@@ -324,7 +324,7 @@ def plot_scene(folder, dim, data_name, property_name, skip_scenes):
 # CALCULATE CONTOUR
 # ============================================================
 
-def calculate_contour(folder, dim, data_name):
+def calculate_contour(folder, dim, data_name, time_factor):
 
     # ========================================================
     # CHECK INPUTS
@@ -338,6 +338,9 @@ def calculate_contour(folder, dim, data_name):
 
     if not data_name:
         raise ValueError("ERROR: Data folder name cannot be empty.")
+        
+    if time_factor <= 0:
+        raise ValueError("ERROR: time_factor must be greater than zero.")
 
     
     # ========================================================
@@ -351,6 +354,7 @@ def calculate_contour(folder, dim, data_name):
     print("Input folder :", folder)
     print("Output folder:", output_folder)
     print("Dimension    :", dim)
+    print("Time factor  :", time_factor)
 
 
     # ========================================================
@@ -464,7 +468,7 @@ def calculate_contour(folder, dim, data_name):
         for i, time in enumerate(timesteps):
 
             #print("Processing timestep", i, "/", len(timesteps) - 1)
-
+            scaled_time = time * time_factor
             solution.UpdatePipeline(time)
             contour1.UpdatePipeline(time)
 
@@ -489,7 +493,6 @@ def calculate_contour(folder, dim, data_name):
             # =================================================
 
             point_data = data_contour.GetPointData()
-
             c_array = point_data.GetArray("c")
             p_array = point_data.GetArray("p")
             u_array = point_data.GetArray("u")
@@ -555,11 +558,11 @@ def calculate_contour(folder, dim, data_name):
 
                 if dim == 2:
 
-                    writer.writerow([i, time, x, y, z, c, p, u, v,velocity_x, velocity_y, velocity_z])
+                    writer.writerow([i, scaled_time, x, y, z, c, p, u, v,velocity_x, velocity_y, velocity_z])
 
                 elif dim == 3:
 
-                    writer.writerow([i, time, x, y, z, c, p, u, v, w,velocity_x, velocity_y, velocity_z])
+                    writer.writerow([i, scaled_time, x, y, z, c, p, u, v, w,velocity_x, velocity_y, velocity_z])
 
 	# ========================================================
     # CHECK DATA
@@ -600,7 +603,7 @@ def calculate_contour(folder, dim, data_name):
 # PLOT CONTOUR
 # ============================================================
 
-def plot_contour(folder, dim, data_name, num_contours):
+def plot_contour(folder, dim, data_name, num_contours, time_factor):
 
     # ========================================================
     # CHECK INPUTS
@@ -622,7 +625,7 @@ def plot_contour(folder, dim, data_name, num_contours):
     if not os.path.isfile(input_file):
         print(f"Contour file does not exist: {input_file}")
         print("Creating contour file...")
-        calculate_contour(folder, dim, data_name)
+        calculate_contour(folder, dim, data_name, time_factor)
         if not os.path.isfile(input_file):
             raise RuntimeError(f"ERROR: Failed to create contour file: {input_file}")
 
@@ -688,8 +691,8 @@ def plot_contour(folder, dim, data_name, num_contours):
     # ========================================================
 
     selected_times = [contours[timestep]["time"] for timestep in selected_timesteps]
-    time_min = min(selected_times)/3.6
-    time_max = max(selected_times)/3.6
+    time_min = min(selected_times)#/3.6
+    time_max = max(selected_times)#/3.6
 
     # ========================================================
     # COLORMAP
@@ -718,8 +721,8 @@ def plot_contour(folder, dim, data_name, num_contours):
         y_sorted = [point[1] for point in points]
         ax.plot(x_sorted, y_sorted, color=cmap(norm(time)), linewidth=1.2)
         #ax.plot(x_sorted, y_sorted, color="k", linewidth=0.5)
-    ax.plot(x_sorted, y_sorted, color="k", linewidth=1.2,label="Steady State")
-    ax.fill_between(x_sorted, 0.0, y_sorted, color="yellow", alpha=0.1)
+    #ax.plot(x_sorted, y_sorted, color="k", linewidth=1.2,label="Steady State")
+    #ax.fill_between(x_sorted, 0.0, y_sorted, color="yellow", alpha=0.1)
     # ========================================================
     # COLORBAR
     # ========================================================
@@ -733,26 +736,42 @@ def plot_contour(folder, dim, data_name, num_contours):
     # ========================================================
     # AXES
     # ========================================================
-
-    ax.set_xlabel("X",fontsize=14)
-    ax.set_ylabel("Y",fontsize=14)
-    ax.set_aspect("equal")
-    #ax.set_xlim(11.0, 27)
-    ax.set_xlim(left=-0.001)
-    ax.set_ylim(bottom=-0.02)
-    ax.xaxis.set_major_locator(mpl.ticker.MultipleLocator(0.2))
-    ax.yaxis.set_major_locator(mpl.ticker.MultipleLocator(0.2))
-    ax.tick_params(axis="both", labelsize=18)
-    ax.plot([0.0, 0.0], [0.0, 0.66], color="black", linewidth=2.0, linestyle = "--",zorder=10, solid_capstyle="butt")#LEFT
-    ax.plot([0.0, 0.3], [0.66, 0.66], color="black", linewidth=2.0, linestyle = "--",zorder=10, solid_capstyle="butt")#TOP
-    ax.plot([0.3, 1.0], [0.66, 0.66], color="red", linewidth=2.0, zorder=10, solid_capstyle="butt", label=r"$\Gamma_{in}$")#TOP SOURCE
-    ax.plot([1.01, 1.008], [-0.018, 0.68], color="black", linewidth=7.0, zorder=10, solid_capstyle="butt")#Right
-    ax.plot([0.0, 1.0078], [-0.01, -0.01], color="black", linewidth=7.0, zorder=10, solid_capstyle="butt")#BOTTOM
-
-    ax.spines["top"].set_visible(False)
-    ax.spines["bottom"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.spines["left"].set_visible(False)
+    if True == False:
+        ax.set_xlabel("X",fontsize=14)
+        ax.set_ylabel("Y",fontsize=14)
+        ax.set_aspect("equal")
+        #ax.set_xlim(11.0, 27)
+        ax.set_xlim(left=-0.001)
+        ax.set_ylim(bottom=-0.02)
+        ax.xaxis.set_major_locator(mpl.ticker.MultipleLocator(0.2))
+        ax.yaxis.set_major_locator(mpl.ticker.MultipleLocator(0.2))
+        ax.tick_params(axis="both", labelsize=18)
+        
+        ax.plot([0.0, 0.0], [0.0, 0.66], color="black", linewidth=2.0, linestyle = "--",zorder=10, solid_capstyle="butt")#LEFT
+        ax.plot([0.0, 0.3], [0.66, 0.66], color="black", linewidth=2.0, linestyle = "--",zorder=10, solid_capstyle="butt")#TOP
+        ax.plot([0.3, 1.0], [0.66, 0.66], color="red", linewidth=2.0, zorder=10, solid_capstyle="butt", label=r"$\Gamma_{in}$")#TOP SOURCE
+        ax.plot([1.01, 1.008], [-0.018, 0.68], color="black", linewidth=7.0, zorder=10, solid_capstyle="butt")#Right
+        ax.plot([0.0, 1.0078], [-0.01, -0.01], color="black", linewidth=7.0, zorder=10, solid_capstyle="butt")#BOTTOM
+        
+        ax.spines["top"].set_visible(False)
+        ax.spines["bottom"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_visible(False)
+    else:
+        ax.set_xlabel("X",fontsize=14)
+        ax.set_ylabel("Y",fontsize=14)
+        ax.set_aspect("equal")
+        ax.set_xlim(10.0, 30.0)
+        ax.set_ylim(bottom=-0.02)
+        #ax.xaxis.set_major_locator(mpl.ticker.MultipleLocator(0.2))
+        #ax.yaxis.set_major_locator(mpl.ticker.MultipleLocator(0.2))
+        #ax.tick_params(axis="both", labelsize=18)
+        
+        
+        ax.spines["top"].set_visible(False)
+        #ax.spines["bottom"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        #ax.spines["left"].set_visible(False)
     
     #ax.legend()
     
@@ -1227,22 +1246,24 @@ if __name__ == "__main__":
         
         
     elif function == "plot_contour":
-        if len(sys.argv) != 6:
-            raise RuntimeError("Usage: pvpython FunctionTools.py plot_contour <folder> <dim> <data_name> <num_contours>")
+        if len(sys.argv) != 7:
+            raise RuntimeError("Usage: pvpython FunctionTools.py plot_contour <folder> <dim> <data_name> <num_contours> <time_factor>")
         folder = sys.argv[2]
         dim = int(sys.argv[3])
         data_name = sys.argv[4]
         num_contours = int(sys.argv[5])
-        plot_contour(folder, dim, data_name, num_contours)
+        time_factor = float(sys.argv[6])
+        plot_contour(folder, dim, data_name, num_contours, time_factor)
         
         
     elif function == "contour":
-        if len(sys.argv) != 5:
+        if len(sys.argv) != 6:
             raise RuntimeError("Usage: pvpython FunctionTools.py contour <folder> <dim> <data_name>")
         folder = sys.argv[2]
         dim = int(sys.argv[3])
         data_name = sys.argv[4]
-        calculate_contour(folder, dim, data_name)
+        time_factor = float(sys.argv[5])
+        calculate_contour(folder, dim, data_name, time_factor)
         
         
     elif function == "strong_scalability":

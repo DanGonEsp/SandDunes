@@ -33,10 +33,11 @@ ARGS=(
     -dim 2
     -timeMethod limex
     -numRefs 6
-    -numPreRefs 3
+    -numPreRefs 4
     -numTimeSteps 100
     -DT 3600.0
-	-baseSolver SuperLu
+    -baseSolver SuperLu
+    -boolSlipDiff true
 )
 
 
