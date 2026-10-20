@@ -635,7 +635,7 @@ myProblem.RegisterCallbacks = function(self)
     end
 
     local function inletSpeed(height)
-		hh=20.0
+		local hh=20.0
         if self.problem == "avalanche" then return 0.0 end
 		if height <= 0.0 then return 0.0 end
         return self.inflow * math.log(1 + height / self.roughness_length) / math.log(1 + hh / self.roughness_length)
@@ -645,8 +645,9 @@ myProblem.RegisterCallbacks = function(self)
 	local function InflowVel3d(x, y, z, t) return inletSpeed(z), 0.0, 0.0 end
 
     local function initialC2d(x, y)
+		local sigma = 5
         if self.problem == "flow" then
-            local dx = math.abs((x - 20.0) / 6.0)
+            local dx = math.abs((x - 20.0) / sigma)
             local height = self.H_0 * math.exp(-0.5*(dx^2)) - 0.01
             if y > height then return 0.0 end
             return self.c_init
@@ -657,9 +658,10 @@ myProblem.RegisterCallbacks = function(self)
     end
 
     local function initialC3d(x, y, z)
+		local sigma = 5
         if self.problem == "avalanche" then return 0.0 end
-        local dx = math.abs((x - 20.0) / 6.0)
-        local dy = math.abs(y / 6.0)
+        local dx = math.abs((x - 20.0) / sigma)
+        local dy = math.abs(y / sigma)
         local height = self.H_0 * math.exp(-0.5*(dx^2 + dy^2)) - 0.01
         if z > height then return 0.0 end
         return self.c_init
@@ -701,6 +703,16 @@ myProblem.RegisterCallbacks = function(self)
 		local k = InletK3d(x, y, z, t)
 		return math.sqrt(k) / (Cmu^0.25 * turbulenceLength)
 	end
+	local function WallDistance2d(x, y, t)
+		local lowerWallY = 0.0
+		local dLower = y - lowerWallY
+		return math.max( dLower, 0.0)
+	end
+	local function WallDistance3d(x, y, z, t)
+		local lowerWallZ = 0.0
+		local dLower = z - lowerWallZ
+		return math.max( dLower, 0.0)
+	end
 
     if self.dim == 2 then
         _G.SandInflow = InflowVel2d
@@ -710,6 +722,7 @@ myProblem.RegisterCallbacks = function(self)
         _G.SandTopFlux = topFlux2d
 		_G.InletK = InletK2d
 		_G.InletOmega = InletOmega2d
+		_G.WallDistance = WallDistance2d
     else
         _G.SandInflow = InflowVel3d
         _G.SandInitialC = initialC3d
@@ -718,6 +731,7 @@ myProblem.RegisterCallbacks = function(self)
         _G.SandTopFlux = topFlux3d
 		_G.InletK = InletK3d
 		_G.InletOmega = InletOmega3d
+		_G.WallDistance = WallDistance3d
     end
 end
 --------------------------------------------------------------------------------
@@ -1046,14 +1060,6 @@ end
 
 myProblem.TurbulenceDiscretization = function (self)
 
-	local lowerWallY = 0.0
-	
-	function WallDistance(x,y)
-		local dLower = y - lowerWallY
-		return math.max( dLower, 0.0)
-	end
-
-	local wallDistance1 = ConstUserNumber(0.3)
 	self.TurbulenceDisc:set_velocity(self.NavierStokesDisc:velocity_ip())
 	self.TurbulenceDisc:set_upwind("full")
 	self.TurbulenceDisc:set_velocity_gradient(self.NavierStokesDisc:velocity_grad())
