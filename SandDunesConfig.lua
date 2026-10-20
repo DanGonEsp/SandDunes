@@ -647,7 +647,7 @@ myProblem.RegisterCallbacks = function(self)
     local function initialC2d(x, y)
         if self.problem == "flow" then
             local dx = math.abs((x - 20.0) / 6.0)
-            local height = self.H_0 * math.exp(-(dx^4)) - 0.01
+            local height = self.H_0 * math.exp(-0.5*(dx^2)) - 0.01
             if y > height then return 0.0 end
             return self.c_init
         end
@@ -660,7 +660,7 @@ myProblem.RegisterCallbacks = function(self)
         if self.problem == "avalanche" then return 0.0 end
         local dx = math.abs((x - 20.0) / 6.0)
         local dy = math.abs(y / 6.0)
-        local height = self.H_0 * math.exp(-(dx^4 + dy^4)) - 0.01
+        local height = self.H_0 * math.exp(-0.5*(dx^2 + dy^2)) - 0.01
         if z > height then return 0.0 end
         return self.c_init
     end
