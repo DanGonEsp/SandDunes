@@ -4,8 +4,8 @@
 #SBATCH --partition=workq
 #SBATCH --account=k10105
 #SBATCH --nodes=1
-#SBATCH --ntasks=128
-#SBATCH --ntasks-per-node=128
+#SBATCH --ntasks=48
+#SBATCH --ntasks-per-node=48
 #SBATCH --cpus-per-task=1
 #SBATCH --hint=nomultithread
 #SBATCH --time=24:00:00
@@ -41,20 +41,20 @@ ARGS=(
 
 
 
-# 64 MPI ranks = 1 cases x 64 spatial ranks
-srun --exclusive --exact --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneRusanov2d-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneRusanov2d-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -riemman 1 &
+# 24 MPI ranks = 1 cases x 24 spatial ranks
+srun --exclusive --exact --ntasks=24 --ntasks-per-node=24 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneRusanov2d-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneRusanov2d-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -riemman 1 &
 PID1=$!
 
 
-# 64 MPI ranks = 1 cases x 64 spatial ranks
-#srun --exclusive --exact --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher2d-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher2d-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -riemman 3 &
-#PID2=$!
+# 24 MPI ranks = 1 cases x 24 spatial ranks
+srun --exclusive --exact --ntasks=24 --ntasks-per-node=24 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher2d-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher2d-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -riemman 3 &
+PID2=$!
 
 
 
 STATUS=0
-wait "${PID1}" || { echo "ERROR: 64 MPI rank DuneRusanov2d experiment failed."; STATUS=1; }
-#wait "${PID2}" ||  { echo "ERROR: 64  MPI rank DuneEngquistOsher2d experiment failed."; STATUS=1; }
+wait "${PID1}" || { echo "ERROR: 24 MPI rank DuneRusanov2d experiment failed."; STATUS=1; }
+wait "${PID2}" ||  { echo "ERROR: 24  MPI rank DuneEngquistOsher2d experiment failed."; STATUS=1; }
 
 
 if [ "${STATUS}" -ne 0 ]; then
