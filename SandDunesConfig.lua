@@ -909,7 +909,7 @@ myProblem.Clousures = function (self,u,Inner_total)
 	---------------------------------------------------------------------- SaltationFlux
 	local SaltFlux = SaltationFluxLinker()
 	SaltFlux:set_phase_parameters(InterfaceValues)
-	SaltFlux:set_saltation_coefficient(0.0)
+	SaltFlux:set_saltation_coefficient(5.5)
 	SaltFlux:set_threshold_friction_velocity(0.22)
 	SaltFlux:set_normal_epsilon(1e-8)
 	SaltFlux:set_delta_epsilon(1e-8)
