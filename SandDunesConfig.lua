@@ -72,7 +72,9 @@ myProblem.Init = function(self, o)
 	self.AbsDefect = o.AbsDefect
 	self.RedDefect = o.RedDefect
 
-	self.baseSolver = o.baseSolver
+	self.baseSolverLim = o.baseSolverLim
+	self.baseSolverImp = o.baseSolverImp
+	
 	self.precondLim = o.precondLim
 	self.precondImp = o.precondImp
 	self.LinAbsDefectImp = o.LinAbsDefectImp
@@ -84,9 +86,12 @@ myProblem.Init = function(self, o)
 	self.rap = o.rap
 	self.damping_mg = o.damping_mg
 	self.value_beta = o.value_beta
-	self.pre_smooth = o.pre_smooth
-	self.post_smooth = o.post_smooth
-	self.smoother = o.smoother
+	self.pre_smoothLim = o.pre_smoothLim
+	self.post_smoothLim = o.post_smoothLim
+	self.smootherLim = o.smootherLim
+	self.pre_smoothImp = o.pre_smoothImp
+	self.post_smoothImp = o.post_smoothImp
+	self.smootherImp = o.smootherImp
 	self.eps_ilut = o.eps_ilut
 
 	self.lambdamaxSteps = o.lambdamaxSteps
@@ -200,10 +205,17 @@ myProblem.GetCaseDefaults = function(self, problem)
             boolFixVel = false,
 			rap = true,
 			value_beta = 0.0,
-			pre_smooth = 1,
-			post_smooth = 0,
-			smoother = "ilu",
-			baseSolver = "SuperLu",
+			
+			smootherImp = "ilu",
+			pre_smoothImp = 1,
+			post_smoothImp = 0,
+			baseSolverImp = "SuperLu",
+			
+			smootherLim = "ilu",
+			pre_smoothLim = 2,
+			post_smoothLim = 0,
+			baseSolverLim = "SuperLu",
+			
 			DTLimex=1000,
         }
     elseif problem == "avalanche" then
@@ -223,10 +235,18 @@ myProblem.GetCaseDefaults = function(self, problem)
             boolFixVel = true,
 			rap = true,
 			value_beta = 0.0,
-			pre_smooth = 1,
-			post_smooth = 2,
-			smoother = "ilu",
-			baseSolver = "SuperLu",
+			
+			smootherImp = "ilu",
+			pre_smoothImp = 1,
+			post_smoothImp = 2,
+			baseSolverImp = "SuperLu",
+			
+			smootherLim = "ilu",
+			pre_smoothLim = 1,
+			post_smoothLim = 2,
+			baseSolverLim = "SuperLu",
+			
+			
 			DTLimex=1e-03,
         }
     end
@@ -483,9 +503,12 @@ myProblem.PrintingSettings = function (self)
 	print ("	MaxStepsImp		= " .. tostring (self.max_linear_steps_Imp))
 	print ("	PreconditionerLim	= " .. tostring (self.precondLim))
 	print ("	PreconditionerImp	= " .. tostring (self.precondImp))
-	print ("	Smoother		= " .. tostring (self.smoother))
-	print ("	Pre Smooth		= " .. tostring (self.pre_smooth))
-	print ("	Post Smooth		= " .. tostring (self.post_smooth))
+	print ("	Smoother Lim		= " .. tostring (self.smootherLim))
+	print ("	Pre Smooth Lim		= " .. tostring (self.pre_smoothLim))
+	print ("	Post Smooth Lim		= " .. tostring (self.post_smoothLim))
+	print ("	Smoother Imp		= " .. tostring (self.smootherImp))
+	print ("	Pre Smooth Imp		= " .. tostring (self.pre_smoothImp))
+	print ("	Post Smooth Imp		= " .. tostring (self.post_smoothImp))
 	print ("	Eps ILUT		= " .. self.eps_ilut)
 	
 	-----------------------------------------------------------------------
@@ -648,7 +671,7 @@ myProblem.RegisterCallbacks = function(self)
 		local sigma = 5
         if self.problem == "flow" then
             local dx = math.abs((x - 20.0) / sigma)
-            local height = self.H_0 * math.exp(-0.5*(dx^2)) - 0.01
+            local height = self.H_0 * math.exp(-0.5*(dx^4)) - 0.01
             if y > height then return 0.0 end
             return self.c_init
         end
@@ -660,9 +683,9 @@ myProblem.RegisterCallbacks = function(self)
     local function initialC3d(x, y, z)
 		local sigma = 5
         if self.problem == "avalanche" then return 0.0 end
-        local dx = math.abs((x - 20.0) / sigma)
-        local dy = math.abs(y / sigma)
-        local height = self.H_0 * math.exp(-0.5*(dx^2 + dy^2)) - 0.01
+        local dx = math.abs((x - 20.0) / sigma)^2
+        local dy = math.abs(y / sigma)^2
+        local height = self.H_0 * math.exp(-0.5*(dx + dy)^2) - 0.01
         if z > height then return 0.0 end
         return self.c_init
     end
@@ -886,7 +909,7 @@ myProblem.Clousures = function (self,u,Inner_total)
 	---------------------------------------------------------------------- SaltationFlux
 	local SaltFlux = SaltationFluxLinker()
 	SaltFlux:set_phase_parameters(InterfaceValues)
-	SaltFlux:set_saltation_coefficient(5.5)
+	SaltFlux:set_saltation_coefficient(0.0)
 	SaltFlux:set_threshold_friction_velocity(0.22)
 	SaltFlux:set_normal_epsilon(1e-8)
 	SaltFlux:set_delta_epsilon(1e-8)
@@ -1272,30 +1295,31 @@ myProblem.BaseSolver = function (self,baseSolver_name)
 end
 	
 
-myProblem.Preconditioner = function (self,precond_name)
+myProblem.Preconditioner = function (self,precond_name,smoother_name,pre_smooth_num, post_smooth_num, baseSolverG)
+	print("Creating Precond")
 	local preconditioner = nil
-	local smoother = self:Smoother(self.smoother)
+	local smoother = self:Smoother(smoother_name)
 	if precond_name == "gmg" then
-		local baseSolver = self:BaseSolver(self.baseSolver)
+		local baseSolver = self:BaseSolver(baseSolverG)
 		local gmg = GeometricMultiGrid(self.approxSpace)
 		gmg:set_discretization(self.domainDisc)
 		gmg:set_base_level(self.numPreRefs)
 		gmg:set_base_solver(baseSolver)
 		gmg:set_smoother(smoother)
 		gmg:set_cycle_type(1)
-		gmg:set_num_presmooth(self.pre_smooth)
-		gmg:set_num_postsmooth(self.post_smooth)
+		gmg:set_num_presmooth(pre_smooth_num)
+		gmg:set_num_postsmooth(post_smooth_num)
 		gmg:set_rap( self.rap)
 		gmg:set_smooth_on_surface_rim(false)
 
 		-- gmg:set_damp(MinimalResiduumDamping())
 		-- gmg:set_damp(0.8)
 		-- gmg:set_damp(MinimalEnergyDamping())
-		transfer = StdTransfer()
-		transfer:set_restriction_damping(1.0)
-		transfer:set_prolongation_damping(0.6)
+		--transfer = StdTransfer()
+		--transfer:set_restriction_damping(1.0)
+		--transfer:set_prolongation_damping(0.6)
 		
-		gmg:set_transfer(transfer)
+		--gmg:set_transfer(transfer)
 		preconditioner = gmg
 	else
 		preconditioner = smoother
@@ -1305,10 +1329,9 @@ myProblem.Preconditioner = function (self,precond_name)
 	return preconditioner
 end
 
-myProblem.LinearSolver = function (self,LinSolver_name,LinearConvCheck,precond_name)
-	print("Creating Precond")
+myProblem.LinearSolver = function (self,LinSolver_name,LinearConvCheck,precond_name,smoother_name,pre_smooth_num, post_smooth_num, baseSolverG)
 	local LinearSolver = nil
-	local preconditioner = self:Preconditioner(precond_name)
+	local preconditioner = self:Preconditioner(precond_name,smoother_name,pre_smooth_num, post_smooth_num,baseSolverG)
 
 	if LinSolver_name == "gmres" then
 		-- create Linear Solver
@@ -1398,8 +1421,8 @@ myProblem.CreateSolver = function (self, domainDisc)
 	-- Linear Solver
 	-----------------
 	print("Creating linear solver")
-	local LinearSolverLim = self:LinearSolver("bicgStab",LinearConvCheckLim,self.precondLim)
-	local LinearSolverImp = self:LinearSolver("bicgStab",LinearConvCheckImp,self.precondImp)
+	local LinearSolverLim = self:LinearSolver("bicgStab",LinearConvCheckLim,self.precondLim,self.smootherLim,self.pre_smoothLim, self.post_smoothLim, self.baseSolverLim)
+	local LinearSolverImp = self:LinearSolver("bicgStab",LinearConvCheckImp,self.precondImp,self.smootherImp,self.pre_smoothImp, self.post_smoothImp, self.baseSolverImp)
 	
 
 	

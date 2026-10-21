@@ -32,12 +32,11 @@ ARGS=(
     -dir_name "${WORKDIR}"
     -dim 2
     -timeMethod limex
-    -numRefs 6
-    -numPreRefs 4
+    -numRefs 7
+    -numPreRefs 3
     -numTimeSteps 100
     -DT 3600.0
-    -baseSolver SuperLu
-    -boolSlipDiff true
+
 )
 
 
@@ -48,14 +47,14 @@ PID1=$!
 
 
 # 64 MPI ranks = 1 cases x 64 spatial ranks
-srun --exclusive --exact --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher2d-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher2d-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -riemman 3 &
-PID2=$!
+#srun --exclusive --exact --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher2d-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher2d-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -riemman 3 &
+#PID2=$!
 
 
 
 STATUS=0
 wait "${PID1}" || { echo "ERROR: 64 MPI rank DuneRusanov2d experiment failed."; STATUS=1; }
-wait "${PID2}" ||  { echo "ERROR: 64  MPI rank DuneEngquistOsher2d experiment failed."; STATUS=1; }
+#wait "${PID2}" ||  { echo "ERROR: 64  MPI rank DuneEngquistOsher2d experiment failed."; STATUS=1; }
 
 
 if [ "${STATUS}" -ne 0 ]; then

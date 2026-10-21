@@ -155,10 +155,14 @@ params =
 	max_linear_steps_Imp=util.GetParamNumber("-max_linear_steps_imp", 400),
 	precondLim = util.GetParam("-precondLim","gmg","ilu,gmg"),
 	precondImp = util.GetParam("-precondImp","gmg","ilu,gmg"),
-	smoother = util.GetParam("-smoother", defaults.smoother, "smoother"),
-	pre_smooth   = util.GetParamNumber("-pre_smooth", defaults.pre_smooth, "PreSmooth steps"),
-	post_smooth = util.GetParamNumber("-post_smooth", defaults.post_smooth, "PostSmooth steps"),
-	baseSolver = util.GetParam("-baseSolver","SuperLu","SuperLu, bicgStab"),
+	smootherLim = util.GetParam("-smootherLim", defaults.smootherLim, "smoother"),
+	smootherImp = util.GetParam("-smootherImp", defaults.smootherImp, "smoother"),
+	pre_smoothLim   = util.GetParamNumber("-pre_smoothLim", defaults.pre_smoothLim, "PreSmooth steps for linearly LIMEX"),
+	post_smoothLim = util.GetParamNumber("-post_smoothLim", defaults.post_smoothLim, "PostSmooth steps for linearly LIMEX"),
+	pre_smoothImp   = util.GetParamNumber("-pre_smoothImp", defaults.pre_smoothImp, "PreSmooth steps for Implicit scheme"),
+	post_smoothImp = util.GetParamNumber("-post_smoothImp", defaults.post_smoothImp, "PostSmooth steps for Implicit scheme"),
+	baseSolverLim = util.GetParam("-baseSolverLim","SuperLu","SuperLu, bicgStab"),
+	baseSolverImp = util.GetParam("-baseSolverImp","SuperLu","SuperLu, bicgStab"),
 	eps_ilut = util.GetParamNumber("-eps_ilut", 1e-02),
 
 
