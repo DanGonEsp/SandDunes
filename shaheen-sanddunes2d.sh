@@ -54,7 +54,7 @@ PID2=$!
 
 STATUS=0
 wait "${PID1}" || { echo "ERROR: 24 MPI rank DuneRusanov2d experiment failed."; STATUS=1; }
-wait "${PID2}" ||  { echo "ERROR: 24  MPI rank DuneEngquistOsher2d experiment failed."; STATUS=1; }
+wait "${PID2}" || { echo "ERROR: 24  MPI rank DuneEngquistOsher2d experiment failed."; STATUS=1; }
 
 
 if [ "${STATUS}" -ne 0 ]; then
