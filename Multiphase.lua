@@ -157,14 +157,14 @@ params =
 	
 	precondLim = util.GetParam("-precondLim","gmg","ilu,gmg"),
 	smootherLim = util.GetParam("-smootherLim", defaults.smootherLim, "smoother"),
-	orderingLim = util.GetParam("-orderingLim", defaults.orderingLim, "ordering method"),
+	orderingLim = util.GetParam("-orderingLim", defaults.orderingLim, "ordering method: native, boost, minimum, scc, none"),
 	pre_smoothLim   = util.GetParamNumber("-pre_smoothLim", defaults.pre_smoothLim, "PreSmooth steps for linearly LIMEX"),
 	post_smoothLim = util.GetParamNumber("-post_smoothLim", defaults.post_smoothLim, "PostSmooth steps for linearly LIMEX"),
 	baseSolverLim = util.GetParam("-baseSolverLim","SuperLu","SuperLu, bicgStab"),
 	
 	precondImp = util.GetParam("-precondImp","gmg","ilu,gmg"),
 	smootherImp = util.GetParam("-smootherImp", defaults.smootherImp, "smoother"),
-	orderingImp = util.GetParam("-orderingImp", defaults.orderingImp, "ordering method"),
+	orderingImp = util.GetParam("-orderingImp", defaults.orderingImp, "ordering method: native, boost, minimum, scc, none"),
 	pre_smoothImp   = util.GetParamNumber("-pre_smoothImp", defaults.pre_smoothImp, "PreSmooth steps for Implicit scheme"),
 	post_smoothImp = util.GetParamNumber("-post_smoothImp", defaults.post_smoothImp, "PostSmooth steps for Implicit scheme"),
 	baseSolverImp = util.GetParam("-baseSolverImp","SuperLu","SuperLu, bicgStab"),
