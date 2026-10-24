@@ -57,8 +57,8 @@ ARGS=(
     -numTimeSteps 100
     -DT 3600.0
     -gmgBaseLevel "${BASE[$ID]}"
-    -pre_smooth "${PRE[$ID]}"
-    -post_smooth "${POST[$ID]}"
+    -pre_smoothImp "${PRE[$ID]}"
+    -post_smoothImp "${POST[$ID]}"
     -max_newton_steps_steady_state 20
     -precondImp gmg
     -boolLoadCheckPoint false
