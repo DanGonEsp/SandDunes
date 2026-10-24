@@ -131,11 +131,12 @@ params =
 	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 100),
 	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 700),
 	SteadyAbsDefect = util.GetParamNumber("-SteadyAbsDefect", 1e-05),
-	SteadyRedDefect = util.GetParamNumber("-SteadyRedDefect", 1e-05),
+	SteadyRedDefect = util.GetParamNumber("-SteadyRedDefect", 1e-08),
 	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05),
 	RedDefect = util.GetParamNumber("-RedDefect", 1e-05),
 	NewtonDebug = util.GetParamBool("-NewtonDebug", false),
 	NewtonSteadyDebug = util.GetParamBool("-NewtonSteadyDebug", false),
+	NewtonUpdaterSteady = util.GetParamBool("-NewtonUpdaterSteady", true),
 	NewtonUpdater = util.GetParamBool("-NewtonUpdater", false),
 	StepDebug = util.GetParamBool("-StepDebug", false),
 	
@@ -284,7 +285,7 @@ if (params.algebraBlockSize ~= 1) and (params.algebraBlockSize ~= params.dim + 2
     print("ERROR: algebraBlockSize must be 1, " .. (params.dim + 2) .." or ".. (params.dim + 4) .. " when komegaSST enabled. Received: " .. tostring(params.algebraBlockSize))
     exit()
 end
-InitUG (params.dim, AlgebraType("CPU", params.algebraBlockSize))
+InitUG (params.dim, AlgebraType("CPU", params.dim+4))
 
 
 ------------------------------------------------------------------------------------------

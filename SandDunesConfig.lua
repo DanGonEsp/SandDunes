@@ -47,6 +47,7 @@ myProblem.Init = function(self, o)
 	self.minConvRate = o.minConvRate
 	self.NewtonDebug = o.NewtonDebug
 	self.NewtonSteadyDebug = o.NewtonSteadyDebug
+	self.NewtonUpdaterSteady = o.NewtonUpdaterSteady
 	self.NewtonUpdater = o.NewtonUpdater
 	self.StepDebug = o.StepDebug
 	self.debug_dir = o.debug_dir
@@ -199,6 +200,7 @@ myProblem.GetCaseDefaults = function(self, problem)
             LinRedDefectImp = 1e-3,
             LinAbsDefectLim = 1e-8,
             LinRedDefectLim = 1e-7,
+			boolSaltationFlux = false,
             boolAveDiff = false,
             boolSlipDiff = false,
             boolSlipVel = false,
@@ -229,6 +231,7 @@ myProblem.GetCaseDefaults = function(self, problem)
             LinRedDefectImp = 1e-5,
             LinAbsDefectLim = 1e-12,
             LinRedDefectLim = 1e-12,
+			boolSaltationFlux = false,
             boolAveDiff = false,
             boolSlipDiff = false,
             boolSlipVel = true,
@@ -329,6 +332,12 @@ myProblem.FileNames = function (self,rank,SpaceSize)
 	end
 
 	folder_name = folder_name .. "-" ..riemman_name
+	
+	if self.boolSaltationFlux then
+		folder_name =folder_name .. "-SaltFlux"
+	else
+		folder_name =folder_name .. "-NoSaltFlux"
+	end
 
 	if self.boolRelativeVel then
 		folder_name =folder_name .. "-RelVel"
@@ -464,11 +473,11 @@ myProblem.PrintingSettings = function (self)
 	print ("	Steady state    	= " .. tostring (self.doSteadyState))
 	print ("	BodyForce       	= " .. tostring (self.boolSource))
 	print ("	Consisten Gravity	= " .. tostring (self.consistentRho_in_source))
+	print ("	Saltation FLux       	= " .. tostring (self.boolSaltationFlux))
 	print ("	Relative Vel    	= " .. tostring (self.boolRelativeVel))
 	print ("	Ps gradient     	= " .. tostring (self.boolGradientPsSource))
 	print ("	Ps in visc      	= " .. tostring (self.boolViscPs))
 	print ("	Diffusion       	= " .. tostring (self.boolAveDiff))
-	print ("	SaltationFLux       	= " .. tostring (self.boolSaltationFlux))
 	print ("	SlipDiff         	= " .. tostring (self.boolSlipDiff))
 	print ("	SlipVel         	= " .. tostring (self.boolSlipVel))
 	print ("	MassMean         	= " .. tostring (self.boolDensityMean))
@@ -661,6 +670,7 @@ myProblem.RegisterCallbacks = function(self)
 		local hh=20.0
         if self.problem == "avalanche" then return 0.0 end
 		if height <= 0.0 then return 0.0 end
+		--return self.inflow
         return self.inflow * math.log(1 + height / self.roughness_length) / math.log(1 + hh / self.roughness_length)
 		--return self.inflow* (2*hh - height) * (height ) / (hh * hh)
     end
@@ -1475,7 +1485,19 @@ myProblem.CreateSolver = function (self, domainDisc)
 		NLSolver:set_debug(dbgWriter)
 					
 	end
-	
+	TransientNewtonUpdaterSteady = nil
+	if (self.NewtonUpdaterSteady and self.turbViscMethod == "komegaSST")then
+		TransientNewtonUpdaterSteady = NewtonUpdaterProjection()
+		TransientNewtonUpdaterSteady:add_projection(self.dim+2, 1e-10, 1e20) -- k
+		TransientNewtonUpdaterSteady:add_projection(self.dim+3, 1e-10, 1e20) -- omega
+		if self.algebraBlockSize == 1 and false then
+			local projectionMask = GridFunction(self.approxSpace)
+			projectionMask:set(0.0)
+			Interpolate(1.0, projectionMask, "c")
+			TransientNewtonUpdater:set_projection_mask(projectionMask)
+		end
+		NewtonSolverSteady:setNewtonUpdater(TransientNewtonUpdaterSteady)
+	end
 	TransientNewtonUpdater = nil
 	if (self.NewtonUpdater and self.timeMethod == "euler")then
 	
@@ -1691,8 +1713,6 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
 	domainDisc:add(fixer)
 	fixer:invert_subset_selection()
 	fixer:add("c", "")
-	--fixer:add("k", "")
-	--fixer:add("omega", "")
 
 	solver:init(AssembledOperator(domainDisc))
 	
