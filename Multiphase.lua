@@ -170,6 +170,7 @@ params =
 	
 			-- Physical phenomenon of simulation
 	doSteadyState = util.GetParamBool("-doSteadyState", true),
+	steadyStateOnly = util.GetParamBool("-steadyStateOnly", false),
 	boolSource = util.GetParamBool("-boolSource", false),
 	consistentRho_in_source = util.GetParamBool("-consistentRho_in_source", true),
 	boolRelativeVel = util.GetParamBool("-boolRelativeVel", true),
@@ -565,7 +566,7 @@ tBefore = os.clock()
 ------------------------------------------------------------------------------------------
 -- Time Steps Loop    (Solution)
 ------------------------------------------------------------------------------------------
-if boolSolution == 1 then
+if boolSolution == 1 and not(params.steadyStateOnly) then
 	for step = step+1, params.numTimeSteps do
 
 		print("++++++ TIMESTEP " .. step .. " BEGIN ++++++")

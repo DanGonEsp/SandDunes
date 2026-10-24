@@ -100,6 +100,7 @@ myProblem.Init = function(self, o)
 	
 		-- Physical phenomenon of simulation
 	self.doSteadyState = o.doSteadyState
+	self.steadyStateOnly = o.steadyStateOnly
 	self.boolSource = o.boolSource
 	self.consistentRho_in_source = o.consistentRho_in_source
 	self.boolRelativeVel = o.boolRelativeVel
@@ -1707,7 +1708,7 @@ end
 -- SteadyState Solution
 --------------------------------------------------------------------------------
 myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, solver)
-
+	local boolSolution = 1
 	-- Fix the mass fraction and solve the linear problem for the momentum
 	fixer = DirichletBoundary()
 	domainDisc:add(fixer)
@@ -1723,6 +1724,7 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
 	local tBefore_s= os.clock()
 	if not solver:apply(u) then
 		print("===> THE PREPARATION PHASE FAILED! <===")
+		boolSolution = 0
 	end
 	local tAfter_s = os.clock()
     num_newton_steps = solver:num_newton_steps()
@@ -1743,7 +1745,7 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
 	print("Computation for steady state took " .. time_work_steady .. " seconds.")
 	domainDisc:remove (fixer)
 	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")
-	return time_work_steady, linsolver_calls, linsolver_steps, 1.0
+	return time_work_steady, linsolver_calls, linsolver_steps, boolSolution
 
 end
 
