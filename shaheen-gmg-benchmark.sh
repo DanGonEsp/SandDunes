@@ -1,6 +1,4 @@
-
 #!/bin/bash -l
-
 #SBATCH --job-name=GMG-Benchmark
 #SBATCH --partition=workq
 #SBATCH --account=k10105

@@ -438,6 +438,12 @@ if params.doSteadyState and step == 0 then
 	time_work_total = time_work_total + time_work_steady
 	Newton_Steps = 1
 	Newton_Steps_fail = Newton_Steps - boolSolution
+	
+	if params.steadyStateOnly then
+		if boolSolution ~= 1 then
+			print("GMG benchmark: steady-state Newton solve unsuccessful.")
+		end
+	end
 end
 
 if(params.boolFixVel) then
