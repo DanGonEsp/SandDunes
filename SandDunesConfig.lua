@@ -1313,7 +1313,7 @@ myProblem.Preconditioner = function (self,precond_name,smoother_name,pre_smooth_
 		local baseSolver = self:BaseSolver(baseSolverG)
 		local gmg = GeometricMultiGrid(self.approxSpace)
 		gmg:set_discretization(self.domainDisc)
-		gmg:set_base_level(self.numPreRefs)
+		gmg:set_base_level(util.GetParamNumber("-gmgBaseLevel", self.numPreRefs))
 		gmg:set_base_solver(baseSolver)
 		gmg:set_smoother(smoother)
 		gmg:set_cycle_type(1)
@@ -1488,7 +1488,7 @@ myProblem.CreateSolver = function (self, domainDisc)
 	TransientNewtonUpdaterSteady = nil
 	if (self.NewtonUpdaterSteady and self.turbViscMethod == "komegaSST")then
 		TransientNewtonUpdaterSteady = NewtonUpdaterProjection()
-		TransientNewtonUpdaterSteady:add_projection(self.dim+2, 1e-10, 1e20) -- k
+		TransientNewtonUpdaterSteady:add_projection(self.dim+2, 1e-38, 1e20) -- k
 		TransientNewtonUpdaterSteady:add_projection(self.dim+3, 1e-10, 1e20) -- omega
 		if self.algebraBlockSize == 1 and false then
 			local projectionMask = GridFunction(self.approxSpace)
