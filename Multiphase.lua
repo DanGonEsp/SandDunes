@@ -154,16 +154,21 @@ params =
 	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", defaults.LinRedDefectLim),
 	max_linear_steps_Lim=util.GetParamNumber("-max_linear_steps_lim", 400),
 	max_linear_steps_Imp=util.GetParamNumber("-max_linear_steps_imp", 400),
+	
 	precondLim = util.GetParam("-precondLim","gmg","ilu,gmg"),
-	precondImp = util.GetParam("-precondImp","gmg","ilu,gmg"),
 	smootherLim = util.GetParam("-smootherLim", defaults.smootherLim, "smoother"),
-	smootherImp = util.GetParam("-smootherImp", defaults.smootherImp, "smoother"),
+	orderingLim = util.GetParam("-orderingLim", defaults.orderingLim, "ordering method"),
 	pre_smoothLim   = util.GetParamNumber("-pre_smoothLim", defaults.pre_smoothLim, "PreSmooth steps for linearly LIMEX"),
 	post_smoothLim = util.GetParamNumber("-post_smoothLim", defaults.post_smoothLim, "PostSmooth steps for linearly LIMEX"),
+	baseSolverLim = util.GetParam("-baseSolverLim","SuperLu","SuperLu, bicgStab"),
+	
+	precondImp = util.GetParam("-precondImp","gmg","ilu,gmg"),
+	smootherImp = util.GetParam("-smootherImp", defaults.smootherImp, "smoother"),
+	orderingImp = util.GetParam("-orderingImp", defaults.orderingImp, "ordering method"),
 	pre_smoothImp   = util.GetParamNumber("-pre_smoothImp", defaults.pre_smoothImp, "PreSmooth steps for Implicit scheme"),
 	post_smoothImp = util.GetParamNumber("-post_smoothImp", defaults.post_smoothImp, "PostSmooth steps for Implicit scheme"),
-	baseSolverLim = util.GetParam("-baseSolverLim","SuperLu","SuperLu, bicgStab"),
 	baseSolverImp = util.GetParam("-baseSolverImp","SuperLu","SuperLu, bicgStab"),
+	
 	eps_ilut = util.GetParamNumber("-eps_ilut", 1e-02),
 
 

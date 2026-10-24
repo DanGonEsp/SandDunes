@@ -87,12 +87,18 @@ myProblem.Init = function(self, o)
 	self.rap = o.rap
 	self.damping_mg = o.damping_mg
 	self.value_beta = o.value_beta
+	
+	self.smootherLim = o.smootherLim
+	self.orderingLim = o.orderingLim
 	self.pre_smoothLim = o.pre_smoothLim
 	self.post_smoothLim = o.post_smoothLim
-	self.smootherLim = o.smootherLim
+
+	self.smootherImp = o.smootherImp
+	self.orderingImp = o.orderingImp
 	self.pre_smoothImp = o.pre_smoothImp
 	self.post_smoothImp = o.post_smoothImp
-	self.smootherImp = o.smootherImp
+
+	
 	self.eps_ilut = o.eps_ilut
 
 	self.lambdamaxSteps = o.lambdamaxSteps
@@ -210,11 +216,13 @@ myProblem.GetCaseDefaults = function(self, problem)
 			value_beta = 0.0,
 			
 			smootherImp = "ilu",
+			orderingImp = "native",
 			pre_smoothImp = 1,
 			post_smoothImp = 0,
 			baseSolverImp = "SuperLu",
 			
 			smootherLim = "ilu",
+			orderingLim = "native",
 			pre_smoothLim = 2,
 			post_smoothLim = 0,
 			baseSolverLim = "SuperLu",
@@ -241,11 +249,13 @@ myProblem.GetCaseDefaults = function(self, problem)
 			value_beta = 0.0,
 			
 			smootherImp = "ilu",
+			orderingImp = "native",
 			pre_smoothImp = 1,
 			post_smoothImp = 2,
 			baseSolverImp = "SuperLu",
 			
-			smootherLim = "ilu",
+			smootherLim = "native",
+			orderingImp = "ilu",
 			pre_smoothLim = 1,
 			post_smoothLim = 2,
 			baseSolverLim = "SuperLu",
@@ -511,12 +521,16 @@ myProblem.PrintingSettings = function (self)
 	print ("	RedDefLim		= " .. self.LinRedDefectLim)
 	print ("	MaxStepsLim		= " .. tostring (self.max_linear_steps_Lim))
 	print ("	MaxStepsImp		= " .. tostring (self.max_linear_steps_Imp))
+	
 	print ("	PreconditionerLim	= " .. tostring (self.precondLim))
-	print ("	PreconditionerImp	= " .. tostring (self.precondImp))
 	print ("	Smoother Lim		= " .. tostring (self.smootherLim))
+	print ("	Ordering Lim		= " .. tostring (self.orderingLim))
 	print ("	Pre Smooth Lim		= " .. tostring (self.pre_smoothLim))
 	print ("	Post Smooth Lim		= " .. tostring (self.post_smoothLim))
+	
+	print ("	PreconditionerImp	= " .. tostring (self.precondImp))
 	print ("	Smoother Imp		= " .. tostring (self.smootherImp))
+	print ("	Ordering Imp		= " .. tostring (self.orderingImp))
 	print ("	Pre Smooth Imp		= " .. tostring (self.pre_smoothImp))
 	print ("	Post Smooth Imp		= " .. tostring (self.post_smoothImp))
 	print ("	Eps ILUT		= " .. self.eps_ilut)
@@ -1238,7 +1252,7 @@ end
 --------------------------------------------------------------------------------
 -- SOLVER
 --------------------------------------------------------------------------------
-myProblem.Smoother = function (self,smoother_name)
+myProblem.Smoother = function (self,smoother_name,ordering_name)
 	--------------
 	-- Smoothers
 	--------------
@@ -1253,9 +1267,21 @@ myProblem.Smoother = function (self,smoother_name)
 		local ilu = ILU()
 		ilu:set_beta(self.value_beta)
 		ilu:set_damp(self.damping_mg)
-		ilu:set_ordering_algorithm(TopologicalOrdering())
-		--ilu:set_sort(true)
-		--ilu:set_sort_eps(1.e-50)
+
+		if ordering_name == "native" then
+			ilu:set_ordering_algorithm(NativeCuthillMcKeeOrdering())
+		elseif ordering_name == "boost" then
+			ilu:set_ordering_algorithm(BoostCuthillMcKeeOrdering())
+		elseif ordering_name == "minimum" then
+			ilu:set_ordering_algorithm(BoostMinimumDegreeOrdering())
+		elseif ordering_name == "scc" then
+			ilu:set_ordering_algorithm(SCCOrdering())
+		elseif ordering_name == "none" then
+			ilu:set_sort(false)
+		else
+			error("Unknown ILU ordering: " .. ordering)
+		end
+
 		ilu:set_inversion_eps(1.e-12)
 		ilu:enable_consistent_interfaces(true)
 		ilu:enable_overlap(false)
@@ -1306,10 +1332,10 @@ myProblem.BaseSolver = function (self,baseSolver_name)
 end
 	
 
-myProblem.Preconditioner = function (self,precond_name,smoother_name,pre_smooth_num, post_smooth_num, baseSolverG)
+myProblem.Preconditioner = function (self,precond_name,smoother_name, ordering_name,pre_smooth_num, post_smooth_num, baseSolverG)
 	print("Creating Precond")
 	local preconditioner = nil
-	local smoother = self:Smoother(smoother_name)
+	local smoother = self:Smoother(smoother_name,ordering_name)
 	if precond_name == "gmg" then
 		local baseSolver = self:BaseSolver(baseSolverG)
 		local gmg = GeometricMultiGrid(self.approxSpace)
@@ -1340,9 +1366,9 @@ myProblem.Preconditioner = function (self,precond_name,smoother_name,pre_smooth_
 	return preconditioner
 end
 
-myProblem.LinearSolver = function (self,LinSolver_name,LinearConvCheck,precond_name,smoother_name,pre_smooth_num, post_smooth_num, baseSolverG)
+myProblem.LinearSolver = function (self,LinSolver_name,LinearConvCheck,precond_name,smoother_name, ordering_name, pre_smooth_num, post_smooth_num, baseSolverG)
 	local LinearSolver = nil
-	local preconditioner = self:Preconditioner(precond_name,smoother_name,pre_smooth_num, post_smooth_num,baseSolverG)
+	local preconditioner = self:Preconditioner(precond_name,smoother_name, ordering_name,pre_smooth_num, post_smooth_num,baseSolverG)
 
 	if LinSolver_name == "gmres" then
 		-- create Linear Solver
@@ -1432,8 +1458,8 @@ myProblem.CreateSolver = function (self, domainDisc)
 	-- Linear Solver
 	-----------------
 	print("Creating linear solver")
-	local LinearSolverLim = self:LinearSolver("bicgStab",LinearConvCheckLim,self.precondLim,self.smootherLim,self.pre_smoothLim, self.post_smoothLim, self.baseSolverLim)
-	local LinearSolverImp = self:LinearSolver("bicgStab",LinearConvCheckImp,self.precondImp,self.smootherImp,self.pre_smoothImp, self.post_smoothImp, self.baseSolverImp)
+	local LinearSolverLim = self:LinearSolver("bicgStab",LinearConvCheckLim,self.precondLim,self.smootherLim, self.orderingLim, self.pre_smoothLim, self.post_smoothLim, self.baseSolverLim)
+	local LinearSolverImp = self:LinearSolver("bicgStab",LinearConvCheckImp,self.precondImp,self.smootherImp, self.orderingImp, self.pre_smoothImp, self.post_smoothImp, self.baseSolverImp)
 	
 
 	
