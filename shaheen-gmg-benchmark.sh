@@ -8,7 +8,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --hint=nomultithread
 #SBATCH --time=01:00:00
-#SBATCH --array=0-7%8
+#SBATCH --array=0-4%5
 #SBATCH --exclusive
 #SBATCH --output=/scratch/gonzald/SandDunes/GMG-%A-%a.out
 #SBATCH --error=/scratch/gonzald/SandDunes/GMG-%A-%a.err
@@ -27,9 +27,7 @@ APPDIR=/project/k10105/gonzald/SandDunes/Files
 
 cd "${APPDIR}" || exit 1
 
-BASE=(5 5 5 5 4 4 4 4)
-PRE=(1 1 2 2 1 1 2 2)
-POST=(0 1 0 1 0 1 0 1)
+ORDERING=(native boost minimum scc none)
 
 ID=${SLURM_ARRAY_TASK_ID}
 
@@ -40,9 +38,9 @@ echo "=============================================="
 echo "GMG benchmark ${ID}"
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "Node: ${SLURM_NODELIST}"
-echo "Base level: ${BASE[$ID]}"
-echo "Pre-smoothing: ${PRE[$ID]}"
-echo "Post-smoothing: ${POST[$ID]}"
+echo "GMG base level: 5"
+echo "Pre/Post smoothing: 1/0"
+echo "ILU ordering: ${ORDERING[$ID]}"
 echo "=============================================="
 
 ARGS=(
@@ -54,9 +52,10 @@ ARGS=(
     -numPreRefs 3
     -numTimeSteps 100
     -DT 3600.0
-    -gmgBaseLevel "${BASE[$ID]}"
-    -pre_smoothImp "${PRE[$ID]}"
-    -post_smoothImp "${POST[$ID]}"
+    -gmgBaseLevel 5
+    -pre_smoothImp 1
+    -post_smoothImp 0
+    -orderingImp "${ORDERING[$ID]}"
     -max_newton_steps_steady_state 20
     -precondImp gmg
     -boolLoadCheckPoint false

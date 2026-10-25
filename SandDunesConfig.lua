@@ -254,8 +254,8 @@ myProblem.GetCaseDefaults = function(self, problem)
 			post_smoothImp = 2,
 			baseSolverImp = "SuperLu",
 			
-			smootherLim = "native",
-			orderingImp = "ilu",
+			smootherLim = "ilu",
+			orderingLim = "native",
 			pre_smoothLim = 1,
 			post_smoothLim = 2,
 			baseSolverLim = "SuperLu",
@@ -1279,7 +1279,7 @@ myProblem.Smoother = function (self,smoother_name,ordering_name)
 		elseif ordering_name == "none" then
 			ilu:set_sort(false)
 		else
-			error("Unknown ILU ordering: " .. ordering)
+			error("Unknown ILU ordering: " .. tostring(ordering_name))
 		end
 
 		ilu:set_inversion_eps(1.e-12)
