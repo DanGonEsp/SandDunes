@@ -790,8 +790,8 @@ myProblem.Clousures = function (self,u,Inner_total)
 	local InterfaceValues = self.InterfaceValues
 	-------------------------------------------------------------- VelocityGradMag
 
-	local gamma = ShearStressFV1(self.approxSpace,u)
-	self.gamma = gamma
+	--local gamma = ShearStressFV1(self.approxSpace,u)
+	--self.gamma = gamma
 
 	---------------------------------------------------------------------- Density
 	local Density = nil
@@ -1021,7 +1021,7 @@ myProblem.UpdateParameters = function (self)
 	if self.turbViscMethod=="dyn" or self.turbViscMethod=="sma" then
 		self.KinTurbulentViscosity:update()
 	end
-	self.gamma:update()
+	--self.gamma:update()
 	self.RelVel:update()
 	if self.boolSlipDiff then
 		self.SlipDiff:update()
@@ -1055,7 +1055,7 @@ myProblem.Discretization = function (self)
 	
 	
 	NavierStokesDisc:set_kinematic_viscosity (self.EfectiveKinViscosity)
-	NavierStokesDisc:set_average_gamma(self.gamma)
+	--NavierStokesDisc:set_average_gamma(self.gamma)
 	if self.boolSaltationFlux then
 		NavierStokesDisc:set_saltation_flux(self.SaltFlux)
 	end
@@ -1615,7 +1615,7 @@ myProblem.OutputParameters = function (self)
 	out:select(self.NavierStokesDisc:particle_pressure_grad(), "DPs")
 	out:select(self.NavierStokesDisc:volume_fraction_grad(), "DC")
 	out:select(self.NavierStokesDisc:velocity_grad(), "Gamma")
-	out:select(self.gamma, "MeanGamma")
+	--out:select(self.gamma, "MeanGamma")
 	if (self.boolSlipDiff) then
 		out:select_element(self.SlipDiff, "SlipDiff")
 	else

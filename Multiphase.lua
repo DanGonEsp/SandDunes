@@ -422,7 +422,7 @@ local linsolver_steps = 0
 if params.doSteadyState and step == 0 then
 	-- Steady state solution.
 	
-	NewtonSolverSteady:add_inner_step_update(myProblem.gamma)
+	--NewtonSolverSteady:add_inner_step_update(myProblem.gamma)
 	NewtonSolverSteady:add_step_update(myProblem.RelVel)
 	if params.boolAveNormal then
 		NewtonSolverSteady:add_step_update(myProblem.Normal)
@@ -485,7 +485,7 @@ NLSolver:add_step_update(myProblem.RelVel)
 
 
 if params.timeMethod == "limex" then
-	NLSolver:add_step_update(myProblem.gamma)
+	--NLSolver:add_step_update(myProblem.gamma)
 	if params.boolSlipDiff then
 		NLSolver:add_step_update(myProblem.SlipDiff)
 	elseif params.boolSlipVel then
@@ -496,7 +496,7 @@ if params.timeMethod == "limex" then
 		NLSolver:add_step_update(myProblem.Normal)
 	end
 else
-	NLSolver:add_inner_step_update(myProblem.gamma)
+	--NLSolver:add_inner_step_update(myProblem.gamma)
 	if (params.boolAveNormal) then
 		NLSolver:add_inner_step_update(myProblem.Normal)
 	end
