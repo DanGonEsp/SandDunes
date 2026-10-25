@@ -129,7 +129,7 @@ myProblem.Init = function(self, o)
 	self.ReferencePressure = o.ReferencePressure
 	self.bStokes = o.bStokes or false
 	self.bNoLaplace = o.bNoLaplace or false
-	self.bExactJac = o.bExactJac or false
+	self.exactJac = o.exactJac or false
 	self.bPecletBlend = o.bPecletBlend or false
 	self.upwind_m = o.upwind_m or "full"
 	self.upwind_t = o.upwind_t or "full"
@@ -216,13 +216,13 @@ myProblem.GetCaseDefaults = function(self, problem)
 			value_beta = 0.0,
 			
 			smootherImp = "ilu",
-			orderingImp = "native",
+			orderingImp = "none",
 			pre_smoothImp = 1,
 			post_smoothImp = 0,
 			baseSolverImp = "SuperLu",
 			
 			smootherLim = "ilu",
-			orderingLim = "native",
+			orderingLim = "none",
 			pre_smoothLim = 2,
 			post_smoothLim = 0,
 			baseSolverLim = "SuperLu",
@@ -249,13 +249,13 @@ myProblem.GetCaseDefaults = function(self, problem)
 			value_beta = 0.0,
 			
 			smootherImp = "ilu",
-			orderingImp = "native",
+			orderingImp = "none",
 			pre_smoothImp = 1,
 			post_smoothImp = 2,
 			baseSolverImp = "SuperLu",
 			
 			smootherLim = "ilu",
-			orderingLim = "native",
+			orderingLim = "none",
 			pre_smoothLim = 1,
 			post_smoothLim = 2,
 			baseSolverLim = "SuperLu",
@@ -501,7 +501,7 @@ myProblem.PrintingSettings = function (self)
 	print ("	DT   			= " .. self.DT)
 	print ("	numTimeSteps		= " .. self.numTimeSteps)
 	print ("	noLaplace		= " .. tostring (self.bNoLaplace))
-	print ("	exactJac		= " .. tostring (self.bExactJac))
+	print ("	exactJac		= " .. tostring (self.exactJac))
 	print ("	PecletBlend		= " .. tostring (self.bPecletBlend))
 	print ("	upwind_m		= " .. self.upwind_m)
 	print ("	upwind_t		= " .. self.upwind_t)
@@ -1039,7 +1039,7 @@ end
 myProblem.Discretization = function (self)
 	local Inner_total = self.geometry.innerSubsets
 	local NavierStokesDisc = NavierStokesFV1M (self.nv_cmp_tbl, Inner_total)
-	NavierStokesDisc:set_exact_jacobian (self.bExactJac)
+	NavierStokesDisc:set_exact_jacobian (self.exactJac)
 	NavierStokesDisc:set_stokes (self.bStokes)
 	NavierStokesDisc:set_laplace (self.bNoLaplace)
 	NavierStokesDisc:set_upwind (self.upwind_m)
