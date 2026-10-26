@@ -425,7 +425,7 @@ local time_work_steady=0.0
 local linsolver_calls = 0
 local linsolver_steps = 0
 
-if params.doSteadyState and step == 0 then
+if params.doSteadyState and step == 0 and not myProblem.loadedCheckPoint then
 	-- Steady state solution.
 	
 	--NewtonSolverSteady:add_inner_step_update(myProblem.gamma)

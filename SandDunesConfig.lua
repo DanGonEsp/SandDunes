@@ -1558,6 +1558,8 @@ myProblem.InitializeSolution = function(self, u, folder)
     if self.boolLoadCheckPoint then
         time, step, time_work_total, interpolate = self:LoadCheckPoint(u, folder)
     end
+    
+    self.loadedCheckPoint = not interpolate
 
     if interpolate then
         Interpolate(0.0001, u, "u")
