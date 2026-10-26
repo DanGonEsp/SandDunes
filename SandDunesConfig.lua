@@ -92,11 +92,13 @@ myProblem.Init = function(self, o)
 	self.orderingLim = o.orderingLim
 	self.pre_smoothLim = o.pre_smoothLim
 	self.post_smoothLim = o.post_smoothLim
+	self.gmgBaseLevelLim = o.gmgBaseLevelLim
 
 	self.smootherImp = o.smootherImp
 	self.orderingImp = o.orderingImp
 	self.pre_smoothImp = o.pre_smoothImp
 	self.post_smoothImp = o.post_smoothImp
+	self.gmgBaseLevelImp = o.gmgBaseLevelImp
 
 	
 	self.eps_ilut = o.eps_ilut
@@ -218,6 +220,7 @@ myProblem.GetCaseDefaults = function(self, problem)
 			baseSolverImp = "SuperLu",
 			LinAbsDefectImp = 1e-08,
 			LinRedDefectImp = 1e-3,
+			gmgBaseLevelImp = 5,
 			
 			smootherLim = "ilu",
 			orderingLim = "none",
@@ -226,6 +229,7 @@ myProblem.GetCaseDefaults = function(self, problem)
 			baseSolverLim = "SuperLu",
 			LinAbsDefectLim = 1e-8,
 			LinRedDefectLim = 1e-7,
+			gmgBaseLevelLim = 5,
 			
 			DTLimex=1000,
 		}
@@ -251,6 +255,7 @@ myProblem.GetCaseDefaults = function(self, problem)
 			baseSolverImp = "SuperLu",
 			LinAbsDefectImp = 1e-08,
 			LinRedDefectImp = 1e-5,
+			gmgBaseLevelImp = 5,
 			
 			smootherLim = "ilu",
 			orderingLim = "none",
@@ -259,6 +264,7 @@ myProblem.GetCaseDefaults = function(self, problem)
 			baseSolverLim = "SuperLu",
 			LinAbsDefectLim = 1e-12,
 			LinRedDefectLim = 1e-12,
+			gmgBaseLevelLim = 5,
 			
 			
 			DTLimex=1e-03,
@@ -1329,7 +1335,7 @@ myProblem.BaseSolver = function (self,baseSolver_name)
 end
 	
 
-myProblem.Preconditioner = function (self,precond_name,smoother_name, ordering_name,pre_smooth_num, post_smooth_num, baseSolverG)
+myProblem.Preconditioner = function (self,precond_name,smoother_name, ordering_name,pre_smooth_num, post_smooth_num, baseSolverG, baseLevel)
 	print("Creating Precond")
 	local preconditioner = nil
 	local smoother = self:Smoother(smoother_name,ordering_name)
@@ -1337,7 +1343,7 @@ myProblem.Preconditioner = function (self,precond_name,smoother_name, ordering_n
 		local baseSolver = self:BaseSolver(baseSolverG)
 		local gmg = GeometricMultiGrid(self.approxSpace)
 		gmg:set_discretization(self.domainDisc)
-		gmg:set_base_level(util.GetParamNumber("-gmgBaseLevel", self.numPreRefs))
+		gmg:set_base_level(baseLevel)
 		gmg:set_base_solver(baseSolver)
 		gmg:set_smoother(smoother)
 		gmg:set_cycle_type(1)
@@ -1363,9 +1369,9 @@ myProblem.Preconditioner = function (self,precond_name,smoother_name, ordering_n
 	return preconditioner
 end
 
-myProblem.LinearSolver = function (self,LinSolver_name,LinearConvCheck,precond_name,smoother_name, ordering_name, pre_smooth_num, post_smooth_num, baseSolverG)
+myProblem.LinearSolver = function (self,LinSolver_name,LinearConvCheck,precond_name,smoother_name, ordering_name, pre_smooth_num, post_smooth_num, baseSolverG,baseLevel)
 	local LinearSolver = nil
-	local preconditioner = self:Preconditioner(precond_name,smoother_name, ordering_name,pre_smooth_num, post_smooth_num,baseSolverG)
+	local preconditioner = self:Preconditioner(precond_name,smoother_name, ordering_name,pre_smooth_num, post_smooth_num,baseSolverG,baseLevel)
 
 	if LinSolver_name == "gmres" then
 		-- create Linear Solver
@@ -1455,8 +1461,8 @@ myProblem.CreateSolver = function (self, domainDisc)
 	-- Linear Solver
 	-----------------
 	print("Creating linear solver")
-	local LinearSolverLim = self:LinearSolver("bicgStab",LinearConvCheckLim,self.precondLim,self.smootherLim, self.orderingLim, self.pre_smoothLim, self.post_smoothLim, self.baseSolverLim)
-	local LinearSolverImp = self:LinearSolver("bicgStab",LinearConvCheckImp,self.precondImp,self.smootherImp, self.orderingImp, self.pre_smoothImp, self.post_smoothImp, self.baseSolverImp)
+	local LinearSolverLim = self:LinearSolver("bicgStab",LinearConvCheckLim,self.precondLim,self.smootherLim, self.orderingLim, self.pre_smoothLim, self.post_smoothLim, self.baseSolverLim,self.gmgBaseLevelLim)
+	local LinearSolverImp = self:LinearSolver("bicgStab",LinearConvCheckImp,self.precondImp,self.smootherImp, self.orderingImp, self.pre_smoothImp, self.post_smoothImp, self.baseSolverImp,self.gmgBaseLevelImp)
 	
 
 	
