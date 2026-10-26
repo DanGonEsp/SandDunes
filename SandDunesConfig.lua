@@ -223,7 +223,7 @@ myProblem.GetCaseDefaults = function(self, problem)
 			
 			smootherLim = "ilu",
 			orderingLim = "none",
-			pre_smoothLim = 2,
+			pre_smoothLim = 1,
 			post_smoothLim = 0,
 			baseSolverLim = "SuperLu",
 			
