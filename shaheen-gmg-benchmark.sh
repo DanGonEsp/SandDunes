@@ -31,7 +31,7 @@ ORDERING=(native boost minimum scc none)
 
 ID=${SLURM_ARRAY_TASK_ID}
 
-CASE_DIR="${WORKDIR}/GMG_${SLURM_ARRAY_JOB_ID}_${ID}"
+CASE_DIR="${WORKDIR}/GMG"
 mkdir -p "${CASE_DIR}" || exit 1
 
 echo "=============================================="
@@ -46,6 +46,7 @@ echo "=============================================="
 ARGS=(
     -ex Multiphase.lua
     -dir_name "${CASE_DIR}"
+    -folder_name "Ordering_${ORDERING[$ID]}"
     -dim 2
     -timeMethod limex
     -numRefs 7
