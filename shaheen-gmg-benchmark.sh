@@ -50,17 +50,27 @@ ARGS=(
     -timeMethod limex
     -numRefs 7
     -numPreRefs 3
-    -numTimeSteps 100
-    -DT 3600.0
+    -numTimeSteps 1
+    -DT 10.0
+    -DTLimex 1.0
+
     -gmgBaseLevel 5
+
+    -precondImp gmg
+    -smootherImp ilu
+    -orderingImp none
     -pre_smoothImp 1
     -post_smoothImp 0
-    -orderingImp "${ORDERING[$ID]}"
-    -max_newton_steps_steady_state 20
-    -precondImp gmg
-    -boolLoadCheckPoint false
-    -boolSaveCheckPoint false
-    -steadyStateOnly true
+
+    -precondLim gmg
+    -smootherLim ilu
+    -orderingLim "${ORDERING[$ID]}"
+    -pre_smoothLim 1
+    -post_smoothLim 0
+
+    -max_linear_steps_lim 600
+    -LinRedDefectLim 1e-7
+    -LinAbsDefectLim 1e-8
 )
 
 srun --exclusive --exact \

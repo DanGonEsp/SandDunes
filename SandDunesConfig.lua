@@ -196,22 +196,18 @@ end
 -- DEFAULT Parameters
 --------------------------------------------------------------------------------
 myProblem.GetCaseDefaults = function(self, problem)
-    if problem == "flow" then
-        return {
-        	Name = "Dune",
-            numRefs = 6,
-            numPreRefs = 3,
-            alphaVel = 1.0,
-            alphaPress = 1e-11,
-			LinAbsDefectImp = 1e-08,
-            LinRedDefectImp = 1e-3,
-            LinAbsDefectLim = 1e-8,
-            LinRedDefectLim = 1e-7,
+	if problem == "flow" then
+		return {
+			Name = "Dune",
+			numRefs = 6,
+			numPreRefs = 3,
+			alphaVel = 1.0,
+			alphaPress = 1e-11,
 			boolSaltationFlux = false,
-            boolAveDiff = false,
-            boolSlipDiff = false,
-            boolSlipVel = false,
-            boolFixVel = false,
+			boolAveDiff = false,
+			boolSlipDiff = false,
+			boolSlipVel = false,
+			boolFixVel = false,
 			rap = true,
 			value_beta = 0.0,
 			
@@ -220,31 +216,31 @@ myProblem.GetCaseDefaults = function(self, problem)
 			pre_smoothImp = 1,
 			post_smoothImp = 0,
 			baseSolverImp = "SuperLu",
+			LinAbsDefectImp = 1e-08,
+			LinRedDefectImp = 1e-3,
 			
 			smootherLim = "ilu",
 			orderingLim = "none",
 			pre_smoothLim = 1,
 			post_smoothLim = 0,
 			baseSolverLim = "SuperLu",
+			LinAbsDefectLim = 1e-8,
+			LinRedDefectLim = 1e-7,
 			
 			DTLimex=1000,
-        }
-    elseif problem == "avalanche" then
-        return {
+		}
+	elseif problem == "avalanche" then
+		return {
 			Name = "Solution",
-            numRefs = 4,
-            numPreRefs = 3,
-            alphaVel = 1e-15,
-            alphaPress = 0.5e-15,
-			LinAbsDefectImp = 1e-08,
-            LinRedDefectImp = 1e-5,
-            LinAbsDefectLim = 1e-12,
-            LinRedDefectLim = 1e-12,
+			numRefs = 4,
+			numPreRefs = 3,
+			alphaVel = 1e-15,
+			alphaPress = 0.5e-15,
 			boolSaltationFlux = false,
-            boolAveDiff = false,
-            boolSlipDiff = false,
-            boolSlipVel = true,
-            boolFixVel = true,
+			boolAveDiff = false,
+			boolSlipDiff = false,
+			boolSlipVel = true,
+			boolFixVel = true,
 			rap = true,
 			value_beta = 0.0,
 			
@@ -253,19 +249,23 @@ myProblem.GetCaseDefaults = function(self, problem)
 			pre_smoothImp = 1,
 			post_smoothImp = 2,
 			baseSolverImp = "SuperLu",
+			LinAbsDefectImp = 1e-08,
+			LinRedDefectImp = 1e-5,
 			
 			smootherLim = "ilu",
 			orderingLim = "none",
 			pre_smoothLim = 1,
 			post_smoothLim = 2,
 			baseSolverLim = "SuperLu",
+			LinAbsDefectLim = 1e-12,
+			LinRedDefectLim = 1e-12,
 			
 			
 			DTLimex=1e-03,
-        }
-    end
+		}
+	end
 
-    error("Unknown problem: " .. tostring(problem))
+	error("Unknown problem: " .. tostring(problem))
 end
 --------------------------------------------------------------------------------
 -- GEOMETRY

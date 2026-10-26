@@ -128,7 +128,7 @@ params =
 	maxConvRate = util.GetParamNumber("-maxConvRate", 0.9),
 	minConvRate = util.GetParamNumber("-minConvRate", 0.5),
 	
-	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 100),
+	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 220),
 	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 700),
 	SteadyAbsDefect = util.GetParamNumber("-SteadyAbsDefect", 1e-05),
 	SteadyRedDefect = util.GetParamNumber("-SteadyRedDefect", 1e-08),
