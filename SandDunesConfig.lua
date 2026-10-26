@@ -940,10 +940,7 @@ myProblem.Clousures = function (self,u,Inner_total)
 	SaltFlux:set_delta_epsilon(1e-8)
 	SaltFlux:set_velocity_epsilon(1e-8)
 	SaltFlux:set_direction_mode(2)
-	if not self.turbViscMethod =="komegaSST" then
-		print ("komegaSST required to Saltation flux"); exit();
-	end
-	SaltFlux:set_turbulent_kinematic_viscosity(TurbulenceDisc:turbulent_kinematic_viscosity())
+	SaltFlux:set_turbulent_kinematic_viscosity(self.KinTurbulentViscosity)
 	SaltFlux:set_normal(self.Normal)
 	self.SaltFlux = SaltFlux
 	
@@ -1771,6 +1768,9 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
 	print("Computation for steady state took " .. time_work_steady .. " seconds.")
 	domainDisc:remove (fixer)
 	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")
+	
+	if(self.max_newton_steps_steady_state == num_newton_steps) then boolSolution = 1 end
+	
 	return time_work_steady, linsolver_calls, linsolver_steps, boolSolution
 
 end

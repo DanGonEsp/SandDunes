@@ -291,7 +291,13 @@ if (params.algebraBlockSize ~= 1) and (params.algebraBlockSize ~= params.dim + 2
     print("ERROR: algebraBlockSize must be 1, " .. (params.dim + 2) .." or ".. (params.dim + 4) .. " when komegaSST enabled. Received: " .. tostring(params.algebraBlockSize))
     exit()
 end
-InitUG (params.dim, AlgebraType("CPU", params.dim+4))
+
+if params.turbViscMethod=="komegaSST" then
+	InitUG (params.dim, AlgebraType("CPU", params.dim+4))
+else
+	InitUG (params.dim, AlgebraType("CPU", params.algebraBlockSize))
+end
+
 
 
 ------------------------------------------------------------------------------------------
