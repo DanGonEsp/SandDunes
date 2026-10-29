@@ -76,8 +76,6 @@ myProblem.Init = function(self, o)
 	self.baseSolverLim = o.baseSolverLim
 	self.baseSolverImp = o.baseSolverImp
 	
-	self.precondLim = o.precondLim
-	self.precondImp = o.precondImp
 	self.LinAbsDefectImp = o.LinAbsDefectImp
 	self.LinRedDefectImp = o.LinRedDefectImp
 	self.LinAbsDefectLim = o.LinAbsDefectLim
@@ -85,15 +83,22 @@ myProblem.Init = function(self, o)
 	self.max_linear_steps_Lim = o.max_linear_steps_Lim
 	self.max_linear_steps_Imp = o.max_linear_steps_Imp
 	self.rap = o.rap
-	self.damping_mg = o.damping_mg
+	self.rim = o.rim
+		
+	self.damping_gmg = o.damping_gmg
+	self.damping_ilu = o.damping_ilu
 	self.value_beta = o.value_beta
 	
+	self.linear_solver_Lim = o.linear_solver_Lim
+	self.precondLim = o.precondLim
 	self.smootherLim = o.smootherLim
 	self.orderingLim = o.orderingLim
 	self.pre_smoothLim = o.pre_smoothLim
 	self.post_smoothLim = o.post_smoothLim
 	self.gmgBaseLevelLim = o.gmgBaseLevelLim
 
+	self.linear_solver_Imp = o.linear_solver_Imp
+	self.precondImp = o.precondImp
 	self.smootherImp = o.smootherImp
 	self.orderingImp = o.orderingImp
 	self.pre_smoothImp = o.pre_smoothImp
@@ -211,8 +216,10 @@ myProblem.GetCaseDefaults = function(self, problem)
 			boolSlipVel = false,
 			boolFixVel = false,
 			rap = true,
+			rim = false,
 			value_beta = 0.0,
 			
+			linear_solver_Imp = "bicgStab",
 			smootherImp = "ilu",
 			orderingImp = "none",
 			pre_smoothImp = 1,
@@ -222,6 +229,7 @@ myProblem.GetCaseDefaults = function(self, problem)
 			LinRedDefectImp = 1e-3,
 			gmgBaseLevelImp = 5,
 			
+			linear_solver_Lim = "gmres",
 			smootherLim = "ilu",
 			orderingLim = "none",
 			pre_smoothLim = 1,
@@ -246,8 +254,10 @@ myProblem.GetCaseDefaults = function(self, problem)
 			boolSlipVel = true,
 			boolFixVel = true,
 			rap = true,
+			rim = false,
 			value_beta = 0.0,
 			
+			linear_solver_Imp = "bicgStab",
 			smootherImp = "ilu",
 			orderingImp = "none",
 			pre_smoothImp = 1,
@@ -257,6 +267,7 @@ myProblem.GetCaseDefaults = function(self, problem)
 			LinRedDefectImp = 1e-5,
 			gmgBaseLevelImp = 5,
 			
+			linear_solver_Lim = "bicgStab",
 			smootherLim = "ilu",
 			orderingLim = "none",
 			pre_smoothLim = 1,
@@ -518,8 +529,10 @@ myProblem.PrintingSettings = function (self)
 	print ("	Turbulence		= " .. self.turbViscMethod)
 	-----------------------------------------------------------------------
 	print (" Linear Solver parameters:")
-	print ("	damping_mg		= " .. self.damping_mg)
+	print ("	damping_gmg		= " .. self.damping_gmg)
+	print ("	damping_ilu		= " .. self.damping_ilu)
 	print ("	RAP			= " .. tostring (self.rap))
+	print ("	RIM			= " .. tostring (self.rim))
 	print ("	beta			= " .. self.value_beta)
 	print ("	AbsDefImp		= " .. self.LinAbsDefectImp)
 	print ("	RedDefImp		= " .. self.LinRedDefectImp)
@@ -1263,13 +1276,13 @@ myProblem.Smoother = function (self,smoother_name,ordering_name)
 	local smoother = nil
 	if smoother_name == "ilut" then
 		local ilut = ILUT(self.eps_ilut)
-		ilut:set_damp(self.damping_mg)
+		ilut:set_damp(self.damping_ilu)
 		ilut:set_sort(false)
 		smoother = ilut
 	elseif smoother_name == "ilu" then
 		local ilu = ILU()
 		ilu:set_beta(self.value_beta)
-		ilu:set_damp(self.damping_mg)
+		ilu:set_damp(self.damping_ilu)
 
 		if ordering_name == "native" then
 			ilu:set_ordering_algorithm(NativeCuthillMcKeeOrdering())
@@ -1350,10 +1363,17 @@ myProblem.Preconditioner = function (self,precond_name,smoother_name, ordering_n
 		gmg:set_num_presmooth(pre_smooth_num)
 		gmg:set_num_postsmooth(post_smooth_num)
 		gmg:set_rap( self.rap)
-		gmg:set_smooth_on_surface_rim(false)
+		gmg:set_smooth_on_surface_rim(self.rim)
+		
+		local mgStats = MGStats()
+		mgStats:set_filename_prefix("GMG_debug")
+		mgStats:set_exit_on_error(false)
+		mgStats:set_write_err_vecs(false)
+		mgStats:set_write_err_diffs(false)
+		gmg:set_mg_stats(mgStats)
 
 		-- gmg:set_damp(MinimalResiduumDamping())
-		-- gmg:set_damp(0.8)
+		gmg:set_damp(self.damping_gmg)
 		-- gmg:set_damp(MinimalEnergyDamping())
 		--transfer = StdTransfer()
 		--transfer:set_restriction_damping(1.0)
@@ -1461,8 +1481,8 @@ myProblem.CreateSolver = function (self, domainDisc)
 	-- Linear Solver
 	-----------------
 	print("Creating linear solver")
-	local LinearSolverLim = self:LinearSolver("bicgStab",LinearConvCheckLim,self.precondLim,self.smootherLim, self.orderingLim, self.pre_smoothLim, self.post_smoothLim, self.baseSolverLim,self.gmgBaseLevelLim)
-	local LinearSolverImp = self:LinearSolver("bicgStab",LinearConvCheckImp,self.precondImp,self.smootherImp, self.orderingImp, self.pre_smoothImp, self.post_smoothImp, self.baseSolverImp,self.gmgBaseLevelImp)
+	local LinearSolverLim = self:LinearSolver(self.linear_solver_Lim,LinearConvCheckLim,self.precondLim,self.smootherLim, self.orderingLim, self.pre_smoothLim, self.post_smoothLim, self.baseSolverLim,self.gmgBaseLevelLim)
+	local LinearSolverImp = self:LinearSolver(self.linear_solver_Imp,LinearConvCheckImp,self.precondImp,self.smootherImp, self.orderingImp, self.pre_smoothImp, self.post_smoothImp, self.baseSolverImp,self.gmgBaseLevelImp)
 	
 
 	

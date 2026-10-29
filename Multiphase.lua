@@ -145,12 +145,14 @@ params =
 
 
 	------------------------------------------------------------------------------------- LINEAR SOLVER
-	damping_mg = util.GetParamNumber("-damping_mg", 1.0),
+	damping_gmg = util.GetParamNumber("-damping_gmg", 1.0),
+	damping_ilu = util.GetParamNumber("-damping_ilu", 1.0),
 	rap = util.GetParamBool("-rap",defaults.rap, "RAP"),
+	rim = util.GetParamBool("-rim",defaults.rim, "RIM"),
 	value_beta = util.GetParamNumber("-value_beta", defaults.value_beta, "ILU_beta"),
 
 	
-	
+	linear_solver_Lim = util.GetParam("-linear_solver_Lim",defaults.linear_solver_Lim,"gmres,bicgStab"),
 	max_linear_steps_Lim=util.GetParamNumber("-max_linear_steps_lim", 400),
 	LinAbsDefectImp = util.GetParamNumber("-LinAbsDefectImp", defaults.LinAbsDefectImp),
 	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", defaults.LinRedDefectImp),
@@ -162,6 +164,7 @@ params =
 	baseSolverLim = util.GetParam("-baseSolverLim","SuperLu","SuperLu, bicgStab"),
 	gmgBaseLevelLim = util.GetParamNumber("-gmgBaseLevelLim", defaults.gmgBaseLevelLim),
 	
+	linear_solver_Imp = util.GetParam("-linear_solver_Imp",defaults.linear_solver_Imp,"gmres,bicgStab"),
 	max_linear_steps_Imp = util.GetParamNumber("-max_linear_steps_imp", 400),
 	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", defaults.LinAbsDefectLim),
 	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", defaults.LinRedDefectLim),
