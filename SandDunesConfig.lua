@@ -1395,7 +1395,7 @@ myProblem.LinearSolver = function (self,LinSolver_name,LinearConvCheck,precond_n
 
 	if LinSolver_name == "gmres" then
 		-- create Linear Solver
-		LinearSolver = GMRES(50)
+		LinearSolver = GMRES(10)
 		LinearSolver:set_preconditioner(preconditioner)
 	elseif LinSolver_name == "bicgStab" then
 		LinearSolver = BiCGStab()
@@ -2162,12 +2162,12 @@ myProblem.CheckJacobian = function(self, domainDisc, u, perturbFct, solveLinearS
 	local boundarySubsets = self.geometry.boundaries
 
 	local epsList = {
-		1.0e-3,
-		1.0e-4,
 		1.0e-5,
 		1.0e-6,
 		1.0e-7,
-		1.0e-8
+		1.0e-8,
+		1.0e-9,
+		1.0e-10
 	}
 
 
@@ -2500,6 +2500,9 @@ myProblem.CheckJacobian = function(self, domainDisc, u, perturbFct, solveLinearS
 	u:enforce_consistent_type()
 	r0:enforce_consistent_type()
 	Jv:enforce_consistent_type()
+	
+	local rMinus = u:clone()
+	rMinus:set(0.0)
 
 
 	------------------------------------------------------------
@@ -2530,6 +2533,23 @@ myProblem.CheckJacobian = function(self, domainDisc, u, perturbFct, solveLinearS
 
 		r1:set(0.0)
 		domainDisc:assemble_defect(r1, uPert)
+		
+		
+
+
+		--------------------------------------------------------
+		local uMinus = u:clone()
+
+		u:enforce_consistent_type()
+		v:enforce_consistent_type()
+		uMinus:enforce_consistent_type()
+
+		VecScaleAdd2(uMinus, 1.0, u, -eps, v)
+		domainDisc:adjust_solution(uMinus)
+
+		rMinus:set(0.0)
+		domainDisc:assemble_defect(rMinus, uMinus)
+		--------------------------------------------------------
 
 
 		--------------------------------------------------------
@@ -2540,7 +2560,11 @@ myProblem.CheckJacobian = function(self, domainDisc, u, perturbFct, solveLinearS
 		r0:enforce_consistent_type()
 		fd:enforce_consistent_type()
 
-		VecScaleAdd2(fd, 1.0 / eps, r1, -1.0 / eps, r0)
+		r1:enforce_consistent_type()
+		rMinus:enforce_consistent_type()
+		fd:enforce_consistent_type()
+
+		VecScaleAdd2(fd, 0.5 / eps, r1, -0.5 / eps, rMinus)
 
 
 		--------------------------------------------------------
@@ -2580,7 +2604,11 @@ myProblem.CheckJacobian = function(self, domainDisc, u, perturbFct, solveLinearS
 		jacOut:select_all(false)
 		jacOut:select_nodal("c", "c")
 		
-		VecScaleAdd2(fd, 1.0 / eps, r1, -1.0 / eps, r0)
+		r1:enforce_consistent_type()
+		rMinus:enforce_consistent_type()
+		fd:enforce_consistent_type()
+
+		VecScaleAdd2(fd, 0.5 / eps, r1, -0.5 / eps, rMinus)
 
 		fd:enforce_consistent_type()
 		Jv:enforce_consistent_type()
@@ -2588,7 +2616,7 @@ myProblem.CheckJacobian = function(self, domainDisc, u, perturbFct, solveLinearS
 
 		VecScaleAdd2(err, 1.0, fd, -1.0, Jv)
 		
-		if eps == 1.0e-6 then
+		if eps == epsList[#epsList] then
 			fd:enforce_consistent_type()
 			Jv:enforce_consistent_type()
 			err:enforce_consistent_type()
@@ -2606,10 +2634,10 @@ myProblem.CheckJacobian = function(self, domainDisc, u, perturbFct, solveLinearS
 		-- Detailed block analysis at eps = 1e-6
 		--------------------------------------------------------
 
-		if eps == 1.0e-6 then
+		if eps == epsList[#epsList] then
 
 			print("")
-			print("COMPONENT-WISE JACOBIAN CHECK AT eps = 1e-6")
+			print("COMPONENT-WISE JACOBIAN CHECK AT eps = " .. epsList[#epsList])
 			print("Input block: " .. perturbFct)
 			print("")
 
