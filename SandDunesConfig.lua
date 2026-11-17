@@ -84,7 +84,7 @@ myProblem.Init = function(self, o)
 	self.max_linear_steps_Imp = o.max_linear_steps_Imp
 	self.rap = o.rap
 	self.rim = o.rim
-		
+	self.gmgDebug = o.gmgDebug
 	self.damping_gmg = o.damping_gmg
 	self.damping_ilu = o.damping_ilu
 	self.value_beta = o.value_beta
@@ -95,7 +95,6 @@ myProblem.Init = function(self, o)
 	self.orderingLim = o.orderingLim
 	self.pre_smoothLim = o.pre_smoothLim
 	self.post_smoothLim = o.post_smoothLim
-	self.gmgBaseLevelLim = o.gmgBaseLevelLim
 
 	self.linear_solver_Imp = o.linear_solver_Imp
 	self.precondImp = o.precondImp
@@ -103,7 +102,6 @@ myProblem.Init = function(self, o)
 	self.orderingImp = o.orderingImp
 	self.pre_smoothImp = o.pre_smoothImp
 	self.post_smoothImp = o.post_smoothImp
-	self.gmgBaseLevelImp = o.gmgBaseLevelImp
 
 	
 	self.eps_ilut = o.eps_ilut
@@ -187,7 +185,7 @@ myProblem.Init = function(self, o)
 	self.I_0 = o.I_0
 	self.gravity = o.gravity
 	self.roughness_length = o.roughness_length
-
+	self.K_von_karman = o.K_von_karman
 	
 	
 	self.boolSolverDesc = false
@@ -205,14 +203,14 @@ end
 myProblem.GetCaseDefaults = function(self, problem)
 	if problem == "flow" then
 		return {
-			Name = "Dune",
+			file_name = "Dune",
 			numRefs = 6,
 			numPreRefs = 3,
 			alphaVel = 1.0,
 			alphaPress = 1e-11,
 			boolSaltationFlux = false,
 			boolAveDiff = false,
-			boolSlipDiff = false,
+			boolSlipDiff = true,
 			boolSlipVel = false,
 			boolFixVel = false,
 			rap = true,
@@ -221,29 +219,27 @@ myProblem.GetCaseDefaults = function(self, problem)
 			
 			linear_solver_Imp = "bicgStab",
 			smootherImp = "ilu",
-			orderingImp = "none",
+			orderingImp = "boost",
 			pre_smoothImp = 1,
 			post_smoothImp = 0,
 			baseSolverImp = "SuperLu",
 			LinAbsDefectImp = 1e-08,
 			LinRedDefectImp = 1e-3,
-			gmgBaseLevelImp = 5,
 			
-			linear_solver_Lim = "gmres",
+			linear_solver_Lim = "bicgStab",
 			smootherLim = "ilu",
-			orderingLim = "none",
+			orderingLim = "boost",
 			pre_smoothLim = 1,
-			post_smoothLim = 0,
+			post_smoothLim = 1,
 			baseSolverLim = "SuperLu",
 			LinAbsDefectLim = 1e-8,
 			LinRedDefectLim = 1e-7,
-			gmgBaseLevelLim = 5,
 			
 			DTLimex=1000,
 		}
 	elseif problem == "avalanche" then
 		return {
-			Name = "Solution",
+			file_name = "Solution",
 			numRefs = 4,
 			numPreRefs = 3,
 			alphaVel = 1e-15,
@@ -265,7 +261,6 @@ myProblem.GetCaseDefaults = function(self, problem)
 			baseSolverImp = "SuperLu",
 			LinAbsDefectImp = 1e-08,
 			LinRedDefectImp = 1e-5,
-			gmgBaseLevelImp = 5,
 			
 			linear_solver_Lim = "bicgStab",
 			smootherLim = "ilu",
@@ -275,7 +270,6 @@ myProblem.GetCaseDefaults = function(self, problem)
 			baseSolverLim = "SuperLu",
 			LinAbsDefectLim = 1e-12,
 			LinRedDefectLim = 1e-12,
-			gmgBaseLevelLim = 5,
 			
 			
 			DTLimex=1e-03,
@@ -298,6 +292,7 @@ myProblem.GetGeometry = function(self, params)
         geometry.innerSubsets = {"Inner", "Inner2"}
         geometry.allSubsets = "Inner,Inner2,Left,Right,Top,Bottom"
         geometry.boundaries = "Left,Right,Top,Bottom"
+		geometry.walls = "Bottom"
 
         if params.dim == 3 then
             geometry.allSubsets = geometry.allSubsets .. ",Back,Front"
@@ -305,6 +300,7 @@ myProblem.GetGeometry = function(self, params)
     elseif params.problem == "avalanche" then
         geometry.gridName = "Avalanche" .. params.dim .. "D_" .. params.elem_type .. ".ugx"
         geometry.innerSubsets = {"Inner"}
+		geometry.walls = "Bottom"
 
         if params.dim == 2 then
             geometry.allSubsets = "Inner,Left,Right,Top,Bottom"
@@ -446,10 +442,22 @@ myProblem.FileNames = function (self,rank,SpaceSize)
 
 	
 
-	vtk_file_name = folder_vtk .. "/" .. self.file_name -- VTK output file name base
+	vtk_file_name = folder_vtk .. "/" .. self.file_name .. "-lev" .. self.numRefs -- VTK output file name base
 	
 	
-	self.debug_dir = folder_vtk
+	self.debug_dir = folder_vtk .. "/" .. "Debug"
+	
+	if (rank== 0 and (self.NewtonDebug or self.NewtonSteadyDebug or self.gmgDebug)) then
+		if not DirectoryExists (self.debug_dir) then
+			CreateDirectory (self.debug_dir)
+		else
+			local cmd = "rm -rf " .. self.debug_dir
+			os.execute(cmd)
+			print("Debug directory reseted")
+			CreateDirectory (self.debug_dir)
+		end
+	end
+	
 	self.riemman_name = riemman_name
 
 	print("Files Setting DONE")
@@ -811,7 +819,17 @@ myProblem.Clousures = function (self,u,Inner_total)
 
 	--local gamma = ShearStressFV1(self.approxSpace,u)
 	--self.gamma = gamma
-
+	
+	
+	-------------------------------------------------------------- WallDistanceFunction for komegaSST
+	
+	local WallDistance = nil
+	if self.turbViscMethod=="komegaSST" then
+		WallDistance = WallInterfaceDistanceFV1(self.approxSpace,u)
+		WallDistance:set_phase_parameters(InterfaceValues)
+	end
+	self.WallDistance = WallDistance
+	
 	---------------------------------------------------------------------- Density
 	local Density = nil
 	if self.bStokes or self.boolSaltationFlux then
@@ -840,7 +858,7 @@ myProblem.Clousures = function (self,u,Inner_total)
 	KinMixViscosity:set_import_1(Inverse_RHO)
 	
 
-	local EfectiveKinViscosity = nil
+	local EffectiveKinViscosity = nil
 	local KinTurbulentViscosity = nil
 	local TurbulenceDisc = nil
 	if self.turbViscMethod=="no" then
@@ -862,20 +880,20 @@ myProblem.Clousures = function (self,u,Inner_total)
 
 
 	if self.turbViscMethod=="no" then
-		EfectiveKinViscosity = KinMixViscosity
+		EffectiveKinViscosity = KinMixViscosity
 	else
-		EfectiveKinViscosity = ScaleAddLinkerNumber()
-		EfectiveKinViscosity:add(1.0,KinMixViscosity)
-		EfectiveKinViscosity:add(Scale_RHO,KinTurbulentViscosity)
+		EffectiveKinViscosity = ScaleAddLinkerNumber()
+		EffectiveKinViscosity:add(1.0,KinMixViscosity)
+		EffectiveKinViscosity:add(Scale_RHO,KinTurbulentViscosity)
 
 	end
 
 
 
 
-	local MixViscosity = ScaleLinker();
-	MixViscosity:set_import_1(Density)
-	MixViscosity:set_import_2(EfectiveKinViscosity)
+	local EffectiveViscosity = ScaleLinker();
+	EffectiveViscosity:set_import_1(Density)
+	EffectiveViscosity:set_import_2(EffectiveKinViscosity)
 
 
 
@@ -894,9 +912,9 @@ myProblem.Clousures = function (self,u,Inner_total)
 	self.TurbulenceDisc = TurbulenceDisc
 	self.TurbulentViscosity = TurbulentViscosity
 	self.KinTurbulentViscosity = KinTurbulentViscosity
-	self.MixViscosity = MixViscosity
+	self.EffectiveViscosity = EffectiveViscosity
 	self.KinMixViscosity = KinMixViscosity
-	self.EfectiveKinViscosity = EfectiveKinViscosity
+	self.EffectiveKinViscosity = EffectiveKinViscosity
 	
 	---------------------------------------------------------------------- Normal
 	
@@ -951,14 +969,25 @@ myProblem.Clousures = function (self,u,Inner_total)
 	
 	
 	---------------------------------------------------------------------- SaltationFlux
+	local A_s = 0.1
+	local z0 = self.roughness_length
+	local HH = 20
+	local u_star = A_s*math.sqrt((self.rho_s/self.rho_a-1.0)*math.abs(self.gravity)*self.dp)
+	local U_minimum = (u_star/self.K_von_karman)*math.log(HH/z0)
+	if(self.inflow<= U_minimum) then
+		print ("Threshold Velocity = ".. u_star)
+		print ("Inlet Velocity = ".. self.inflow .. " below theorical minimum velocity (" .. U_minimum .. ") for erotion"); exit();
+	end
+	
 	local SaltFlux = SaltationFluxLinker()
 	SaltFlux:set_phase_parameters(InterfaceValues)
 	SaltFlux:set_saltation_coefficient(5.5)
-	SaltFlux:set_threshold_friction_velocity(0.22)
+	SaltFlux:set_threshold_friction_velocity(u_star)
 	SaltFlux:set_normal_epsilon(1e-8)
 	SaltFlux:set_delta_epsilon(1e-8)
 	SaltFlux:set_velocity_epsilon(1e-8)
 	SaltFlux:set_direction_mode(2)
+	SaltFlux:set_use_wall_stress(true)
 	SaltFlux:set_turbulent_kinematic_viscosity(self.KinTurbulentViscosity)
 	SaltFlux:set_normal(self.Normal)
 	self.SaltFlux = SaltFlux
@@ -1037,6 +1066,9 @@ myProblem.UpdateParameters = function (self)
 	if self.turbViscMethod=="dyn" or self.turbViscMethod=="sma" then
 		self.KinTurbulentViscosity:update()
 	end
+	if self.turbViscMethod == "komegaSST" then
+		self.WallDistance:update()
+	end
 	--self.gamma:update()
 	self.RelVel:update()
 	if self.boolSlipDiff then
@@ -1067,10 +1099,10 @@ myProblem.Discretization = function (self)
 	NavierStokesDisc:set_mass_mean(self.boolDensityMean)
 	NavierStokesDisc:set_mass_term(self.boolMassTerm)
 	NavierStokesDisc:set_saltation_riemann(true)
-	NavierStokesDisc:set_viscosity_averaging("interpolated")
+	NavierStokesDisc:set_viscosity_averaging("harmonic")
 	
 	
-	NavierStokesDisc:set_kinematic_viscosity (self.EfectiveKinViscosity)
+	NavierStokesDisc:set_kinematic_viscosity (self.EffectiveKinViscosity)
 	--NavierStokesDisc:set_average_gamma(self.gamma)
 	if self.boolSaltationFlux then
 		NavierStokesDisc:set_saltation_flux(self.SaltFlux)
@@ -1125,9 +1157,10 @@ end
 myProblem.TurbulenceDiscretization = function (self)
 
 	self.TurbulenceDisc:set_velocity(self.NavierStokesDisc:velocity_ip())
-	self.TurbulenceDisc:set_upwind("full")
+	self.TurbulenceDisc:set_upwind(self.upwind_m)
 	self.TurbulenceDisc:set_velocity_gradient(self.NavierStokesDisc:velocity_grad())
-	self.TurbulenceDisc:set_wall_distance("WallDistance")
+	--self.TurbulenceDisc:set_wall_distance("WallDistance")
+	self.TurbulenceDisc:set_wall_distance(self.WallDistance)
 	self.TurbulenceDisc:set_kinematic_viscosity(self.KinMixViscosity)
 
 	self.TurbulenceDisc:set_linearize_turbulent_viscosity(true)
@@ -1272,7 +1305,7 @@ myProblem.Smoother = function (self,smoother_name,ordering_name)
 	--------------
 	-- Smoothers
 	--------------
-	-- base solver
+	print ("GMG:Creating smoother");
 	local smoother = nil
 	if smoother_name == "ilut" then
 		local ilut = ILUT(self.eps_ilut)
@@ -1299,7 +1332,7 @@ myProblem.Smoother = function (self,smoother_name,ordering_name)
 		end
 
 		ilu:set_inversion_eps(1.e-12)
-		ilu:enable_consistent_interfaces(true)
+		ilu:enable_consistent_interfaces(false)
 		ilu:enable_overlap(false)
 		smoother = ilu
 	elseif smoother_name == "jac" then
@@ -1330,33 +1363,43 @@ myProblem.Smoother = function (self,smoother_name,ordering_name)
 	else
 		print ("Smoother not defined"); exit();
 	end
+	print ("GMG:smoother Done");
 	return smoother
 end
 myProblem.BaseSolver = function (self,baseSolver_name)
 	--------------
 	-- Base Solver
 	--------------
-	local Solver
+	print ("GMG:Creating Base solver");
+	local Solver = nil
+	local baseConvCheck=ConvCheck(1000, 1e-8, 1e-03, false)
 	if baseSolver_name == "SuperLu" then
 		--local Solver = LU()
 		Solver = AgglomeratingSolver(SuperLU());
+	elseif baseSolver_name == "bicgStab" then
+		Solver = self:LinearSolver("bicgStab",baseConvCheck,"ilu","ilu","none",0,0,nil,0)
+	elseif baseSolver_name == "gmres" then
+		Solver = self:LinearSolver("gmres",baseConvCheck,"ilu","ilu","none",0,0,nil,0)
+	elseif baseSolver_name == "ilu" then
+		Solver = self:LinearSolver("ilu",baseConvCheck,"ilu","ilu","none",0,0,nil,0)
 	else
-		local baseConvCheck=ConvCheck(1000, 1e-8, 1e-03, false)
-		Solver = self:LinearSolver("bicgStab",baseConvCheck,"ilu")
+		print ("Based Solver ".. baseSolver_name .." not defined"); exit();
 	end
+	print ("GMG:Base solver Done");
 	return Solver
 end
 	
 
-myProblem.Preconditioner = function (self,precond_name,smoother_name, ordering_name,pre_smooth_num, post_smooth_num, baseSolverG, baseLevel)
+myProblem.Preconditioner = function (self,precond_name,smoother_name, ordering_name,pre_smooth_num, post_smooth_num, baseSolverG)
 	print("Creating Precond")
 	local preconditioner = nil
 	local smoother = self:Smoother(smoother_name,ordering_name)
 	if precond_name == "gmg" then
 		local baseSolver = self:BaseSolver(baseSolverG)
+		
 		local gmg = GeometricMultiGrid(self.approxSpace)
 		gmg:set_discretization(self.domainDisc)
-		gmg:set_base_level(baseLevel)
+		gmg:set_base_level(self.numPreRefs)
 		gmg:set_base_solver(baseSolver)
 		gmg:set_smoother(smoother)
 		gmg:set_cycle_type(1)
@@ -1365,16 +1408,25 @@ myProblem.Preconditioner = function (self,precond_name,smoother_name, ordering_n
 		gmg:set_rap( self.rap)
 		gmg:set_smooth_on_surface_rim(self.rim)
 		
+		-- gmg:set_damp(MinimalResiduumDamping())
+		gmg:set_damp(self.damping_gmg)
+		-- gmg:set_damp(MinimalEnergyDamping())
+		
 		local mgStats = MGStats()
 		mgStats:set_filename_prefix("GMG_debug")
 		mgStats:set_exit_on_error(false)
 		mgStats:set_write_err_vecs(false)
 		mgStats:set_write_err_diffs(false)
-		gmg:set_mg_stats(mgStats)
+		--gmg:set_mg_stats(mgStats)
+		
+		if self.gmgDebug then
+			local dbgWriter = GridFunctionDebugWriter(self.approxSpace)
+			dbgWriter:set_vtk_output(true)
+			dbgWriter:set_conn_viewer_output(false)
+			dbgWriter:set_base_dir(self.debug_dir)
+			gmg:set_debug(dbgWriter)
+		end
 
-		-- gmg:set_damp(MinimalResiduumDamping())
-		gmg:set_damp(self.damping_gmg)
-		-- gmg:set_damp(MinimalEnergyDamping())
 		--transfer = StdTransfer()
 		--transfer:set_restriction_damping(1.0)
 		--transfer:set_prolongation_damping(0.6)
@@ -1389,33 +1441,43 @@ myProblem.Preconditioner = function (self,precond_name,smoother_name, ordering_n
 	return preconditioner
 end
 
-myProblem.LinearSolver = function (self,LinSolver_name,LinearConvCheck,precond_name,smoother_name, ordering_name, pre_smooth_num, post_smooth_num, baseSolverG,baseLevel)
-	local LinearSolver = nil
-	local preconditioner = self:Preconditioner(precond_name,smoother_name, ordering_name,pre_smooth_num, post_smooth_num,baseSolverG,baseLevel)
+myProblem.LinearSolver = function (self,LinSolver_name,LinearConvCheck,precond_name,smoother_name, ordering_name, pre_smooth_num, post_smooth_num, baseSolverG)
+	print("Creating Linear Solver")
+	local LinearSolver_r = nil
+	local preconditioner = self:Preconditioner(precond_name,smoother_name, ordering_name,pre_smooth_num, post_smooth_num,baseSolverG)
 
 	if LinSolver_name == "gmres" then
 		-- create Linear Solver
-		LinearSolver = GMRES(10)
-		LinearSolver:set_preconditioner(preconditioner)
+		LinearSolver_r = GMRES(60)
+		LinearSolver_r:set_preconditioner(preconditioner)
 	elseif LinSolver_name == "bicgStab" then
-		LinearSolver = BiCGStab()
-		LinearSolver:set_preconditioner(preconditioner)
+		LinearSolver_r = BiCGStab()
+		LinearSolver_r:set_preconditioner(preconditioner)
 	elseif LinSolver_name == "gmg" then
-		LinearSolver = LinearSolver()
-		LinearSolver:set_preconditioner(preconditioner)
+		LinearSolver_r = LinearSolver()
+		LinearSolver_r:set_preconditioner(preconditioner)
 	elseif LinSolver_name == "ilu" then
-		LinearSolver = LinearSolver()
-		LinearSolver:set_preconditioner(preconditioner)
+		LinearSolver_r = LinearSolver()
+		LinearSolver_r:set_preconditioner(preconditioner)
+		if self.gmgDebug then
+			local dbgWriter = GridFunctionDebugWriter(self.approxSpace)
+			dbgWriter:set_vtk_output(true)
+			dbgWriter:set_print_consistent(false)
+			dbgWriter:set_conn_viewer_output(false)
+			dbgWriter:set_base_dir(self.debug_dir)
+			LinearSolver_r:set_debug(dbgWriter)
+			print ("Debug Writer Done");
+		end
 	else
 		print ("LinearSolver not defined"); exit();
 	end
 	
-	LinearSolver:set_convergence_check(LinearConvCheck)
-	
-	return LinearSolver
+	LinearSolver_r:set_convergence_check(LinearConvCheck)
+	print("Linear Solver Done")
+	return LinearSolver_r
 end
 myProblem.CreateSolver = function (self, domainDisc)
-
+	print("Creating NonLinear Solver")
 	self.domainDisc = domainDisc
 	local op = nil
 	
@@ -1455,6 +1517,7 @@ myProblem.CreateSolver = function (self, domainDisc)
 		NewtonSteadyConvCheck:set_component_check("k", self.SteadyAbsDefect, self.SteadyRedDefect)
 		NewtonSteadyConvCheck:set_component_check("omega", self.SteadyAbsDefect, self.SteadyRedDefect)
 	end
+	NewtonSteadyConvCheck:set_supress_unsuccessful(false)
 	NewtonSteadyConvCheck:disable_rest_check()
 	NewtonSteadyConvCheck:set_verbose(true)
 	
@@ -1470,8 +1533,18 @@ myProblem.CreateSolver = function (self, domainDisc)
 	NewtonConvCheck:disable_rest_check()
 	NewtonConvCheck:set_verbose(true)
 	
+	--local LinearConvCheckLim = CompositeConvCheck(self.approxSpace)
+	--LinearConvCheckLim:set_maximum_steps(self.max_linear_steps_Lim)
+	--LinearConvCheckLim:set_group_check(self.vel_cmp_tbl, self.LinAbsDefectLim, self.LinRedDefectImp)
+	--LinearConvCheckLim:set_component_check("p", self.LinAbsDefectLim, self.LinRedDefectImp)
+	--LinearConvCheckLim:set_component_check("c", self.LinAbsDefectLim, self.LinRedDefectImp)
+	--if self.turbViscMethod == "komegaSST" then
+		--LinearConvCheckLim:set_component_check("k", self.LinAbsDefectLim, self.LinRedDefectImp)
+		--LinearConvCheckLim:set_component_check("omega", self.LinAbsDefectLim, self.LinRedDefectImp)
+	--end
+	
 	local LinearConvCheckImp=ConvCheck(self.max_linear_steps_Imp, self.LinAbsDefectImp, self.LinRedDefectImp, true)
-	local LinearConvCheckLim=ConvCheck(self.max_linear_steps_Lim, self.LinAbsDefectLim, self.LinRedDefectLim, true)
+	local LinearConvCheckLim=ConvCheck(self.max_linear_steps_Lim, self.LinAbsDefectLim, self.LinAbsDefectLim, true)
 	local LimexConvCheck=ConvCheck(1, 1e-12, 1e-12, true)
 	LimexConvCheck:set_supress_unsuccessful(true)
 	
@@ -1481,8 +1554,8 @@ myProblem.CreateSolver = function (self, domainDisc)
 	-- Linear Solver
 	-----------------
 	print("Creating linear solver")
-	local LinearSolverLim = self:LinearSolver(self.linear_solver_Lim,LinearConvCheckLim,self.precondLim,self.smootherLim, self.orderingLim, self.pre_smoothLim, self.post_smoothLim, self.baseSolverLim,self.gmgBaseLevelLim)
-	local LinearSolverImp = self:LinearSolver(self.linear_solver_Imp,LinearConvCheckImp,self.precondImp,self.smootherImp, self.orderingImp, self.pre_smoothImp, self.post_smoothImp, self.baseSolverImp,self.gmgBaseLevelImp)
+	local LinearSolverLim = self:LinearSolver(self.linear_solver_Lim,LinearConvCheckLim,self.precondLim,self.smootherLim, self.orderingLim, self.pre_smoothLim, self.post_smoothLim, self.baseSolverLim)
+	local LinearSolverImp = self:LinearSolver(self.linear_solver_Imp,LinearConvCheckImp,self.precondImp,self.smootherImp, self.orderingImp, self.pre_smoothImp, self.post_smoothImp, self.baseSolverImp)
 	
 
 	
@@ -1538,9 +1611,10 @@ myProblem.CreateSolver = function (self, domainDisc)
 	TransientNewtonUpdaterSteady = nil
 	if (self.NewtonUpdaterSteady and self.turbViscMethod == "komegaSST")then
 		TransientNewtonUpdaterSteady = NewtonUpdaterProjection()
-		TransientNewtonUpdaterSteady:add_projection(self.dim+2, 1e-38, 1e20) -- k
-		TransientNewtonUpdaterSteady:add_projection(self.dim+3, 1e-10, 1e20) -- omega
-		if self.algebraBlockSize == 1 and false then
+		TransientNewtonUpdaterSteady:add_projection(self.dim+2, 0.0, 1e20) -- k
+		TransientNewtonUpdaterSteady:add_projection(self.dim+3, 1e-38, 1e20) -- omega
+		if self.algebraBlockSize == 1 then
+			print("NewtonUpdater not implemented for CPUAlgebra block 1x1"); exit();
 			local projectionMask = GridFunction(self.approxSpace)
 			projectionMask:set(0.0)
 			Interpolate(1.0, projectionMask, "c")
@@ -1549,19 +1623,25 @@ myProblem.CreateSolver = function (self, domainDisc)
 		NewtonSolverSteady:setNewtonUpdater(TransientNewtonUpdaterSteady)
 	end
 	TransientNewtonUpdater = nil
-	if (self.NewtonUpdater and self.timeMethod == "euler")then
-	
-		TransientNewtonUpdater = NewtonUpdaterProjection()
-		TransientNewtonUpdater:set_projection_fct(self.dim+1)
-		TransientNewtonUpdater:set_max_threshold(1.1)
-		TransientNewtonUpdater:set_min_threshold(-1e-5)
+
+	if self.NewtonUpdater then
 		if self.algebraBlockSize == 1 then
-			local projectionMask = GridFunction(self.approxSpace)
-			projectionMask:set(0.0)
-			Interpolate(1.0, projectionMask, "c")
-			TransientNewtonUpdater:set_projection_mask(projectionMask)
+			print("NewtonUpdater not implemented for CPUAlgebra block 1x1"); exit();
 		end
+
+		TransientNewtonUpdater = NewtonUpdaterProjection()
+
+		if self.timeMethod == "euler" then
+			TransientNewtonUpdater:add_projection(self.dim+1, -1e-05, 1.1) -- c
+		end
+
+		if self.turbViscMethod == "komegaSST" then
+			TransientNewtonUpdater:add_projection(self.dim+2, 1e-38, 1e20) -- k
+			TransientNewtonUpdater:add_projection(self.dim+3, 1e-10, 1e20) -- omega
+		end
+
 		NLSolver:setNewtonUpdater(TransientNewtonUpdater)
+
 	end
 	
 	
@@ -1631,8 +1711,9 @@ myProblem.OutputParameters = function (self)
 	out:select(self.Density, "Rho")
 	out:select(self.NavierStokesDisc:mix_density(), "Rho2")
 	out:select(self.NavierStokesDisc:einstein_viscosity(), "Mu_eins")
-	out:select(self.NavierStokesDisc:mix_viscosity(), "Mu_I")
-	out:select(self.MixViscosity, "MixViscosity")
+	out:select(self.NavierStokesDisc:mix_viscosity(), "Mu_phi")
+	out:select(self.NavierStokesDisc:mu_i_viscosity(), "Mu_I")
+	out:select(self.EffectiveViscosity, "EffectiveViscosity")
 	out:select(self.TurbulentViscosity, "Mu_t")
 	
 	out:select(self.RelVel, "RelVel")
@@ -1652,6 +1733,9 @@ myProblem.OutputParameters = function (self)
 	out:select_element(self.Normal, "n")
 	out:select_element(self.SaltFlux,"SaltFlux" )
 	out:select_element(self.AvalancheFlux,"AvalancheFlux" )
+	if self.turbViscMethod=="komegaSST" then
+		out:select (self.WallDistance, "WallDistance")
+	end
 
 	print("Output file setting DONE")
 	return out
@@ -1759,9 +1843,9 @@ end
 -- SteadyState Solution
 --------------------------------------------------------------------------------
 myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, solver)
-	local boolSolution = 1
+	local boolSucceed = 1
 	-- Fix the mass fraction and solve the linear problem for the momentum
-	fixer = DirichletBoundary()
+	local fixer = DirichletBoundary()
 	domainDisc:add(fixer)
 	fixer:invert_subset_selection()
 	fixer:add("c", "")
@@ -1775,15 +1859,16 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
 	local tBefore_s= os.clock()
 	if not solver:apply(u) then
 		print("===> THE PREPARATION PHASE FAILED! <===")
-		boolSolution = 0
+		boolSucceed = 0
 	end
 	local tAfter_s = os.clock()
-    num_newton_steps = solver:num_newton_steps()
-    linsolver_calls = solver:total_linsolver_calls()
-    linsolver_steps = solver:total_linsolver_steps()
-    average_linear_steps = solver:total_average_linear_steps()
-    average_non_linear_rates = solver:total_average_non_linear_rates()
+    local num_newton_steps = solver:num_newton_steps()
+    local linsolver_calls = solver:total_linsolver_calls()
+    local linsolver_steps = solver:total_linsolver_steps()
+    local average_linear_steps = solver:total_average_linear_steps()
+    local average_non_linear_rates = solver:total_average_non_linear_rates()
     
+	print("num_max_newton_steps = " .. self.max_newton_steps_steady_state .. ".")
     print("num_newton_steps = " .. num_newton_steps .. ".")
     print("linsolver_calls = " .. linsolver_calls .. ".")
     print("linsolver_steps = " .. linsolver_steps .. ".")
@@ -1792,14 +1877,14 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
     
     solver:clear_average_convergence();
     
-	time_work_steady = tAfter_s-tBefore_s
+	local time_work_steady = tAfter_s-tBefore_s
 	print("Computation for steady state took " .. time_work_steady .. " seconds.")
 	domainDisc:remove (fixer)
 	print("++++++++++++++++++++++++ INITIAL CONDITIONS  (STEADY STATE DONE) ++++++++++++++++++++++++")
 	
-	if(self.max_newton_steps_steady_state == num_newton_steps) then boolSolution = 1 end
+	if(self.max_newton_steps_steady_state == num_newton_steps) then boolSucceed = 1 end
 	
-	return time_work_steady, linsolver_calls, linsolver_steps, boolSolution
+	return time_work_steady, linsolver_calls, linsolver_steps, boolSucceed
 
 end
 
@@ -1882,7 +1967,7 @@ myProblem.SolveNonlinearProblem = function (self, u, solver, op, solTimeSeries, 
 					solver:set_convergence_check(ConvCheck(5, self.AbsDefect, self.RedDefect, true))
 					local dbgWriter = GridFunctionDebugWriter(self.approxSpace)
 					dbgWriter:set_vtk_output(true)
-					dbgWriter:set_base_dir(self.debug_dir .."Steady")
+					dbgWriter:set_base_dir(self.debug_dir)
 					solver:set_debug(dbgWriter)
 					solver:init(op)
 					self.timeDisc:prepare_step(solTimeSeries, do_dt)
@@ -2039,7 +2124,7 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	if self.PressErrorNorm == "L2" then
 		limexEstimator:add(L2ComponentSpace("p", 2, self.alphaPress))
 	elseif self.PressErrorNorm == "H1" then
-		limexEstimator:add(H1SemiComponentSpace("p", 2, ConstUserMatrix(self.alphaPress) ))
+		limexEstimator:add(H1SemiComponentSpace("p", 2, ConstUserMatrix(self.alphaPress)), 5.0 )
 	else
 		print ("LimexErrorEstimator for Pressure not defined"); exit();
 	end
@@ -2052,8 +2137,8 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 		print ("LimexErrorEstimator for VolumeFraction not defined"); exit();
 	end
 	if self.turbViscMethod=="komegaSST" then
-		limexEstimator:add(L2ComponentSpace("k", 2))
-		limexEstimator:add(L2ComponentSpace("omega", 2))
+		limexEstimator:add(L2ComponentSpace("k", 2), 0.5 )
+		limexEstimator:add(L2ComponentSpace("omega", 2), 0.5)
 	end
 	
 
@@ -2616,7 +2701,7 @@ myProblem.CheckJacobian = function(self, domainDisc, u, perturbFct, solveLinearS
 
 		VecScaleAdd2(err, 1.0, fd, -1.0, Jv)
 		
-		if eps == epsList[#epsList] then
+		if eps == epsList[#epsList] and false then
 			fd:enforce_consistent_type()
 			Jv:enforce_consistent_type()
 			err:enforce_consistent_type()

@@ -87,12 +87,11 @@ params =
 			-- Numerical parameters of the discretization
 	dim      = util.GetParamNumber("-dim", 2, "dimensionality of the problem"),
 	dir_name = util.GetParam("-dir_name", ""),
-	file_name = util.GetParam("-file_name", defaults.Name),
-	folder_name = util.GetParam("-folder_name", defaults.Name) .."_".. fixedNum .."_".. problemTag.. simCaseBnd,
+	file_name = util.GetParam("-file_name", defaults.file_name),
+	folder_name = util.GetParam("-folder_name", defaults.file_name) .."_".. fixedNum .."_".. problemTag.. simCaseBnd,
 	elem_type = util.GetParam("-elem_type", "quad", "tri, quad"),
 	numRefs = util.GetParamNumber("-numRefs", defaults.numRefs, "number of grid refinements"),
 	numPreRefs = util.GetParamNumber("-numPreRefs", defaults.numPreRefs, "number of prerefinements (parallel)"),
-	algebraBlockSize = util.GetParamNumber("-algebraBlockSize", 1, "algebraBlockSize"),
 	
 	--Output Data
 	boolData = util.GetParamBool("-boolData", false),
@@ -119,7 +118,7 @@ params =
 	VolErrorNorm = util.GetParam("-VolErrorNorm","L2","Norm for Pressure error type H1 , L2"),
 	alphaVel = util.GetParamNumber("-alphaVel", defaults.alphaVel, "Error estimator scale factor for Velocity"),
 	alphaPress = util.GetParamNumber("-alphaPress", defaults.alphaPress, "Error estimator scale factor for Pressure"),
-	alphaVol = util.GetParamNumber("-alphaVol", 100, "Error estimator scale factor for Volume fraction"),
+	alphaVol = util.GetParamNumber("-alphaVol", 2500, "Error estimator scale factor for Volume fraction"),
 	
 	incr_factor     = util.GetParamNumber("-incr_factor", 1.5),
 	red_factor_fail     = util.GetParamNumber("-red_factor_fail", 0.7),
@@ -128,53 +127,57 @@ params =
 	maxConvRate = util.GetParamNumber("-maxConvRate", 0.9),
 	minConvRate = util.GetParamNumber("-minConvRate", 0.5),
 	
+	
 	max_newton_steps_steady_state=util.GetParamNumber("-max_newton_steps_steady_state", 220),
-	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 700),
 	SteadyAbsDefect = util.GetParamNumber("-SteadyAbsDefect", 1e-05),
 	SteadyRedDefect = util.GetParamNumber("-SteadyRedDefect", 1e-08),
+	NewtonUpdaterSteady = util.GetParamBool("-NewtonUpdaterSteady", true),
+	NewtonSteadyDebug = util.GetParamBool("-NewtonSteadyDebug", false),
+	
+	
+	max_newton_steps_transient=util.GetParamNumber("-max_newton_steps_transient", 700),
 	AbsDefect = util.GetParamNumber("-AbsDefect", 1e-05),
 	RedDefect = util.GetParamNumber("-RedDefect", 1e-05),
+	NewtonUpdater = util.GetParamBool("-NewtonUpdater", true),
 	NewtonDebug = util.GetParamBool("-NewtonDebug", false),
-	NewtonSteadyDebug = util.GetParamBool("-NewtonSteadyDebug", false),
-	NewtonUpdaterSteady = util.GetParamBool("-NewtonUpdaterSteady", true),
-	NewtonUpdater = util.GetParamBool("-NewtonUpdater", false),
-	StepDebug = util.GetParamBool("-StepDebug", false),
 	
+	
+	
+	StepDebug = util.GetParamBool("-StepDebug", false),
 	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 5),
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
 
 
 	------------------------------------------------------------------------------------- LINEAR SOLVER
 	damping_gmg = util.GetParamNumber("-damping_gmg", 1.0),
-	damping_ilu = util.GetParamNumber("-damping_ilu", 1.0),
+	damping_ilu = util.GetParamNumber("-damping_ilu", 0.5),
 	rap = util.GetParamBool("-rap",defaults.rap, "RAP"),
 	rim = util.GetParamBool("-rim",defaults.rim, "RIM"),
 	value_beta = util.GetParamNumber("-value_beta", defaults.value_beta, "ILU_beta"),
+	gmgDebug = util.GetParamBool("-gmgDebug", false),
 
 	
 	linear_solver_Lim = util.GetParam("-linear_solver_Lim",defaults.linear_solver_Lim,"gmres,bicgStab"),
-	max_linear_steps_Lim=util.GetParamNumber("-max_linear_steps_lim", 400),
-	LinAbsDefectImp = util.GetParamNumber("-LinAbsDefectImp", defaults.LinAbsDefectImp),
-	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", defaults.LinRedDefectImp),
 	precondLim = util.GetParam("-precondLim","gmg","ilu,gmg"),
 	smootherLim = util.GetParam("-smootherLim", defaults.smootherLim, "smoother"),
 	orderingLim = util.GetParam("-orderingLim", defaults.orderingLim, "ordering method: native, boost, minimum, scc, none"),
 	pre_smoothLim   = util.GetParamNumber("-pre_smoothLim", defaults.pre_smoothLim, "PreSmooth steps for linearly LIMEX"),
 	post_smoothLim = util.GetParamNumber("-post_smoothLim", defaults.post_smoothLim, "PostSmooth steps for linearly LIMEX"),
 	baseSolverLim = util.GetParam("-baseSolverLim","SuperLu","SuperLu, bicgStab"),
-	gmgBaseLevelLim = util.GetParamNumber("-gmgBaseLevelLim", defaults.gmgBaseLevelLim),
+	max_linear_steps_Lim=util.GetParamNumber("-max_linear_steps_lim", 100),
+	LinAbsDefectImp = util.GetParamNumber("-LinAbsDefectImp", defaults.LinAbsDefectImp),
+	LinRedDefectImp = util.GetParamNumber("-LinRedDefectImp", defaults.LinRedDefectImp),
 	
 	linear_solver_Imp = util.GetParam("-linear_solver_Imp",defaults.linear_solver_Imp,"gmres,bicgStab"),
-	max_linear_steps_Imp = util.GetParamNumber("-max_linear_steps_imp", 400),
-	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", defaults.LinAbsDefectLim),
-	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", defaults.LinRedDefectLim),
 	precondImp = util.GetParam("-precondImp","gmg","ilu,gmg"),
 	smootherImp = util.GetParam("-smootherImp", defaults.smootherImp, "smoother"),
 	orderingImp = util.GetParam("-orderingImp", defaults.orderingImp, "ordering method: native, boost, minimum, scc, none"),
 	pre_smoothImp   = util.GetParamNumber("-pre_smoothImp", defaults.pre_smoothImp, "PreSmooth steps for Implicit scheme"),
 	post_smoothImp = util.GetParamNumber("-post_smoothImp", defaults.post_smoothImp, "PostSmooth steps for Implicit scheme"),
 	baseSolverImp = util.GetParam("-baseSolverImp","SuperLu","SuperLu, bicgStab"),
-	gmgBaseLevelImp = util.GetParamNumber("-gmgBaseLevelImp", defaults.gmgBaseLevelImp),
+	max_linear_steps_Imp = util.GetParamNumber("-max_linear_steps_imp", 100),
+	LinAbsDefectLim = util.GetParamNumber("-LinAbsDefectLim", defaults.LinAbsDefectLim),
+	LinRedDefectLim = util.GetParamNumber("-LinRedDefectLim", defaults.LinRedDefectLim),
 
 	
 	eps_ilut = util.GetParamNumber("-eps_ilut", 1e-02),
@@ -226,15 +229,15 @@ params =
 
 	--Material Properties
 	nu_a     = util.GetParamNumber("-visc_a", 1.48e-05, "kinematic viscosity"),
-	rho_a     = util.GetParamNumber("-rho_a", 1.2, "Air Density"),
-	rho_s     = util.GetParamNumber("-rho_s", 2500, "Sand Density"),
-	dp     = util.GetParamNumber("-diameter", 1e-03, "Particle Diameter"),
+	rho_a     = util.GetParamNumber("-rho_a", 1.235, "Air Density"),
+	rho_s     = util.GetParamNumber("-rho_s", 2650, "Sand Density"),
+	dp     = util.GetParamNumber("-diameter", 0.18e-03, "Particle Diameter"),
 	nu_s     = util.GetParamNumber("-visc_s", 1.48e-05, "kinematic viscosity"),
 	c_init        = util.GetParamNumber("-c_init", 1.0, "max volume fraction"),
 
 	alpha_max        = util.GetParamNumber("-alpha_max", 0.635, "max volume fraction"),
 	alpha_min        = util.GetParamNumber("-alpha_min", 0.57, "max volume fraction"),
-	packing_factor   = util.GetParamNumber("-packing_factor", 0.6, "Packingfactor"),
+	packing_factor   = util.GetParamNumber("-packing_factor", 0.61, "Packingfactor"),
 	grad_limit = util.GetParamNumber("-grad_limit", 0.05, "grad limit in Normal vector"),
 	slope_limit = util.GetParamNumber("-slope_limit", 2e-02, "regularization factor in slip and diff velocity"),
 	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein, 4 Relax"),
@@ -254,17 +257,27 @@ params =
 	FricMu_2=0.64,
 	I_0 = 0.279,
 	gravity = -9.81,
-	roughness_length = 0.5e-03,
+	K_von_karman = 0.4,
+	
 	
 }
+params.roughness_length = params.dp/10
 
 params.startTime  = 0.0
 params.endTime    = params.DT * params.numTimeSteps
 params.DTmax = params.DT
 
-c_init = params.c_init
-params.interface_value  = 0.5--params.alpha_min/params.packing_factor
+local c_init = params.c_init
+params.interface_value  = params.alpha_min/params.packing_factor
 params.omegaWall = 60.0 * params.nu_a / (params.beta1 * params.dWall * params.dWall)
+local algebraBlockSize = nil
+if params.turbViscMethod=="komegaSST" then
+	algebraBlockSize =  params.dim+4
+else
+	algebraBlockSize = params.dim+2
+end
+params.algebraBlockSize = util.GetParamNumber("-algebraBlockSize",  algebraBlockSize, "algebraBlockSize")
+
 
 ------------------------------------------------------------------------------------------
 -- Geometry Parameters  - GridName -  Domain Subsets
@@ -300,11 +313,13 @@ if (params.algebraBlockSize ~= 1) and (params.algebraBlockSize ~= params.dim + 2
     exit()
 end
 
+
 if params.turbViscMethod=="komegaSST" then
-	InitUG (params.dim, AlgebraType("CPU", params.dim+4))
-else
-	InitUG (params.dim, AlgebraType("CPU", params.algebraBlockSize))
+	if (params.algebraBlockSize == 1) or (params.algebraBlockSize == params.dim + 2) then
+		print("ERROR: algebraBlockSize must be " .. (params.dim + 4) .. " when komegaSST enabled. Received: " .. tostring(params.algebraBlockSize))
+	end
 end
+InitUG (params.dim, AlgebraType("CPU", params.algebraBlockSize))
 
 
 
@@ -409,7 +424,6 @@ local time, step, time_work_total = myProblem:InitializeSolution(u, folder_vtk)
 -- Set up the solver
 ------------------------------------------------------------------------------------------
 print("Setting Solver")
-boolSolution = 1
 op, NLSolver, NewtonSolverSteady, limex = myProblem:CreateSolver(domainDisc)
 
 
@@ -432,6 +446,7 @@ local Newton_Steps_fail = 0
 local time_work_steady=0.0
 local linsolver_calls = 0
 local linsolver_steps = 0
+boolSolution = 1
 
 if params.doSteadyState and step == 0 and not myProblem.loadedCheckPoint then
 	-- Steady state solution.
@@ -440,6 +455,9 @@ if params.doSteadyState and step == 0 and not myProblem.loadedCheckPoint then
 	NewtonSolverSteady:add_step_update(myProblem.RelVel)
 	if params.boolAveNormal then
 		NewtonSolverSteady:add_step_update(myProblem.Normal)
+	end
+	if params.turbViscMethod == "komegaSST" then
+		NewtonSolverSteady:add_step_update(myProblem.WallDistance)
 	end
 
 	if params.turbViscMethod=="dyn" or params.turbViscMethod=="sma" then
@@ -456,12 +474,14 @@ if params.doSteadyState and step == 0 and not myProblem.loadedCheckPoint then
 	time_work_steady, linsolver_calls, linsolver_steps, boolSolution = myProblem:ComputeNonLinearSteadyStateSolution(u, domainDisc, NewtonSolverSteady)
 	time_work_total = time_work_total + time_work_steady
 	Newton_Steps = 1
-	Newton_Steps_fail = Newton_Steps - boolSolution
 	
-	if params.steadyStateOnly then
-		if boolSolution ~= 1 then
-			print("GMG benchmark: steady-state Newton solve unsuccessful.")
-		end
+	
+	if boolSolution == 0 then
+		print("Steady-state Newton Failed.")
+		Newton_Steps_fail = Newton_Steps
+	else
+		print("Steady-state Succeed.")
+		Newton_Steps_fail = Newton_Steps - 1
 	end
 end
 
@@ -491,6 +511,14 @@ if params.turbViscMethod=="dyn" or params.turbViscMethod=="sma" then
 	else
 		NLSolver:add_inner_step_update(myProblem.KinTurbulentViscosity)
 	end
+elseif params.turbViscMethod == "komegaSST" then
+
+	if params.timeMethod == "limex" then
+		NLSolver:add_step_update(myProblem.WallDistance)
+	else
+		NLSolver:add_inner_step_update(myProblem.WallDistance)
+	end
+
 end
 
 
@@ -553,19 +581,12 @@ end
 myProblem:UpdateParameters()
 
 
---myProblem:CheckJacobian(domainDisc, u, "u", false)
+myProblem:CheckJacobian(domainDisc, u, "u", false)
 --myProblem:CheckJacobian(domainDisc, u, "v", false)
 --myProblem:CheckJacobian(domainDisc, u, "c", false)
 --myProblem:CheckJacobian(domainDisc, u, "p", false)
---myProblem:CheckJacobian(domainDisc, u, "k", false)
---myProblem:CheckJacobian(domainDisc, u, "omega", false)
-
---myProblem:CheckJacobian(domainDisc, u, "u", false)
---myProblem:CheckJacobian(domainDisc, u, "v", false)
---myProblem:CheckJacobian(domainDisc, u, "c", false)
---myProblem:CheckJacobian(domainDisc, u, "p", false)
---myProblem:CheckJacobian(domainDisc, u, "k", false)
---myProblem:CheckJacobian(domainDisc, u, "omega", false)
+myProblem:CheckJacobian(domainDisc, u, "k", false)
+myProblem:CheckJacobian(domainDisc, u, "omega", false)
 
 
 ------------------------------------------------------------------------------------------
