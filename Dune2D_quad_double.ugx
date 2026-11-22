@@ -18,7 +18,7 @@
 			<edges>2 4</edges>
 		</subset>
 		<subset name="Bottom" color="0 0 1 1" state="393216">
-			<vertices>1 2 4 9 11 15 20 21 26</vertices>
+			<vertices>2 4 11 15 20 21 26</vertices>
 			<edges>10 11 20 21 22 23 32 33</edges>
 		</subset>
 		<subset name="Left" color="1 0 1 1" state="393216">
@@ -30,12 +30,20 @@
 			<edges>3 6 26 27 30 31 38 39 40 41</edges>
 			<faces>8 9 10 11 12 13 14 15</faces>
 		</subset>
+		<subset name="BottomLeft" color="0 1 1 1" state="393216">
+			<vertices>1</vertices>
+		</subset>
+		<subset name="BottomRight" color="1 0.752941 0.796078 1" state="393216">
+			<vertices>9</vertices>
+		</subset>
 	</subset_handler>
 	<subset_handler name="markSH">
 		<subset name="crease" color="1 1 1 1" state="0"/>
 		<subset name="fixed" color="1 1 1 1" state="0"/>
 	</subset_handler>
-	<selector name="defSel"/>
+	<selector name="defSel">
+		<vertices>1 1</vertices>
+	</selector>
 	<projection_handler name="defPH" subset_handler="0">
 		<default type="default">0 0</default>
 	</projection_handler>
