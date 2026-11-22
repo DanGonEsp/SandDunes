@@ -2,10 +2,10 @@
 
 #SBATCH --job-name=Dune2d
 #SBATCH --partition=workq
-#SBATCH --account=k10105
+#SBATCH --account=k10215
 #SBATCH --nodes=1
-#SBATCH --ntasks=48
-#SBATCH --ntasks-per-node=48
+#SBATCH --ntasks=96
+#SBATCH --ntasks-per-node=96
 #SBATCH --cpus-per-task=1
 #SBATCH --hint=nomultithread
 #SBATCH --time=24:00:00
@@ -34,27 +34,45 @@ ARGS=(
     -timeMethod limex
     -numRefs 7
     -numPreRefs 3
-    -numTimeSteps 100
+    -numTimeSteps 1000
+    -outputFactor 10
     -DT 3600.0
-
+    
 )
 
 
 
-# 24 MPI ranks = 1 cases x 24 spatial ranks
-srun --exclusive --exact --ntasks=24 --ntasks-per-node=24 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneRusanov2d-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneRusanov2d-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -riemman 1 &
+
+srun --exclusive --exact --ntasks=8 --ntasks-per-node=8 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneRusanov_01-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneRusanov_01-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 1 -post_smoothLim 1 -tol 1e-02 -riemman 1 &
 PID1=$!
 
 
-# 24 MPI ranks = 1 cases x 24 spatial ranks
-srun --exclusive --exact --ntasks=24 --ntasks-per-node=24 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher2d-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher2d-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -riemman 3 &
+srun --exclusive --exact --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneRusanov_02-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneRusanov_02-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 2 -post_smoothLim 2 -tol 1e-02 -riemman 1 &
 PID2=$!
 
+srun --exclusive --exact --ntasks=24 --ntasks-per-node=24 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneRusanov_03-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneRusanov_03-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 2 -post_smoothLim 2 -tol 1e-02 -riemman 1 &
+PID3=$!
 
+
+srun --exclusive --exact --ntasks=8 --ntasks-per-node=8 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher2d_01-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher2d_01-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 1 -post_smoothLim 1 -tol 1e-02 -riemman 3 &
+PID4=$!
+
+
+srun --exclusive --exact --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher2d_02-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher2d_02-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 2 -post_smoothLim 2 -tol 1e-02 -riemman 3 &
+PID5=$!
+
+srun --exclusive --exact --ntasks=24 --ntasks-per-node=24 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher2d_03-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher2d_03-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 2 -post_smoothLim 2 -tol 1e-02 -riemman 3 &
+PID6=$!
 
 STATUS=0
-wait "${PID1}" || { echo "ERROR: 24 MPI rank DuneRusanov2d experiment failed."; STATUS=1; }
-wait "${PID2}" || { echo "ERROR: 24  MPI rank DuneEngquistOsher2d experiment failed."; STATUS=1; }
+
+wait "${PID1}" || { echo "ERROR: 8 MPI rank Rusanov failed."; STATUS=1; }
+wait "${PID2}" || { echo "ERROR: 16 MPI rank Rusanov failed."; STATUS=1; }
+wait "${PID3}" || { echo "ERROR: 24 MPI rank Rusanov failed."; STATUS=1; }
+wait "${PID4}" || { echo "ERROR: 8 MPI rank Engquist-Osher failed."; STATUS=1; }
+wait "${PID5}" || { echo "ERROR: 16 MPI rank Engquist-Osher failed."; STATUS=1; }
+wait "${PID6}" || { echo "ERROR: 24 MPI rank Engquist-Osher failed."; STATUS=1; }
+
 
 
 if [ "${STATUS}" -ne 0 ]; then

@@ -48,6 +48,9 @@ function SaltationRelaxation.Create(dom, dim)
 
     local domainSalt = scalar_class("DomainDiscretization", suffix)(approxSalt)
     domainSalt:add(saltDisc)
+    local saltOutflow = scalar_class("ConvectionDiffusionOutflowFV1", suffix)(saltDisc)
+	saltOutflow:add("BottomRight")
+	domainSalt:add(saltOutflow)
 
     -- UG4 conditional Lua Dirichlet callback returns (active, value).
     -- Both endpoints are Bottom vertices in the checked 2D UGX grid.
