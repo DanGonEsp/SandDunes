@@ -11,6 +11,7 @@ ug_load_script("util/domain_disc_util.lua")
 ug_load_script("util/conv_rates_kinetic.lua")
 
 RequiredPlugins({"Limex", "NavierStokes"})
+--RequiredPlugins({"Limex", "NavierStokes", "ConvectionDiffusion"})
 
 local myProblem=require("SandDunesConfig")
 ------------------------------------------------------------------------------------------
@@ -150,7 +151,7 @@ params =
 
 	------------------------------------------------------------------------------------- LINEAR SOLVER
 	damping_gmg = util.GetParamNumber("-damping_gmg", 1.0),
-	damping_ilu = util.GetParamNumber("-damping_ilu", 0.5),
+	damping_ilu = util.GetParamNumber("-damping_ilu", defaults.damping_ilu),
 	rap = util.GetParamBool("-rap",defaults.rap, "RAP"),
 	rim = util.GetParamBool("-rim",defaults.rim, "RIM"),
 	value_beta = util.GetParamNumber("-value_beta", defaults.value_beta, "ILU_beta"),
@@ -193,7 +194,7 @@ params =
 	boolGradientPsSource = util.GetParamBool("-boolGradientPsSource", false),
 	boolViscPs = util.GetParamBool("-boolViscPs", true),
 	boolAveDiff = util.GetParamBool("-boolAveDiff", defaults.boolAveDiff),
-	boolSaltationFlux = util.GetParamBool("-boolSaltationFlux", true, "SaltationFlux"),
+	boolSaltationFlux = util.GetParamBool("-boolSaltationFlux", defaults.boolSaltationFlux, "SaltationFlux"),
 	boolSlipDiff = util.GetParamBool("-boolSlipDiff", defaults.boolSlipDiff),
 	boolSlipVel = util.GetParamBool("-boolSlipVel", defaults.boolSlipVel),
 	boolpress_jump= util.GetParamBool("-boolpress_jump", false),
@@ -237,7 +238,7 @@ params =
 
 	alpha_max        = util.GetParamNumber("-alpha_max", 0.635, "max volume fraction"),
 	alpha_min        = util.GetParamNumber("-alpha_min", 0.57, "max volume fraction"),
-	packing_factor   = util.GetParamNumber("-packing_factor", 0.61, "Packingfactor"),
+	packing_factor   = util.GetParamNumber("-packing_factor", 0.62, "Packingfactor"),
 	grad_limit = util.GetParamNumber("-grad_limit", 0.05, "grad limit in Normal vector"),
 	slope_limit = util.GetParamNumber("-slope_limit", 2e-02, "regularization factor in slip and diff velocity"),
 	granular_model= util.GetParamNumber("-granular_model", 3, "Opt: 0 Const, 1 Linear, 2 Einstein, 3 Rheology(I) + Einstein, 4 Relax"),
@@ -458,6 +459,8 @@ if params.doSteadyState and step == 0 and not myProblem.loadedCheckPoint then
 	end
 	if params.turbViscMethod == "komegaSST" then
 		NewtonSolverSteady:add_step_update(myProblem.WallDistance)
+		myProblem.NavierStokesDisc:set_viscosity_continuation(0.05, 50, true)
+		NewtonSolverSteady:add_inner_step_update(myProblem.NavierStokesDisc)
 	end
 
 	if params.turbViscMethod=="dyn" or params.turbViscMethod=="sma" then
@@ -474,6 +477,8 @@ if params.doSteadyState and step == 0 and not myProblem.loadedCheckPoint then
 	time_work_steady, linsolver_calls, linsolver_steps, boolSolution = myProblem:ComputeNonLinearSteadyStateSolution(u, domainDisc, NewtonSolverSteady)
 	time_work_total = time_work_total + time_work_steady
 	Newton_Steps = 1
+	
+	myProblem.NavierStokesDisc:set_viscosity_continuation(0.0, 1, false)
 	
 	
 	if boolSolution == 0 then
@@ -555,8 +560,9 @@ end
 -- Printing Initial Conditions
 ------------------------------------------------------------------------------------------
 
-	-- write start solution
+
 myProblem:UpdateParameters()
+-- write start solution
 if boolSolution == 1 then
 	if (step % params.outputFactor == 0 ) then
 		local vtkStep = math.floor(step / params.outputFactor)
@@ -568,7 +574,7 @@ if boolSolution == 1 then
 		print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")
 	end
 	
-	myProblem:SaveCheckPoint(u,folder_vtk)
+	myProblem:SaveCheckPoint(u,folder_vtk,step)
 	if  (params.writeIntegral and step==0) then
 	
 		local Value_inner1, Value_inner2 = myProblem:ComputeIntegrals(u, geometry.innerSubsets)
@@ -577,16 +583,21 @@ if boolSolution == 1 then
 			myProblem:WriteValues( folder_vtk, step, time, Value_inner1, Value_inner2, time_work_steady, time_work_total, Newton_Steps, Newton_Steps_fail, linsolver_calls, linsolver_steps,false)
 		end
 	end
+else
+	print("++++++ SEADY STATE CALCULATION  FAILED ++++++")
+	print ("Failed Output file" .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
+	print(" ")
+	local vtkStep = math.floor(step / params.outputFactor)+1
+	out:print_subsets(vtk_file_name, u,geometry.allSubsets,vtkStep,time, true)
 end
-myProblem:UpdateParameters()
 
 
-myProblem:CheckJacobian(domainDisc, u, "u", false)
+--myProblem:CheckJacobian(domainDisc, u, "u", false)
 --myProblem:CheckJacobian(domainDisc, u, "v", false)
---myProblem:CheckJacobian(domainDisc, u, "c", false)
 --myProblem:CheckJacobian(domainDisc, u, "p", false)
-myProblem:CheckJacobian(domainDisc, u, "k", false)
-myProblem:CheckJacobian(domainDisc, u, "omega", false)
+--myProblem:CheckJacobian(domainDisc, u, "c", false)
+--myProblem:CheckJacobian(domainDisc, u, "k", false)
+--myProblem:CheckJacobian(domainDisc, u, "omega", false)
 
 
 ------------------------------------------------------------------------------------------
@@ -651,7 +662,7 @@ if boolSolution == 1 and not(params.steadyStateOnly) then
 				print(" ")
 			end
 			
-			myProblem:SaveCheckPoint(u,folder_vtk)
+			myProblem:SaveCheckPoint(u,folder_vtk,step)
 			
 			print("++++++ TIMESTEP " .. step .. "  END ++++++")
 			print ("    -   -   -   -   -   -   -   -   -   -   -   -   -   -   ")

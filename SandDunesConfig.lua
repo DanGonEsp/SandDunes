@@ -208,23 +208,29 @@ myProblem.GetCaseDefaults = function(self, problem)
 			numPreRefs = 3,
 			alphaVel = 1.0,
 			alphaPress = 1e-11,
-			boolSaltationFlux = false,
-			boolAveDiff = false,
+			
+			turbViscMethod = "komegaSST",
+			boolRelativeVel = true,
+			boolSaltationFlux = true,
 			boolSlipDiff = true,
 			boolSlipVel = false,
+			boolAveDiff = false,
 			boolFixVel = false,
+			boolAveNormal = true,
+
 			rap = true,
 			rim = false,
 			value_beta = 0.0,
-			
+			damping_ilu =0.5,
+
 			linear_solver_Imp = "bicgStab",
 			smootherImp = "ilu",
 			orderingImp = "boost",
 			pre_smoothImp = 1,
-			post_smoothImp = 0,
+			post_smoothImp = 1,
 			baseSolverImp = "SuperLu",
 			LinAbsDefectImp = 1e-08,
-			LinRedDefectImp = 1e-3,
+			LinRedDefectImp = 1e-4,
 			
 			linear_solver_Lim = "bicgStab",
 			smootherLim = "ilu",
@@ -235,7 +241,7 @@ myProblem.GetCaseDefaults = function(self, problem)
 			LinAbsDefectLim = 1e-8,
 			LinRedDefectLim = 1e-7,
 			
-			DTLimex=1000,
+			DTLimex=3600,
 		}
 	elseif problem == "avalanche" then
 		return {
@@ -244,14 +250,20 @@ myProblem.GetCaseDefaults = function(self, problem)
 			numPreRefs = 3,
 			alphaVel = 1e-15,
 			alphaPress = 0.5e-15,
+			
+			turbViscMethod = "komegaSST",
+			boolRelativeVel = true,
 			boolSaltationFlux = false,
-			boolAveDiff = false,
 			boolSlipDiff = false,
 			boolSlipVel = true,
+			boolAveDiff = false,
 			boolFixVel = true,
+			boolAveNormal = true,
+		
 			rap = true,
 			rim = false,
 			value_beta = 0.0,
+			damping_ilu =0.5,
 			
 			linear_solver_Imp = "bicgStab",
 			smootherImp = "ilu",
@@ -290,12 +302,15 @@ myProblem.GetGeometry = function(self, params)
     if params.problem == "flow" then
         geometry.gridName = "Dune" .. params.dim .. "D_" .. params.elem_type .. "_double.ugx"
         geometry.innerSubsets = {"Inner", "Inner2"}
-        geometry.allSubsets = "Inner,Inner2,Left,Right,Top,Bottom"
-        geometry.boundaries = "Left,Right,Top,Bottom"
-		geometry.walls = "Bottom"
+		geometry.allSubsets = "Inner,Inner2,Left,Right,Top,Bottom,BottomLeft,BottomRight"
+		geometry.boundaries = "Left,Right,Top,Bottom,BottomLeft,BottomRight"
+		geometry.walls = "Bottom,BottomLeft,BottomRight"
+		
 
         if params.dim == 3 then
-            geometry.allSubsets = geometry.allSubsets .. ",Back,Front"
+            geometry.allSubsets = geometry.allSubsets .. ",BottomFront,BottomBack,Back,Front"
+			geometry.boundaries = geometry.boundaries .. ",BottomFront,BottomBack,Back,Front"
+			geometry.walls = geometry.walls .. ",BottomFront,BottomBack,Back,Front"
         end
     elseif params.problem == "avalanche" then
         geometry.gridName = "Avalanche" .. params.dim .. "D_" .. params.elem_type .. ".ugx"
@@ -310,7 +325,7 @@ myProblem.GetGeometry = function(self, params)
             geometry.boundaries = "Left1,Left2,Right,Top,Bottom,Front1,Front2,Back1,Back2,Back3"
         end
     else
-        error("Unknown problem: " .. tostring(params.problem))
+        error("Unknown problem: " .. tostring(params.problem)) exit();
     end
 	self.geometry = geometry
     return geometry
@@ -459,6 +474,7 @@ myProblem.FileNames = function (self,rank,SpaceSize)
 	end
 	
 	self.riemman_name = riemman_name
+	self.folder_vtk = folder_vtk
 
 	print("Files Setting DONE")
 	print("File Adress: ".. vtk_file_name)
@@ -645,7 +661,7 @@ myProblem.ApproximationSpace = function (self)
 	-- grid function for the solution
 	local u = GridFunction (approxSpace)
 	u:set(0)
-
+	self.dom = dom
 	self.fct_cmp_tbl = fct_cmp_tbl
 	self.nv_cmp_tbl = nv_cmp_tbl
 	self.vel_cmp_tbl = vel_cmp_tbl
@@ -718,29 +734,14 @@ myProblem.RegisterCallbacks = function(self)
     end
 	local function InflowVel2d(x, y, t) return inletSpeed(y), 0.0 end
 	local function InflowVel3d(x, y, z, t) return inletSpeed(z), 0.0, 0.0 end
-
-    local function initialC2d(x, y)
-		local sigma = 5
-        if self.problem == "flow" then
-            local dx = math.abs((x - 20.0) / sigma)
-            local height = self.H_0 * math.exp(-0.5*(dx^4)) - 0.01
-            if y > height then return 0.0 end
-            return self.c_init
-        end
-
-        if (x > 0.2 and x < 0.4) or x > 0.8 then return 1.5e-3 end
-        return 0.0
-    end
-
-    local function initialC3d(x, y, z)
-		local sigma = 5
-        if self.problem == "avalanche" then return 0.0 end
-        local dx = math.abs((x - 20.0) / sigma)^2
-        local dy = math.abs(y / sigma)^2
-        local height = self.H_0 * math.exp(-0.5*(dx + dy)^2) - 0.01
-        if z > height then return 0.0 end
-        return self.c_init
-    end
+	
+	-- Smooth initial pressure near the dune
+	local function initialPressure(x)
+		x0=0
+		local amplitude = 0.005 * self.rho_a * self.inflow^2
+		local dx = (x - x0) / 0.5
+		return amplitude * math.exp(-0.5 * dx * dx)
+	end
 
     local function topFlux2d(x, y)
         if self.simCaseBnd == 1 then
@@ -788,24 +789,161 @@ myProblem.RegisterCallbacks = function(self)
 		local dLower = z - lowerWallZ
 		return math.max( dLower, 0.0)
 	end
+	
+	------------------------------------------------------------
+	-- Smooth initialization above the initial sand bed
+	------------------------------------------------------------
+
+	local initialTransitionLength = 0.5
+
+	local function smoothstep(s)
+		s = math.max(0.0, math.min(1.0, s))
+		return s*s*(3.0 - 2.0*s)
+	end
+
+	local function initialAirWeight2d(x, y)
+
+		if self.problem ~= "flow" then return 1.0 end
+
+		local sigma = 5.0
+		local dx = math.abs((x - 20.0) / sigma)
+
+		local bedHeight =
+			self.H_0 * math.exp(-0.5 * dx^4) - 0.01
+
+		bedHeight = math.max(0.0, bedHeight)
+
+		return smoothstep(
+			(y - bedHeight) / initialTransitionLength
+		)
+	end
+
+	local function initialAirWeight3d(x, y, z)
+
+		if self.problem ~= "flow" then return 1.0 end
+
+		local sigma = 5.0
+		local dx = math.abs((x - 20.0) / sigma)^2
+		local dy = math.abs(y / sigma)^2
+
+		local bedHeight =
+			self.H_0 * math.exp(-0.5 * (dx + dy)^2) - 0.01
+
+		bedHeight = math.max(0.0, bedHeight)
+
+		return smoothstep(
+			(z - bedHeight) / initialTransitionLength
+		)
+	end
+	------------------------------------------------------------
+	-- Initial Velocity
+	------------------------------------------------------------
+
+	local function InitialU2d(x, y, t)
+		if self.problem ~= "flow" then return 0.0001 end
+		return inletSpeed(y) * initialAirWeight2d(x, y)
+	end
+
+	local function InitialU3d(x, y, z, t)
+		if self.problem ~= "flow" then return 0.0001 end
+		return inletSpeed(z) * initialAirWeight3d(x, y, z)
+	end
+	------------------------------------------------------------
+	-- Initial Pressure
+	------------------------------------------------------------
+	
+	local function InitialP2d(x, y, t)
+		return initialPressure(x)
+	end
+	local function InitialP3d(x, y, z, t)
+		return initialPressure(x)
+	end
+	------------------------------------------------------------
+	-- Volume Fraction
+	------------------------------------------------------------
+	local function InitialC2d(x, y)
+		local sigma = 5
+        if self.problem == "flow" then
+            local dx = math.abs((x - 20.0) / sigma)
+            local height = self.H_0 * math.exp(-0.5*(dx^4)) - 0.01
+            if y > height then return 0.0 end
+            return self.c_init
+        end
+
+        if (x > 0.2 and x < 0.4) or x > 0.8 then return 1.5e-3 end
+        return 0.0
+    end
+
+    local function InitialC3d(x, y, z)
+		local sigma = 5
+        if self.problem == "avalanche" then return 0.0 end
+        local dx = math.abs((x - 20.0) / sigma)^2
+        local dy = math.abs(y / sigma)^2
+        local height = self.H_0 * math.exp(-0.5*(dx + dy)^2) - 0.01
+        if z > height then return 0.0 end
+        return self.c_init
+    end
+
+	------------------------------------------------------------
+	-- Initial Turbulent Kinetic Energy
+	------------------------------------------------------------
+
+	local function InitialK2d(x, y, t)
+		if self.problem ~= "flow" then return InletK2d(x, y, t) end
+		return InletK2d(x, y, t) * initialAirWeight2d(x, y)*(1e-03)
+	end
+
+	local function InitialK3d(x, y, z, t)
+		if self.problem ~= "flow" then return InletK3d(x, y, z, t) end
+		return InletK3d(x, y, z, t) * initialAirWeight3d(x, y, z)*(1e-03)+1e-05
+	end
+
+	------------------------------------------------------------
+	-- Initial Specific Dissipation Rate
+	------------------------------------------------------------
+
+	local function InitialOmega2d(x, y, t)
+		if self.problem ~= "flow" then return InletOmega2d(x, y, t) end
+
+		local weight = initialAirWeight2d(x, y)
+
+		return ((1.0 - weight) * self.omegaWall + weight * InletOmega2d(x, y, t))
+	end
+
+	local function InitialOmega3d(x, y, z, t)
+		if self.problem ~= "flow" then return InletOmega3d(x, y, z, t) end
+
+		local weight = initialAirWeight3d(x, y, z)
+
+		return (1.0 - weight) * self.omegaWall + weight * InletOmega3d(x, y, z, t)
+	end
 
     if self.dim == 2 then
-        _G.SandInflow = InflowVel2d
-        _G.SandInitialC = initialC2d
-		_G.SandInitialK = InletK2d
-		_G.SandInitialOmega = InletOmega2d
-        _G.SandTopFlux = topFlux2d
+		_G.InitialU = InitialU2d
+		_G.InitialP = InitialP2d
+		_G.InitialC = InitialC2d
+		_G.InitialK = InitialK2d
+		_G.InitialOmega = InitialOmega2d
+		
+		_G.SandInflow = InflowVel2d
 		_G.InletK = InletK2d
 		_G.InletOmega = InletOmega2d
+        _G.SandTopFlux = topFlux2d
+		
 		_G.WallDistance = WallDistance2d
     else
-        _G.SandInflow = InflowVel3d
-        _G.SandInitialC = initialC3d
-		_G.SandInitialK = InletK3d
-		_G.SandInitialOmega = InletOmega3d
-        _G.SandTopFlux = topFlux3d
+		_G.InitialU = InitialU3d
+		_G.InitialP = InitialP3d
+        _G.InitialC = InitialC3d
+		_G.InitialK = InitialK3d
+		_G.InitialOmega = InitialOmega3d
+		
+		_G.SandInflow = InflowVel3d
 		_G.InletK = InletK3d
 		_G.InletOmega = InletOmega3d
+        _G.SandTopFlux = topFlux3d
+		
+		
 		_G.WallDistance = WallDistance3d
     end
 end
@@ -838,6 +976,7 @@ myProblem.Clousures = function (self,u,Inner_total)
 		Density = GranularDensityLinker();
 		Density:set_model(self.density_model)
 		Density:set_phase_parameters(self.InterfaceValues)
+		Density:set_deriv(false)
 	end
 
 
@@ -969,6 +1108,47 @@ myProblem.Clousures = function (self,u,Inner_total)
 	
 	
 	---------------------------------------------------------------------- SaltationFlux
+
+	
+	local function SaltCheckpoint(message)
+		local rank = ProcRank()
+		local file = assert(io.open(
+			string.format("saltation_rank_%d.log", rank), "a"
+		))
+
+		file:write(message .. "\n")
+		file:flush()
+		file:close()
+	end
+	--local salt = SaltationRelaxationFV1(approxSpace, u)
+
+	--salt:set_bottom_subset("Bottom")
+	--salt:set_saturation_length(Lsat)
+	--salt:set_incoming_flux(qIn)
+	--salt:set_direction(tx, ty)
+
+	--salt:initialize()
+
+	-- Later: update q_sat from the CFD solution,
+	-- solve the relaxation equation, and supply
+	-- the relaxed flux to the sand transport equation.
+	
+	--local SaltationRelaxation = require("SaltationRelaxation")
+
+	--local salt = SaltationRelaxation.Create(self.dom, self.dim)
+	
+	--SaltCheckpoint("BEFORE_SALT_SOLVE")
+
+	--SaltationRelaxation.Solve(salt)
+
+	--SaltCheckpoint("AFTER_SALT_SOLVE")
+	
+	--SaltationRelaxation.Validate(salt,self.folder_vtk)
+	
+
+	--assert(loadfile("test_variable_qsat.lua"))(approxSpace, u)
+
+	---------------------------------------------------------------------- SaturatedSaltationFlux
 	local A_s = 0.1
 	local z0 = self.roughness_length
 	local HH = 20
@@ -979,18 +1159,19 @@ myProblem.Clousures = function (self,u,Inner_total)
 		print ("Inlet Velocity = ".. self.inflow .. " below theorical minimum velocity (" .. U_minimum .. ") for erotion"); exit();
 	end
 	
-	local SaltFlux = SaltationFluxLinker()
-	SaltFlux:set_phase_parameters(InterfaceValues)
-	SaltFlux:set_saltation_coefficient(5.5)
-	SaltFlux:set_threshold_friction_velocity(u_star)
-	SaltFlux:set_normal_epsilon(1e-8)
-	SaltFlux:set_delta_epsilon(1e-8)
-	SaltFlux:set_velocity_epsilon(1e-8)
-	SaltFlux:set_direction_mode(2)
-	SaltFlux:set_use_wall_stress(true)
-	SaltFlux:set_turbulent_kinematic_viscosity(self.KinTurbulentViscosity)
-	SaltFlux:set_normal(self.Normal)
-	self.SaltFlux = SaltFlux
+	local SatSaltFlux = SaltationFluxLinker()
+	SatSaltFlux:set_phase_parameters(InterfaceValues)
+	SatSaltFlux:set_saltation_coefficient(5.5)
+	SatSaltFlux:set_threshold_friction_velocity(u_star)
+	SatSaltFlux:set_normal_epsilon(1e-8)
+	SatSaltFlux:set_delta_epsilon(1e-8)
+	SatSaltFlux:set_velocity_epsilon(1e-8)
+	SatSaltFlux:set_direction_mode(2)
+	SatSaltFlux:set_use_wall_stress(true)
+	SatSaltFlux:set_use_delta_gamma(false)
+	SatSaltFlux:set_turbulent_kinematic_viscosity(self.KinTurbulentViscosity)
+	SatSaltFlux:set_normal(self.Normal)
+	self.SatSaltFlux = SatSaltFlux
 	
 	---------------------------------------------------------------------- AvalancheFlux
 	local AvalancheFlux = AvalancheFluxLinker()
@@ -1050,9 +1231,9 @@ myProblem.ConnectClosures = function(self, NavierStokesDisc)
 		self.Normal:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
 	end
     
-	self.SaltFlux:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
-	self.SaltFlux:set_velocity_gradient(NavierStokesDisc:velocity_grad())
-	self.SaltFlux:set_velocity(NavierStokesDisc:velocity())
+	self.SatSaltFlux:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
+	self.SatSaltFlux:set_velocity_gradient(NavierStokesDisc:velocity_grad())
+	self.SatSaltFlux:set_velocity(NavierStokesDisc:velocity())
 	
 	self.AvalancheFlux:set_volume_grad(NavierStokesDisc:volume_fraction_grad())
 
@@ -1100,12 +1281,13 @@ myProblem.Discretization = function (self)
 	NavierStokesDisc:set_mass_term(self.boolMassTerm)
 	NavierStokesDisc:set_saltation_riemann(true)
 	NavierStokesDisc:set_viscosity_averaging("harmonic")
+	NavierStokesDisc:set_linearize_mix_viscosity(false)
 	
 	
-	NavierStokesDisc:set_kinematic_viscosity (self.EffectiveKinViscosity)
+	NavierStokesDisc:set_kinematic_viscosity (self.EffectiveKinViscosity,true)
 	--NavierStokesDisc:set_average_gamma(self.gamma)
 	if self.boolSaltationFlux then
-		NavierStokesDisc:set_saltation_flux(self.SaltFlux)
+		NavierStokesDisc:set_saltation_flux(self.SatSaltFlux)
 	end
 	
 	if self.timeMethod == "limex" and self.boolMassTerm and not(self.bStokes) then
@@ -1156,6 +1338,12 @@ end
 
 myProblem.TurbulenceDiscretization = function (self)
 
+	local Uref = self.inflow
+	local Lref = 1.0
+
+	local kAmbient = 1.0e-6 * Uref * Uref
+	local omegaAmbient = 5.0 * Uref / Lref
+
 	self.TurbulenceDisc:set_velocity(self.NavierStokesDisc:velocity_ip())
 	self.TurbulenceDisc:set_upwind(self.upwind_m)
 	self.TurbulenceDisc:set_velocity_gradient(self.NavierStokesDisc:velocity_grad())
@@ -1166,8 +1354,18 @@ myProblem.TurbulenceDiscretization = function (self)
 	self.TurbulenceDisc:set_linearize_turbulent_viscosity(true)
 	self.TurbulenceDisc:set_linearize_destruction_coupling(true)
 	self.TurbulenceDisc:set_linearize_f2(true)
-	self.TurbulenceDisc:set_cross_diffusion_linearization(0)
+	self.TurbulenceDisc:set_cross_diffusion_linearization(1)
+	self.TurbulenceDisc:set_f1_regularization_length(1.0e-4)
 	self.TurbulenceDisc:set_linearize_exported_viscosity(true)
+	self.TurbulenceDisc:set_full_stress_production(true)
+	self.TurbulenceDisc:set_volume_fraction(self.NavierStokesDisc:volume_fraction())
+	self.TurbulenceDisc:set_turbulence_penalty(self.interface_value, 100000.0, 1000.0, 0.0, self.omegaWall)
+	
+	self.TurbulenceDisc:set_linearize_k_production_coupling(false)
+	--self.TurbulenceDisc:set_sustaining_terms(kAmbient, omegaAmbient)
+	
+	self.TurbulenceDisc:set_linearize_velocity_gradient_scvf(false)
+	self.TurbulenceDisc:set_linearize_velocity_gradient_scv(false)
 	
 	print("Space Discretization (k-OMEGA SST) DONE")
 	
@@ -1195,7 +1393,10 @@ myProblem.CreateBoundaryConditions = function(self, NavierStokesDisc, geometry)
         table.insert(boundaries, outlet)
         
 		local wall = NavierStokesWall(NavierStokesDisc)
-		wall:add("Bottom")
+		wall:add("Bottom,BottomLeft,BottomRight")
+		if self.dim == 3 then
+			wall:add("BottomFront,BottomBack")
+        end
 		table.insert(boundaries, wall)
 		
 		dirichlet:add(0.0, "c", "Left,Top")
@@ -1250,8 +1451,12 @@ myProblem.CreateBoundaryConditions = function(self, NavierStokesDisc, geometry)
 				RANSBnd:add("InletOmega", "omega", "Back,Front")
 			end
 			
-			RANSBnd:add(0.0, "k", "Bottom")
-			RANSBnd:add(self.omegaWall, "omega", "Bottom")
+			RANSBnd:add(0.0, "k", "Bottom,BottomLeft,BottomRight")
+			RANSBnd:add(self.omegaWall, "omega", "Bottom,BottomLeft,BottomRight")
+			if self.dim == 3 then
+				RANSBnd:add(0.0, "k", "BottomFront,BottomBack")
+				RANSBnd:add(self.omegaWall, "omega", "BottomFront,BottomBack")
+			end
 			
 			RANSBnd:add(self.kIn, "k", "Right")
 			RANSBnd:add(self.omegaIn, "omega", "Right")
@@ -1668,16 +1873,16 @@ myProblem.InitializeSolution = function(self, u, folder)
     self.loadedCheckPoint = not interpolate
 
     if interpolate then
-        Interpolate(0.0001, u, "u")
+        Interpolate("InitialU", u, "u")
         Interpolate(0.0, u, "v")
         if self.dim == 3 then
 			Interpolate(0.0, u, "w")
 		end
-        Interpolate(0.0, u, "p")
-        Interpolate("SandInitialC", u, "c")
+        Interpolate("InitialP", u, "p")
+        Interpolate("InitialC", u, "c")
 		if self.turbViscMethod=="komegaSST" then
-			Interpolate("SandInitialK", u, "k")
-			Interpolate("SandInitialOmega", u, "omega")
+			Interpolate("InitialK", u, "k")
+			Interpolate("InitialOmega", u, "omega")
 		end
     end
 
@@ -1731,7 +1936,7 @@ myProblem.OutputParameters = function (self)
 	end
 	out:select_element(self.Diffusion, "D")
 	out:select_element(self.Normal, "n")
-	out:select_element(self.SaltFlux,"SaltFlux" )
+	out:select_element(self.SatSaltFlux,"SatSaltFlux" )
 	out:select_element(self.AvalancheFlux,"AvalancheFlux" )
 	if self.turbViscMethod=="komegaSST" then
 		out:select (self.WallDistance, "WallDistance")
@@ -1743,11 +1948,14 @@ end
 --------------------------------------------------------------------------------
 -- CheckPoint
 --------------------------------------------------------------------------------
-myProblem.SaveCheckPoint = function (self,u,folder)
+myProblem.SaveCheckPoint = function (self,u,folder,step)
 
 	if (not(self.boolSaveCheckPoint)) then return end
-	
-	SaveToFile(u, folder .. "/CheckPoint" .. ".vec")
+	if(step == 0) then
+		SaveToFile(u, folder .. "/CheckPoint_Steady" .. ".vec")
+	else
+		SaveToFile(u, folder .. "/CheckPoint" .. ".vec")
+	end
 	print("Saving CheckPoint: DONE")
 
 end
@@ -1757,6 +1965,7 @@ myProblem.LoadCheckPoint = function (self,u,folder)
 	
 	local boolInterpolate = false
 	local filename = folder .. "/Integral.txt"
+	local ChekPointnameSteady = folder .. "/CheckPoint_Steady.vec"
 	local ChekPointname = folder .. "/CheckPoint.vec"
 	
 	local step = 0
@@ -1792,8 +2001,15 @@ myProblem.LoadCheckPoint = function (self,u,folder)
 		
 		
 	else
-		print("File does not exist: " .. ChekPointname)
-		boolInterpolate = true
+		local CheckfileSteady = io.open(ChekPointnameSteady, "r")
+		if CheckfileSteady then
+			print("Loading CheckPointSteadyState")
+			CheckfileSteady:close()
+			ReadFromFile(u, ChekPointnameSteady)
+		else
+			print("CheckPoint does not exist")
+			boolInterpolate = true
+		end
 	end
 
 	local time = self.DT * step
@@ -1850,9 +2066,13 @@ myProblem.ComputeNonLinearSteadyStateSolution = function(self, u, domainDisc, so
 	fixer:invert_subset_selection()
 	fixer:add("c", "")
 
-	solver:init(AssembledOperator(domainDisc))
-	
-	solver:prepare(u)
+	if solver:init(AssembledOperator(domainDisc)) == false then
+		error("SteadyState solver initialization failed.")
+	end
+	if solver:prepare(u) == false then
+		error("SteadyState solver preparation failed.")
+	end
+
 
 	-- apply the solver for the stationary pressure problem
      print("++++++ STEADY STATE CALCULATION BEGIN ++++++")
@@ -2254,6 +2474,8 @@ myProblem.CheckJacobian = function(self, domainDisc, u, perturbFct, solveLinearS
 		1.0e-9,
 		1.0e-10
 	}
+	
+	local oneSidedFD = perturbFct == "k" or perturbFct == "omega"
 
 
 	------------------------------------------------------------
@@ -2649,7 +2871,11 @@ myProblem.CheckJacobian = function(self, domainDisc, u, perturbFct, solveLinearS
 		rMinus:enforce_consistent_type()
 		fd:enforce_consistent_type()
 
-		VecScaleAdd2(fd, 0.5 / eps, r1, -0.5 / eps, rMinus)
+		if oneSidedFD then
+			VecScaleAdd2(fd, 1.0 / eps, r1, -1.0 / eps, r0)
+		else
+			VecScaleAdd2(fd, 0.5 / eps, r1, -0.5 / eps, rMinus)
+		end
 
 
 		--------------------------------------------------------
@@ -2686,14 +2912,17 @@ myProblem.CheckJacobian = function(self, domainDisc, u, perturbFct, solveLinearS
 
 		local jacOut = VTKOutput()
 		jacOut:clear_selection()
-		jacOut:select_all(false)
-		jacOut:select_nodal("c", "c")
+		jacOut:select_all(true)
 		
 		r1:enforce_consistent_type()
 		rMinus:enforce_consistent_type()
 		fd:enforce_consistent_type()
 
-		VecScaleAdd2(fd, 0.5 / eps, r1, -0.5 / eps, rMinus)
+		if oneSidedFD then
+			VecScaleAdd2(fd, 1.0 / eps, r1, -1.0 / eps, r0)
+		else
+			VecScaleAdd2(fd, 0.5 / eps, r1, -0.5 / eps, rMinus)
+		end
 
 		fd:enforce_consistent_type()
 		Jv:enforce_consistent_type()
