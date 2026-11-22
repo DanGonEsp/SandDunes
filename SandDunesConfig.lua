@@ -724,14 +724,18 @@ myProblem.RegisterCallbacks = function(self)
         if self.dim == 3 and self.simCaseBnd == 2 then error("The supplied Avalanche.lua has no initial concentration function for 3D case 2") end
     end
 
-    local function inletSpeed(height)
-		local hh=20.0
-        if self.problem == "avalanche" then return 0.0 end
+    local kappa = self.K_von_karman
+	local betaStar = 0.09
+	local z0 = self.roughness_length
+	local zref = 20.0
+
+	local uStar = kappa * self.inflow / math.log(1.0 + zref/z0)
+
+	local function inletSpeed(height)
+		if self.problem == "avalanche" then return 0.0 end
 		if height <= 0.0 then return 0.0 end
-		--return self.inflow
-        return self.inflow * math.log(1 + height / self.roughness_length) / math.log(1 + hh / self.roughness_length)
-		--return self.inflow* (2*hh - height) * (height ) / (hh * hh)
-    end
+		return (uStar/kappa) * math.log(1.0 + height/z0)
+	end
 	local function InflowVel2d(x, y, t) return inletSpeed(y), 0.0 end
 	local function InflowVel3d(x, y, z, t) return inletSpeed(z), 0.0, 0.0 end
 	
@@ -757,27 +761,20 @@ myProblem.RegisterCallbacks = function(self)
         return 0.0
     end
     
-	local turbulenceIntensity = 0.05
-	local turbulenceLength = 0.05
-	local Cmu = 0.09
-	
 	local function InletK2d(x, y, t)
-		local ux, uy = InflowVel2d(x, y, t)
-		local U = math.sqrt(ux * ux + uy * uy)
-		return 1.5 * (turbulenceIntensity * U)^2
+		return uStar*uStar / math.sqrt(betaStar)
 	end
+
 	local function InletK3d(x, y, z, t)
-		local ux, uy, uz = InflowVel3d(x, y, z, t)
-		local U = math.sqrt(ux * ux + uy * uy + uz * uz)
-		return 1.5 * (turbulenceIntensity * U)^2
+		return uStar*uStar / math.sqrt(betaStar)
 	end
+
 	local function InletOmega2d(x, y, t)
-		local k = InletK2d(x, y, t)
-		return math.sqrt(k) / (Cmu^0.25 * turbulenceLength)
+		return uStar / (kappa * math.sqrt(betaStar) * (math.max(y, 0.0) + z0))
 	end
+
 	local function InletOmega3d(x, y, z, t)
-		local k = InletK3d(x, y, z, t)
-		return math.sqrt(k) / (Cmu^0.25 * turbulenceLength)
+		return uStar / (kappa * math.sqrt(betaStar) * (math.max(z, 0.0) + z0))
 	end
 	local function WallDistance2d(x, y, t)
 		local lowerWallY = 0.0
@@ -890,12 +887,12 @@ myProblem.RegisterCallbacks = function(self)
 
 	local function InitialK2d(x, y, t)
 		if self.problem ~= "flow" then return InletK2d(x, y, t) end
-		return InletK2d(x, y, t) * initialAirWeight2d(x, y)*(1e-03)
+		return InletK2d(x, y, t) * initialAirWeight2d(x, y)+1e-05
 	end
 
 	local function InitialK3d(x, y, z, t)
 		if self.problem ~= "flow" then return InletK3d(x, y, z, t) end
-		return InletK3d(x, y, z, t) * initialAirWeight3d(x, y, z)*(1e-03)+1e-05
+		return InletK3d(x, y, z, t) * initialAirWeight3d(x, y, z)+1e-05
 	end
 
 	------------------------------------------------------------
@@ -1341,8 +1338,8 @@ myProblem.TurbulenceDiscretization = function (self)
 	local Uref = self.inflow
 	local Lref = 1.0
 
-	local kAmbient = 1.0e-6 * Uref * Uref
-	local omegaAmbient = 5.0 * Uref / Lref
+	local kAmbient = 0--1.0e-6 * Uref * Uref
+	local omegaAmbient = 0--5.0 * Uref / Lref
 
 	self.TurbulenceDisc:set_velocity(self.NavierStokesDisc:velocity_ip())
 	self.TurbulenceDisc:set_upwind(self.upwind_m)
@@ -1362,7 +1359,7 @@ myProblem.TurbulenceDiscretization = function (self)
 	self.TurbulenceDisc:set_turbulence_penalty(self.interface_value, 100000.0, 1000.0, 0.0, self.omegaWall)
 	
 	self.TurbulenceDisc:set_linearize_k_production_coupling(false)
-	--self.TurbulenceDisc:set_sustaining_terms(kAmbient, omegaAmbient)
+	self.TurbulenceDisc:set_sustaining_terms(kAmbient, omegaAmbient)
 	
 	self.TurbulenceDisc:set_linearize_velocity_gradient_scvf(false)
 	self.TurbulenceDisc:set_linearize_velocity_gradient_scv(false)
@@ -1458,8 +1455,8 @@ myProblem.CreateBoundaryConditions = function(self, NavierStokesDisc, geometry)
 				RANSBnd:add(self.omegaWall, "omega", "BottomFront,BottomBack")
 			end
 			
-			RANSBnd:add(self.kIn, "k", "Right")
-			RANSBnd:add(self.omegaIn, "omega", "Right")
+			RANSBnd:add("InletK", "k", "Right")
+			RANSBnd:add("InletOmega", "omega", "Right")
 			
 			
 		else
@@ -2357,8 +2354,8 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 		print ("LimexErrorEstimator for VolumeFraction not defined"); exit();
 	end
 	if self.turbViscMethod=="komegaSST" then
-		limexEstimator:add(L2ComponentSpace("k", 2), 0.5 )
-		limexEstimator:add(L2ComponentSpace("omega", 2), 0.5)
+		limexEstimator:add(L2ComponentSpace("k", 2), 1.0 )
+		limexEstimator:add(L2ComponentSpace("omega", 2), 0.1)
 	end
 	
 
