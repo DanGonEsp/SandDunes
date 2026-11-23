@@ -110,7 +110,7 @@ params =
 	numTimeSteps    = util.GetParamNumber("-numTimeSteps", 100, "time steps"),
 	
 	
-	tol     = util.GetParamNumber("-limex-tol", 1e-1, "time step size"),
+	tol     = util.GetParamNumber("-limex-tol", 0.5e-1, "time step size"),
 	nstages = util.GetParamNumber("-limex-nstages", 2, "limex stages (2 default)"),
 	limex_partial_mask = util.GetParamNumber("-limex-partial", 0, "limex partial (0 or 3)"),
 	limex_debug_level = util.GetParamNumber("-limex-debug-level", 5, "limex debug level (integer)"),
