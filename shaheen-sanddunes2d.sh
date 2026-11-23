@@ -43,25 +43,25 @@ ARGS=(
 
 
 
-srun --exclusive --exact --ntasks=8 --ntasks-per-node=8 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneRusanov_01-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneRusanov_01-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 1 -post_smoothLim 1 -tol 1e-02 -riemman 1 &
+srun --exclusive --exact --ntasks=8 --ntasks-per-node=8 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneRusanov_01-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneRusanov_01-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 1 -post_smoothLim 1 -riemman 1 &
 PID1=$!
 
 
-srun --exclusive --exact --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneRusanov_02-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneRusanov_02-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 2 -post_smoothLim 2 -tol 1e-02 -riemman 1 &
+srun --exclusive --exact --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneRusanov_02-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneRusanov_02-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 2 -post_smoothLim 2 -riemman 1 &
 PID2=$!
 
-srun --exclusive --exact --ntasks=24 --ntasks-per-node=24 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneRusanov_03-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneRusanov_03-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 2 -post_smoothLim 2 -tol 1e-02 -riemman 1 &
+srun --exclusive --exact --ntasks=24 --ntasks-per-node=24 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneRusanov_03-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneRusanov_03-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 2 -post_smoothLim 2 -riemman 1 &
 PID3=$!
 
 
-srun --exclusive --exact --ntasks=8 --ntasks-per-node=8 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher2d_01-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher2d_01-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 1 -post_smoothLim 1 -tol 1e-02 -riemman 3 &
+srun --exclusive --exact --ntasks=8 --ntasks-per-node=8 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher2d_01-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher2d_01-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 1 -post_smoothLim 1 -riemman 3 &
 PID4=$!
 
 
-srun --exclusive --exact --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher2d_02-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher2d_02-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 2 -post_smoothLim 2 -tol 1e-02 -riemman 3 &
+srun --exclusive --exact --ntasks=16 --ntasks-per-node=16 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher2d_02-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher2d_02-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 2 -post_smoothLim 2 -riemman 3 &
 PID5=$!
 
-srun --exclusive --exact --ntasks=24 --ntasks-per-node=24 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher2d_03-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher2d_03-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 2 -post_smoothLim 2 -tol 1e-02 -riemman 3 &
+srun --exclusive --exact --ntasks=24 --ntasks-per-node=24 --cpus-per-task=1 --hint=nomultithread --cpu-bind=cores --mem=0 --output="${WORKDIR}/DuneEngquistOsher2d_03-${SLURM_JOB_ID}.out" --error="${WORKDIR}/DuneEngquistOsher2d_03-${SLURM_JOB_ID}.err" "${UGSHELL}" "${ARGS[@]}" -pre_smoothLim 2 -post_smoothLim 2 -riemman 3 &
 PID6=$!
 
 STATUS=0
