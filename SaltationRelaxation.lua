@@ -47,8 +47,9 @@ function SaltationRelaxation.Create(dom, dim)
     saltDisc:set_upwind(FullUpwind())
 
     local domainSalt = scalar_class("DomainDiscretization", suffix)(approxSalt)
-    domainSalt:add(saltDisc)
-    local saltOutflow = scalar_class("ConvectionDiffusionOutflowFV1", suffix)(saltDisc)
+	domainSalt:add(saltDisc)
+
+	local saltOutflow = ConvectionDiffusionOutflowFV1(saltDisc)
 	saltOutflow:add("BottomRight")
 	domainSalt:add(saltOutflow)
 

@@ -18,10 +18,18 @@ local myProblem=require("SandDunesConfig")
 -- Problem
 ------------------------------------------------------------------------------------------
 
-local problem = util.GetParam("-problem", "flow", "flow or avalanche")
+local problem = util.GetParam("-problem", "flow", "flow, avalanche or flatbed")
 local problemTag
-if problem == "flow" then problemTag = "MultiphaseFlow" else problemTag = "Avanche" end
-if problem ~= "flow" and problem ~= "avalanche" then error("Specify -problem flow or -problem avalanche") end
+if problem == "flow" then
+    problemTag = "MultiphaseFlow"
+elseif problem == "flatbed" then
+    problemTag = "FlatBed"
+elseif problem == "avalanche" then
+    problemTag = "Avalanche"
+else
+    error("Unknown problem: " .. problem)
+end
+
 local defaults = myProblem:GetCaseDefaults(problem)
 
 ------------------------------------------------------------------------------------------
@@ -55,7 +63,11 @@ end
 ------------------------------------------------------------------------------------------
 local csvfile = require "simplecsv"
 local inputTable
-if problem == "flow" then inputTable = "./FlowTable_in.csv" else inputTable = "./AvalancheTable_in.csv" end
+if problem == "flow" or problem == "flatbed" then
+    inputTable = "./FlowTable_in.csv"
+else
+    inputTable = "./AvalancheTable_in.csv"
+end
 local InValues, num_rows, num_cols = csvfile.read(inputTable) -- read file csv1.txt to matrix m
 if( TemporalSize > num_rows-1) then print ("TemporalSize larger than rows in input parametrs."); exit(); end
 if( simCase+1 > num_rows-1) then print ("Simulation case larger than rows in input parametrs."); exit(); end
@@ -186,7 +198,7 @@ params =
 
 	
 			-- Physical phenomenon of simulation
-	doSteadyState = util.GetParamBool("-doSteadyState", true),
+	doSteadyState = util.GetParamBool("-doSteadyState", defaults.doSteadyState),
 	steadyStateOnly = util.GetParamBool("-steadyStateOnly", false),
 	boolSource = util.GetParamBool("-boolSource", false),
 	consistentRho_in_source = util.GetParamBool("-consistentRho_in_source", true),
@@ -200,7 +212,7 @@ params =
 	boolpress_jump= util.GetParamBool("-boolpress_jump", false),
 	boolAveNormal = util.GetParamBool("-boolAveNormal", true),
 	boolFixVel = util.GetParamBool("-boolFixVel", defaults.boolFixVel),
-	boolFixVol = util.GetParamBool("-boolFixVol", false),
+	boolFixVol = util.GetParamBool("-boolFixVol", defaults.boolFixVol),
 	boolMassTerm = util.GetParamBool("-boolMassTerm", true),
 	boolDensityMean = util.GetParamBool("-boolDensityMean", false),
 	

@@ -209,6 +209,7 @@ myProblem.GetCaseDefaults = function(self, problem)
 			alphaVel = 1.0,
 			alphaPress = 1e-11,
 			
+			doSteadyState = true,
 			turbViscMethod = "komegaSST",
 			boolRelativeVel = true,
 			boolSaltationFlux = true,
@@ -216,6 +217,7 @@ myProblem.GetCaseDefaults = function(self, problem)
 			boolSlipVel = false,
 			boolAveDiff = false,
 			boolFixVel = false,
+			boolFixVol = false,
 			boolAveNormal = true,
 
 			rap = true,
@@ -235,8 +237,8 @@ myProblem.GetCaseDefaults = function(self, problem)
 			linear_solver_Lim = "bicgStab",
 			smootherLim = "ilu",
 			orderingLim = "boost",
-			pre_smoothLim = 1,
-			post_smoothLim = 1,
+			pre_smoothLim = 2,
+			post_smoothLim = 2,
 			baseSolverLim = "SuperLu",
 			LinAbsDefectLim = 1e-8,
 			LinRedDefectLim = 1e-7,
@@ -251,13 +253,60 @@ myProblem.GetCaseDefaults = function(self, problem)
 			alphaVel = 1e-15,
 			alphaPress = 0.5e-15,
 			
+			doSteadyState = false,
 			turbViscMethod = "komegaSST",
 			boolRelativeVel = true,
 			boolSaltationFlux = false,
-			boolSlipDiff = false,
-			boolSlipVel = true,
+			boolSlipDiff = true,
+			boolSlipVel = false,
 			boolAveDiff = false,
 			boolFixVel = true,
+			boolFixVol = false,
+			boolAveNormal = true,
+		
+			rap = true,
+			rim = false,
+			value_beta = 0.0,
+			damping_ilu =0.5,
+			
+			linear_solver_Imp = "bicgStab",
+			smootherImp = "ilu",
+			orderingImp = "none",
+			pre_smoothImp = 1,
+			post_smoothImp = 2,
+			baseSolverImp = "SuperLu",
+			LinAbsDefectImp = 1e-08,
+			LinRedDefectImp = 1e-5,
+			
+			linear_solver_Lim = "bicgStab",
+			smootherLim = "ilu",
+			orderingLim = "none",
+			pre_smoothLim = 1,
+			post_smoothLim = 2,
+			baseSolverLim = "SuperLu",
+			LinAbsDefectLim = 1e-12,
+			LinRedDefectLim = 1e-12,
+			
+			
+			DTLimex=1e-03,
+		}
+	elseif problem == "flatbed" then
+		return {
+			file_name = "Flatbed",
+			numRefs = 4,
+			numPreRefs = 3,
+			alphaVel = 1e-15,
+			alphaPress = 0.5e-15,
+			
+			doSteadyState = false,
+			turbViscMethod = "komegaSST",
+			boolRelativeVel = false,
+			boolSaltationFlux = false,
+			boolSlipDiff = false,
+			boolSlipVel = false,
+			boolAveDiff = false,
+			boolFixVel = false,
+			boolFixVol = true,
 			boolAveNormal = true,
 		
 			rap = true,
@@ -1346,7 +1395,8 @@ myProblem.TurbulenceDiscretization = function (self)
 	self.TurbulenceDisc:set_velocity_gradient(self.NavierStokesDisc:velocity_grad())
 	--self.TurbulenceDisc:set_wall_distance("WallDistance")
 	self.TurbulenceDisc:set_wall_distance(self.WallDistance)
-	self.TurbulenceDisc:set_kinematic_viscosity(self.KinMixViscosity)
+	--self.TurbulenceDisc:set_kinematic_viscosity(self.KinMixViscosity)
+	self.TurbulenceDisc:set_kinematic_viscosity(self.nu_a)
 
 	self.TurbulenceDisc:set_linearize_turbulent_viscosity(true)
 	self.TurbulenceDisc:set_linearize_destruction_coupling(true)
@@ -2355,7 +2405,7 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	end
 	if self.turbViscMethod=="komegaSST" then
 		limexEstimator:add(L2ComponentSpace("k", 2), 1.0 )
-		limexEstimator:add(L2ComponentSpace("omega", 2), 0.1)
+		limexEstimator:add(L2ComponentSpace("omega", 2), 1.0)
 	end
 	
 

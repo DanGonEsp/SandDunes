@@ -37,7 +37,7 @@ ARGS=(
     -numTimeSteps 1000
     -outputFactor 10
     -DT 3600.0
-    -file_name Dune2
+    -file_name Dune3
 )
 
 
