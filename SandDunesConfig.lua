@@ -348,7 +348,7 @@ myProblem.GetGeometry = function(self, params)
 
     local geometry = {}
 
-    if params.problem == "flow" then
+    if params.problem == "flow" or params.problem == "flatbed" then
         geometry.gridName = "Dune" .. params.dim .. "D_" .. params.elem_type .. "_double.ugx"
         geometry.innerSubsets = {"Inner", "Inner2"}
 		geometry.allSubsets = "Inner,Inner2,Left,Right,Top,Bottom,BottomLeft,BottomRight"
@@ -848,8 +848,11 @@ myProblem.RegisterCallbacks = function(self)
 	end
 
 	local function initialAirWeight2d(x, y)
-
-		if self.problem ~= "flow" then return 1.0 end
+		if self.problem == "flatbed" then
+			return 1.0 - flatBedC(y)
+		end
+		
+		if self.problem == "avalanche" then return 1.0 end
 
 		local sigma = 5.0
 		local dx = math.abs((x - 20.0) / sigma)
@@ -859,14 +862,14 @@ myProblem.RegisterCallbacks = function(self)
 
 		bedHeight = math.max(0.0, bedHeight)
 
-		return smoothstep(
-			(y - bedHeight) / initialTransitionLength
-		)
+		return smoothstep((y - bedHeight) / initialTransitionLength)
 	end
 
 	local function initialAirWeight3d(x, y, z)
+	
+		if self.problem == "flatbed" then return 1.0 - flatBedC(z) end
 
-		if self.problem ~= "flow" then return 1.0 end
+		if self.problem == "avalanche" then return 1.0 end
 
 		local sigma = 5.0
 		local dx = math.abs((x - 20.0) / sigma)^2
@@ -877,21 +880,19 @@ myProblem.RegisterCallbacks = function(self)
 
 		bedHeight = math.max(0.0, bedHeight)
 
-		return smoothstep(
-			(z - bedHeight) / initialTransitionLength
-		)
+		return smoothstep( (z - bedHeight) / initialTransitionLength)
 	end
 	------------------------------------------------------------
 	-- Initial Velocity
 	------------------------------------------------------------
 
 	local function InitialU2d(x, y, t)
-		if self.problem ~= "flow" then return 0.0001 end
+		if self.problem == "avalanche" then return 0.0001 end
 		return inletSpeed(y) * initialAirWeight2d(x, y)
 	end
 
 	local function InitialU3d(x, y, z, t)
-		if self.problem ~= "flow" then return 0.0001 end
+		if self.problem == "avalanche" then return 0.0001 end
 		return inletSpeed(z) * initialAirWeight3d(x, y, z)
 	end
 	------------------------------------------------------------
@@ -907,6 +908,15 @@ myProblem.RegisterCallbacks = function(self)
 	------------------------------------------------------------
 	-- Volume Fraction
 	------------------------------------------------------------
+	local function flatBedC(z)
+		local h = self.H_0
+		local width = 0.5
+
+		local s = (z - h + 0.5*width) / width
+		s = math.max(0.0, math.min(1.0, s))
+
+		return 1.0 - s*s*(3.0 - 2.0*s)
+	end
 	local function InitialC2d(x, y)
 		local sigma = 5
         if self.problem == "flow" then
@@ -915,6 +925,9 @@ myProblem.RegisterCallbacks = function(self)
             if y > height then return 0.0 end
             return self.c_init
         end
+        if self.problem == "flatbed" then
+			return flatBedC(y)
+		end
 
         if (x > 0.2 and x < 0.4) or x > 0.8 then return 1.5e-3 end
         return 0.0
@@ -923,6 +936,9 @@ myProblem.RegisterCallbacks = function(self)
     local function InitialC3d(x, y, z)
 		local sigma = 5
         if self.problem == "avalanche" then return 0.0 end
+        if self.problem == "flatbed" then
+			return flatBedC(z)
+		end
         local dx = math.abs((x - 20.0) / sigma)^2
         local dy = math.abs(y / sigma)^2
         local height = self.H_0 * math.exp(-0.5*(dx + dy)^2) - 0.01
@@ -935,12 +951,12 @@ myProblem.RegisterCallbacks = function(self)
 	------------------------------------------------------------
 
 	local function InitialK2d(x, y, t)
-		if self.problem ~= "flow" then return InletK2d(x, y, t) end
+		if self.problem == "avalanche" then return InletK2d(x, y, t) end
 		return InletK2d(x, y, t) * initialAirWeight2d(x, y)+1e-05
 	end
 
 	local function InitialK3d(x, y, z, t)
-		if self.problem ~= "flow" then return InletK3d(x, y, z, t) end
+		if self.problem == "avalanche" then return InletK3d(x, y, z, t) end
 		return InletK3d(x, y, z, t) * initialAirWeight3d(x, y, z)+1e-05
 	end
 
@@ -949,7 +965,7 @@ myProblem.RegisterCallbacks = function(self)
 	------------------------------------------------------------
 
 	local function InitialOmega2d(x, y, t)
-		if self.problem ~= "flow" then return InletOmega2d(x, y, t) end
+		if self.problem == "avalanche" then return InletOmega2d(x, y, t) end
 
 		local weight = initialAirWeight2d(x, y)
 
@@ -957,7 +973,7 @@ myProblem.RegisterCallbacks = function(self)
 	end
 
 	local function InitialOmega3d(x, y, z, t)
-		if self.problem ~= "flow" then return InletOmega3d(x, y, z, t) end
+		if self.problem == "avalanche" then return InletOmega3d(x, y, z, t) end
 
 		local weight = initialAirWeight3d(x, y, z)
 
@@ -2484,7 +2500,7 @@ myProblem.SolveNonlinearProblemLimex = function (self, u, limex, NLSolver, time_
 	local Newton_Steps_fail = limex:get_failed_steps()
 	linsolver_calls_step = NLSolver:total_linsolver_calls()
 	linsolver_steps_step =  NLSolver:total_linsolver_steps()
-	limex:set_time_step(self.DTmax/(math.max(n_step-1,1)))
+	--limex:set_time_step(self.DTmax/(math.max(n_step-1,1)))
 	
 	if(time_step == 1) then
 		limex:set_dt_min(self.DTmin)
