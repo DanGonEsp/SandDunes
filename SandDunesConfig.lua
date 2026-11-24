@@ -2415,7 +2415,7 @@ myProblem.LimexObject = function ( self, domainDisc, limexNLSolver)
 	if self.VolErrorNorm == "L2" then
 		limexEstimator:add(L2ComponentSpace("c", 2, self.alphaVol))
 	elseif self.VolErrorNorm == "H1" then
-		limexEstimator:add(H1SemiComponentSpace("c", 2, self.alphaVol))
+		limexEstimator:add(H1SemiComponentSpace("c", 2, self.alphaVol),0.5)
 	else
 		print ("LimexErrorEstimator for VolumeFraction not defined"); exit();
 	end
