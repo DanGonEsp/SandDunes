@@ -120,10 +120,16 @@ function SaltationRelaxation.Validate(salt,vtk_folder)
 
     -- Visualize only the saltation solution
     local vtk = VTKOutput()
-    vtk_folder = vtk_folder or "."
-	vtk:print_subsets(vtk_folder .. "/SaltationValidation", q, "Bottom," .. salt.boundarySubsets, 0, 0.0)
+	vtk:select_nodal("q", "q")
 
-    print("SALT_VALIDATION_DONE")
+	vtk_folder = vtk_folder or "."
+	local filename = vtk_folder .. "/SaltationValidation"
+
+	print("SALT_VTK_OUTPUT: " .. filename)
+
+	vtk:print_subsets(filename, q, "Bottom", 0, 0.0)
+
+	print("SALT_VTK_DONE")
 end
 
 return SaltationRelaxation

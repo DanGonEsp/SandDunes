@@ -10,8 +10,7 @@ ug_load_script ("util/load_balancing_util.lua")
 ug_load_script("util/domain_disc_util.lua")
 ug_load_script("util/conv_rates_kinetic.lua")
 
-RequiredPlugins({"Limex", "NavierStokes"})
---RequiredPlugins({"Limex", "NavierStokes", "ConvectionDiffusion"})
+RequiredPlugins({"Limex", "NavierStokes", "ConvectionDiffusion"})
 
 local myProblem=require("SandDunesConfig")
 ------------------------------------------------------------------------------------------

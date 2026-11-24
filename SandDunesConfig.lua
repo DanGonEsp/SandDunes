@@ -1172,7 +1172,7 @@ myProblem.Clousures = function (self,u,Inner_total)
 	---------------------------------------------------------------------- SaltationFlux
 
 	
-	local function SaltCheckpoint(message)
+	--[[local function SaltCheckpoint(message)
 		local rank = ProcRank()
 		local file = assert(io.open(
 			string.format("saltation_rank_%d.log", rank), "a"
@@ -1181,7 +1181,7 @@ myProblem.Clousures = function (self,u,Inner_total)
 		file:write(message .. "\n")
 		file:flush()
 		file:close()
-	end
+	end]]
 	--local salt = SaltationRelaxationFV1(approxSpace, u)
 
 	--salt:set_bottom_subset("Bottom")
@@ -1195,17 +1195,12 @@ myProblem.Clousures = function (self,u,Inner_total)
 	-- solve the relaxation equation, and supply
 	-- the relaxed flux to the sand transport equation.
 	
-	--local SaltationRelaxation = require("SaltationRelaxation")
-
-	--local salt = SaltationRelaxation.Create(self.dom, self.dim)
-	
+	local SaltationRelaxation = require("SaltationRelaxation")
+	local salt = SaltationRelaxation.Create(self.dom, self.dim)
 	--SaltCheckpoint("BEFORE_SALT_SOLVE")
-
-	--SaltationRelaxation.Solve(salt)
-
+	SaltationRelaxation.Solve(salt)
 	--SaltCheckpoint("AFTER_SALT_SOLVE")
-	
-	--SaltationRelaxation.Validate(salt,self.folder_vtk)
+	SaltationRelaxation.Validate(salt,self.folder_vtk)
 	
 
 	--assert(loadfile("test_variable_qsat.lua"))(approxSpace, u)

@@ -8,7 +8,7 @@
 #SBATCH --ntasks-per-node=96
 #SBATCH --cpus-per-task=1
 #SBATCH --hint=nomultithread
-#SBATCH --time=24:00:00
+#SBATCH --time=23:59:59
 #SBATCH --output=/scratch/gonzald/SandDunes/Dune2d-%j.out
 #SBATCH --error=/scratch/gonzald/SandDunes/Dune2d-%j.err
 #SBATCH --mail-user=daniel.gonzalezesparza@kaust.edu.sa
@@ -37,7 +37,7 @@ ARGS=(
     -numTimeSteps 1000
     -outputFactor 10
     -DT 3600.0
-    -file_name Dune4
+    -DTLimex 1e-04
 )
 
 
