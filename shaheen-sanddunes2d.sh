@@ -35,7 +35,7 @@ ARGS=(
     -numRefs 7
     -numPreRefs 3
     -numTimeSteps 1000
-    -outputFactor 10
+    -output 10
     -DT 3600.0
     -DTLimex 1e-04
 )

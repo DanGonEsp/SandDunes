@@ -108,7 +108,7 @@ params =
 	--Output Data
 	boolData = util.GetParamBool("-boolData", false),
 	data_name = util.GetParam("-data_name", "Data"),
-	outputFactor     = util.GetParamNumber("-output", 1, "output every ... steps"),
+	output     = util.GetParamNumber("-output", 1, "output every ... steps"),
 	writeIntegral = util.GetParamBool("-writeIntegral", true),
 	boolLoadCheckPoint = util.GetParamBool("-boolLoadCheckPoint", true),
 	boolSaveCheckPoint = util.GetParamBool("-boolSaveCheckPoint", true),
@@ -156,7 +156,7 @@ params =
 	
 	
 	StepDebug = util.GetParamBool("-StepDebug", false),
-	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 5),
+	lambdamaxSteps = util.GetParamNumber("-lambdamaxSteps", 4),
 	lambdaStart  = util.GetParamNumber("-lambdaStart", 1.0),
 
 
@@ -201,7 +201,7 @@ params =
 	steadyStateOnly = util.GetParamBool("-steadyStateOnly", false),
 	boolSource = util.GetParamBool("-boolSource", false),
 	consistentRho_in_source = util.GetParamBool("-consistentRho_in_source", true),
-	boolRelativeVel = util.GetParamBool("-boolRelativeVel", true),
+	boolRelativeVel = util.GetParamBool("-boolRelativeVel", defaults.boolRelativeVel),
 	boolGradientPsSource = util.GetParamBool("-boolGradientPsSource", false),
 	boolViscPs = util.GetParamBool("-boolViscPs", true),
 	boolAveDiff = util.GetParamBool("-boolAveDiff", defaults.boolAveDiff),
@@ -470,7 +470,7 @@ if params.doSteadyState and step == 0 and not myProblem.loadedCheckPoint then
 	end
 	if params.turbViscMethod == "komegaSST" then
 		NewtonSolverSteady:add_step_update(myProblem.WallDistance)
-		myProblem.NavierStokesDisc:set_viscosity_continuation(0.05, 50, true)
+		myProblem.NavierStokesDisc:set_viscosity_continuation(1.0, 50, true)
 		NewtonSolverSteady:add_inner_step_update(myProblem.NavierStokesDisc)
 	end
 
@@ -575,8 +575,8 @@ end
 myProblem:UpdateParameters()
 -- write start solution
 if boolSolution == 1 then
-	if (step % params.outputFactor == 0 ) then
-		local vtkStep = math.floor(step / params.outputFactor)
+	if (step % params.output == 0 ) then
+		local vtkStep = math.floor(step / params.output)
 		print("Writing initial values")
 		out:print_subsets(vtk_file_name, u,geometry.allSubsets,vtkStep,time, true)
 		print ("Output to file " .. vtk_file_name .. ".vtu  in time t =" .. time)
@@ -598,7 +598,7 @@ else
 	print("++++++ SEADY STATE CALCULATION  FAILED ++++++")
 	print ("Failed Output file" .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
 	print(" ")
-	local vtkStep = math.floor(step / params.outputFactor)+1
+	local vtkStep = math.floor(step / params.output)+1
 	out:print_subsets(vtk_file_name, u,geometry.allSubsets,vtkStep,time, true)
 end
 
@@ -666,8 +666,8 @@ if boolSolution == 1 and not(params.steadyStateOnly) then
 		
 		if boolSolution == 1 then
 		
-			if (step % params.outputFactor == 0 ) then
-				local vtkStep = math.floor(step / params.outputFactor)
+			if (step % params.output == 0 ) then
+				local vtkStep = math.floor(step / params.output)
 				out:print_subsets(vtk_file_name, u,geometry.allSubsets,vtkStep,time)
 				print ("Output to file " .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
 				print(" ")
@@ -712,7 +712,7 @@ if boolSolution == 1 and not(params.steadyStateOnly) then
 						
 		else
 			print("++++++ TIMESTEP " .. step .. "  FAILED ++++++")
-			local vtkStep = math.floor(step / params.outputFactor)
+			local vtkStep = math.floor(step / params.output)
 			out:print_subsets(vtk_file_name, u,geometry.allSubsets,vtkStep,time)
 			print ("Failed Output file" .. vtk_file_name .. ".vtu  in time t =  " .. time .. "  Step = " .. step .. ".")
 			print("++++++ TIMESTEP " .. step .. "  FAILED ++++++")

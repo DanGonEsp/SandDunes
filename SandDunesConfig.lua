@@ -34,7 +34,7 @@ myProblem.Init = function(self, o)
 		--Output Data
 	self.boolData = o.boolData
 	self.data_name = o.data_name
-	self.outputFactor = o.outputFactor
+	self.output = o.output
 	self.writeIntegral = o.writeIntegral
 	self.boolLoadCheckPoint = o.boolLoadCheckPoint
 	self.boolSaveCheckPoint = o.boolSaveCheckPoint
@@ -298,15 +298,15 @@ myProblem.GetCaseDefaults = function(self, problem)
 			alphaVel = 1e-15,
 			alphaPress = 0.5e-15,
 			
-			doSteadyState = false,
+			doSteadyState = true,
 			turbViscMethod = "komegaSST",
-			boolRelativeVel = false,
+			boolRelativeVel = true,
 			boolSaltationFlux = false,
 			boolSlipDiff = false,
 			boolSlipVel = false,
-			boolAveDiff = false,
+			boolAveDiff = true,
 			boolFixVel = false,
-			boolFixVol = true,
+			boolFixVol = false,
 			boolAveNormal = true,
 		
 			rap = true,
@@ -316,8 +316,8 @@ myProblem.GetCaseDefaults = function(self, problem)
 			
 			linear_solver_Imp = "bicgStab",
 			smootherImp = "ilu",
-			orderingImp = "none",
-			pre_smoothImp = 1,
+			orderingImp = "boost",
+			pre_smoothImp = 2,
 			post_smoothImp = 2,
 			baseSolverImp = "SuperLu",
 			LinAbsDefectImp = 1e-08,
@@ -325,8 +325,8 @@ myProblem.GetCaseDefaults = function(self, problem)
 			
 			linear_solver_Lim = "bicgStab",
 			smootherLim = "ilu",
-			orderingLim = "none",
-			pre_smoothLim = 1,
+			orderingLim = "boost",
+			pre_smoothLim = 2,
 			post_smoothLim = 2,
 			baseSolverLim = "SuperLu",
 			LinAbsDefectLim = 1e-12,
@@ -778,16 +778,40 @@ myProblem.RegisterCallbacks = function(self)
 	local z0 = self.roughness_length
 	local zref = 20.0
 
-	local uStar = kappa * self.inflow / math.log(1.0 + zref/z0)
+	local uStar = kappa * self.inflow / math.log(1.0 + (zref - (self.problem == "flatbed" and self.H_0 or 0.0))/z0)
 
 	local function inletSpeed(height)
 		if self.problem == "avalanche" then return 0.0 end
+
+		if self.problem == "flatbed" then
+			height = math.max(height - self.H_0, 0.0)
+		end
+
 		if height <= 0.0 then return 0.0 end
+
 		return (uStar/kappa) * math.log(1.0 + height/z0)
 	end
 	local function InflowVel2d(x, y, t) return inletSpeed(y), 0.0 end
 	local function InflowVel3d(x, y, z, t) return inletSpeed(z), 0.0, 0.0 end
 	
+	------------------------------------------------------------
+	-- Volume Fraction
+	------------------------------------------------------------
+	local function flatBedC(z)
+		local h = self.H_0
+		local width = 0.5
+
+		local s = (z - h + 0.5*width) / width
+		s = math.max(0.0, math.min(1.0, s))
+
+		return 1.0 - s*s*(3.0 - 2.0*s)
+	end
+	local function FlatBedC2d(x, y, t) return flatBedC(y) end
+	local function FlatBedC3d(x, y, z, t) return flatBedC(z) end
+	
+	------------------------------------------------------------
+	-- Pressure
+	------------------------------------------------------------
 	-- Smooth initial pressure near the dune
 	local function initialPressure(x)
 		x0=0
@@ -811,20 +835,35 @@ myProblem.RegisterCallbacks = function(self)
     end
     
 	local function InletK2d(x, y, t)
-		return uStar*uStar / math.sqrt(betaStar)
+		local k = uStar*uStar / math.sqrt(betaStar)
+		if self.problem == "flatbed" then
+			return k * (1.0 - flatBedC(y))
+		end
+		return k
 	end
 
 	local function InletK3d(x, y, z, t)
-		return uStar*uStar / math.sqrt(betaStar)
+		local k = uStar*uStar / math.sqrt(betaStar)
+		if self.problem == "flatbed" then
+			return k * (1.0 - flatBedC(z))
+		end
+		return k
 	end
 
 	local function InletOmega2d(x, y, t)
-		return uStar / (kappa * math.sqrt(betaStar) * (math.max(y, 0.0) + z0))
+		if self.problem == "flatbed" then
+			y = math.max(y - self.H_0, 0.0)
+		end
+		return uStar / (kappa * math.sqrt(betaStar) * (y + z0))
 	end
 
 	local function InletOmega3d(x, y, z, t)
-		return uStar / (kappa * math.sqrt(betaStar) * (math.max(z, 0.0) + z0))
+		if self.problem == "flatbed" then
+			z = math.max(z - self.H_0, 0.0)
+		end
+		return uStar / (kappa * math.sqrt(betaStar) * (z + z0))
 	end
+	
 	local function WallDistance2d(x, y, t)
 		local lowerWallY = 0.0
 		local dLower = y - lowerWallY
@@ -908,15 +947,6 @@ myProblem.RegisterCallbacks = function(self)
 	------------------------------------------------------------
 	-- Volume Fraction
 	------------------------------------------------------------
-	local function flatBedC(z)
-		local h = self.H_0
-		local width = 0.5
-
-		local s = (z - h + 0.5*width) / width
-		s = math.max(0.0, math.min(1.0, s))
-
-		return 1.0 - s*s*(3.0 - 2.0*s)
-	end
 	local function InitialC2d(x, y)
 		local sigma = 5
         if self.problem == "flow" then
@@ -952,12 +982,14 @@ myProblem.RegisterCallbacks = function(self)
 
 	local function InitialK2d(x, y, t)
 		if self.problem == "avalanche" then return InletK2d(x, y, t) end
+		if self.problem == "flatbed" then return InletK2d(x, y, t) + 1.0e-5 end
 		return InletK2d(x, y, t) * initialAirWeight2d(x, y)+1e-05
 	end
 
 	local function InitialK3d(x, y, z, t)
 		if self.problem == "avalanche" then return InletK3d(x, y, z, t) end
-		return InletK3d(x, y, z, t) * initialAirWeight3d(x, y, z)+1e-05
+		if self.problem == "flatbed" then return InletK3d(x, y, z, t) + 1.0e-5 end
+		return InletK3d(x, y, z, t) * initialAirWeight3d(x, y, z) + 1e-05
 	end
 
 	------------------------------------------------------------
@@ -988,6 +1020,7 @@ myProblem.RegisterCallbacks = function(self)
 		_G.InitialOmega = InitialOmega2d
 		
 		_G.SandInflow = InflowVel2d
+		_G.FlatBedC = FlatBedC2d
 		_G.InletK = InletK2d
 		_G.InletOmega = InletOmega2d
         _G.SandTopFlux = topFlux2d
@@ -1001,6 +1034,7 @@ myProblem.RegisterCallbacks = function(self)
 		_G.InitialOmega = InitialOmega3d
 		
 		_G.SandInflow = InflowVel3d
+		_G.FlatBedC = FlatBedC3d
 		_G.InletK = InletK3d
 		_G.InletOmega = InletOmega3d
         _G.SandTopFlux = topFlux3d
@@ -1463,7 +1497,35 @@ myProblem.CreateBoundaryConditions = function(self, NavierStokesDisc, geometry)
         end
 		
         table.insert(boundaries, dirichlet)
-	else
+	elseif self.problem == "flatbed" then
+	
+		inlet:add("SandInflow", "SandInflow", "Left,Top")
+        if self.dim == 3 then
+			inlet:add("SandInflow", "SandInflow", "Back,Front")
+        end
+		table.insert(boundaries, inlet)
+		
+		local outlet = NavierStokesNoNormalStressOutflowFV1M(NavierStokesDisc)
+        outlet:add("Right")
+        outlet:set_phase_parameters(self.InterfaceValues)
+        table.insert(boundaries, outlet)
+        
+		local wall = NavierStokesWall(NavierStokesDisc)
+		wall:add("Bottom,BottomLeft,BottomRight")
+		if self.dim == 3 then
+			wall:add("BottomFront,BottomBack")
+        end
+		table.insert(boundaries, wall)
+		
+		dirichlet:add("FlatBedC", "c", "Left")
+		dirichlet:add(0.0, "c", "Top")
+		if self.dim == 3 then
+			dirichlet:add(0.0, "c", "Back,Front")
+        end
+		
+        table.insert(boundaries, dirichlet)
+		
+	elseif self.problem == "avalanche" then
 		inlet:add("SandInflow", "SandInflow", geometry.boundaries)
 		table.insert(boundaries, inlet)
 		
@@ -1496,12 +1558,14 @@ myProblem.CreateBoundaryConditions = function(self, NavierStokesDisc, geometry)
 
         table.insert(boundaries, dirichlet)
         table.insert(boundaries, neumann)
+	else
+		print ("Problem setting not available"); exit();
 	end
 
 
     if self.turbViscMethod=="komegaSST" then
 		local RANSBnd = DirichletBoundary()
-		if self.problem == "flow" then
+		if self.problem == "flow" or self.problem == "flatbed" then
 			RANSBnd:add("InletK","k", "Left,Top")
 			RANSBnd:add("InletOmega", "omega", "Left,Top")
 			if self.dim == 3 then
@@ -1518,6 +1582,14 @@ myProblem.CreateBoundaryConditions = function(self, NavierStokesDisc, geometry)
 			
 			RANSBnd:add("InletK", "k", "Right")
 			RANSBnd:add("InletOmega", "omega", "Right")
+			
+			--local neumannK = NeumannBoundaryFV1("k")
+			--neumannK:add(0.0, "Right", "Inner,Inner2")
+			--table.insert(boundaries, neumannK)
+
+			--local neumannOmega = NeumannBoundaryFV1("omega")
+			--neumannOmega:add(0.0, "Right", "Inner,Inner2")
+			--table.insert(boundaries, neumannOmega)
 			
 			
 		else
@@ -1872,7 +1944,7 @@ myProblem.CreateSolver = function (self, domainDisc)
 					
 	end
 	TransientNewtonUpdaterSteady = nil
-	if (self.NewtonUpdaterSteady and self.turbViscMethod == "komegaSST")then
+	if (self.doSteadyState and self.NewtonUpdaterSteady and self.turbViscMethod == "komegaSST")then
 		TransientNewtonUpdaterSteady = NewtonUpdaterProjection()
 		TransientNewtonUpdaterSteady:add_projection(self.dim+2, 0.0, 1e20) -- k
 		TransientNewtonUpdaterSteady:add_projection(self.dim+3, 1e-38, 1e20) -- omega
